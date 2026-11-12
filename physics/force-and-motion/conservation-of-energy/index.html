@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="../../../assets/sim-early.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Conservation of Energy · PhySim</title>
+    <link rel="stylesheet" href="../../../assets/vendor/tailwind.css">
+    <style>
+        /* Reset and Base Styles */
+        html, body {
+            height: 100%;
+            width: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden; /* Prevent body scroll */
+            background-color: #0f172a; /* slate-900 */
+        }
+
+        /* Custom Range Inputs */
+        input[type=range] {
+            -webkit-appearance: none; 
+            background: transparent; 
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 16px;
+            width: 16px;
+            border-radius: 50%;
+            background: #3b82f6;
+            margin-top: -6px;
+            cursor: pointer;
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: #e2e8f0;
+            border-radius: 2px;
+        }
+
+        /* Hide Scrollbars */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        /* Canvas Styles */
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+<link rel="icon" href="../../../favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../../../assets/sim.css">
+</head>
+<body>
+
+    <!-- Main Application Wrapper: Fixed to viewport -->
+    <div class="fixed inset-0 flex flex-col bg-slate-50">
+
+        <!-- Header / Controls (Fixed Height) -->
+        <div class="flex-none bg-white border-b border-slate-200 shadow-sm z-20">
+            <div class="flex flex-col md:flex-row gap-3 p-3 items-center justify-between">
+                
+                <!-- Title -->
+                <div class="flex flex-col items-center md:items-start shrink-0">
+                    <h1 class="text-lg font-bold text-slate-900 leading-tight">Conservation of Energy</h1>
+                    <p class="text-[10px] text-slate-500 font-medium">Block on an Inclined Plane</p>
+                </div>
+
+                <!-- Sliders Container -->
+                <div class="flex-1 w-full md:w-auto flex flex-wrap justify-center gap-4 bg-slate-50 px-4 py-2 rounded-lg border border-slate-100">
+                    <!-- Angle -->
+                    <div class="flex flex-col w-[100px] md:w-[120px]">
+                        <label class="flex justify-between text-[10px] font-bold text-slate-600 mb-1">
+                            Angle (&theta;) <span id="val-angle" class="text-blue-600">30°</span>
+                        </label>
+                        <input type="range" id="angle" min="10" max="80" value="30" class="w-full">
+                    </div>
+                    <!-- Friction -->
+                    <div class="flex flex-col w-[100px] md:w-[120px]">
+                        <label class="flex justify-between text-[10px] font-bold text-slate-600 mb-1">
+                            Friction (&mu;) <span id="val-friction" class="text-blue-600">0.00</span>
+                        </label>
+                        <input type="range" id="friction" min="0" max="0.8" step="0.05" value="0.0" class="w-full">
+                    </div>
+                    <!-- Mass -->
+                    <div class="flex flex-col w-[100px] md:w-[120px]">
+                        <label class="flex justify-between text-[10px] font-bold text-slate-600 mb-1">
+                            Mass (kg) <span id="val-mass" class="text-blue-600">2.0</span>
+                        </label>
+                        <input type="range" id="mass" min="0.5" max="10" step="0.5" value="2.0" class="w-full">
+                    </div>
+                </div>
+
+                <!-- Buttons -->
+                <div class="flex gap-2 shrink-0">
+                    <button id="btn-start" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded font-bold text-xs shadow-sm transition-colors w-20">
+                        Start
+                    </button>
+                    <button id="btn-reset" class="bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 px-4 py-2 rounded font-bold text-xs shadow-sm transition-colors w-20">
+                        Reset
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Workspace (Fills remaining height) -->
+        <!-- min-h-0 is CRITICAL for nested flex scrolling/sizing -->
+        <div class="flex-1 flex flex-col md:flex-row min-h-0 overflow-hidden bg-slate-100 p-2 gap-2">
+            
+            <!-- Left Panel: Simulation (40%) -->
+            <div style="flex: 4;" class="flex flex-col bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden relative min-w-0">
+                <!-- Overlay Info -->
+                <div class="absolute top-3 right-3 z-10 bg-white/90 backdrop-blur border border-slate-200 rounded px-2 py-1 shadow-sm pointer-events-none">
+                    <div class="text-[10px] font-bold text-slate-400 uppercase">Status</div>
+                    <div id="sim-stats" class="text-xs font-mono font-bold text-slate-800">t: 0.00s</div>
+                </div>
+                
+                <!-- Canvas Container -->
+                <div id="sim-container" class="flex-1 min-h-0 relative w-full">
+                    <canvas id="sim-canvas"></canvas>
+                </div>
+            </div>
+
+            <!-- Right Panel: Graph (60%) -->
+            <div style="flex: 6;" class="flex flex-col bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden relative min-w-0">
+                
+                <!-- Graph Toolbar -->
+                <div class="flex-none flex items-center justify-between p-2 border-b border-slate-100 bg-slate-50/50">
+                    <!-- Toggle -->
+                    <div class="flex bg-white rounded border border-slate-200 p-0.5 shadow-sm">
+                        <button id="btn-mode-time" class="px-3 py-1 text-[10px] font-bold rounded bg-blue-100 text-blue-700 uppercase">Time</button>
+                        <button id="btn-mode-dist" class="px-3 py-1 text-[10px] font-bold rounded text-slate-500 hover:bg-slate-100 uppercase">Dist</button>
+                    </div>
+
+                    <!-- Legend -->
+                    <div class="flex items-center gap-3 overflow-x-auto no-scrollbar">
+                         <label class="flex items-center gap-1.5 cursor-pointer select-none whitespace-nowrap">
+                            <input type="checkbox" id="chk-pe" class="w-3 h-3 text-blue-600 rounded border-gray-300 focus:ring-blue-500">
+                            <span class="w-2 h-2 rounded-full bg-blue-500"></span>
+                            <span class="text-[10px] font-bold text-slate-600">PE</span>
+                        </label>
+                        <label class="flex items-center gap-1.5 cursor-pointer select-none whitespace-nowrap">
+                            <input type="checkbox" id="chk-ke" class="w-3 h-3 text-green-500 rounded border-gray-300 focus:ring-green-500">
+                            <span class="w-2 h-2 rounded-full bg-green-500"></span>
+                            <span class="text-[10px] font-bold text-slate-600">KE</span>
+                        </label>
+                        <label class="flex items-center gap-1.5 cursor-pointer select-none whitespace-nowrap">
+                            <input type="checkbox" id="chk-tme" class="w-3 h-3 text-purple-500 rounded border-gray-300 focus:ring-purple-500">
+                            <span class="w-2 h-2 rounded-full bg-purple-500"></span>
+                            <span class="text-[10px] font-bold text-slate-600">TME</span>
+                        </label>
+                        <label class="flex items-center gap-1.5 cursor-pointer select-none whitespace-nowrap">
+                            <input type="checkbox" id="chk-thermal" class="w-3 h-3 text-red-500 rounded border-gray-300 focus:ring-red-500">
+                            <span class="w-2 h-2 rounded-full bg-red-500"></span>
+                            <span class="text-[10px] font-bold text-slate-600">Heat</span>
+                        </label>
+                        <label class="flex items-center gap-1.5 cursor-pointer select-none whitespace-nowrap">
+                            <input type="checkbox" id="chk-total" class="w-3 h-3 text-slate-800 rounded border-gray-300 focus:ring-slate-800">
+                            <span class="w-2 h-2 rounded-full bg-slate-800"></span>
+                            <span class="text-[10px] font-bold text-slate-600">Total</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Canvas Container -->
+                <div id="graph-container" class="flex-1 min-h-0 relative w-full">
+                    <canvas id="graph-canvas"></canvas>
+                </div>
+            </div>
+
+        </div>
+
+    </div>
+
+<script>
+/**
+ * Physics Simulation Engine
+ */
+const GRAVITY = 9.81;
+const FIXED_HEIGHT = 4.0; // meters
+const TIME_SCALE = 0.5;   // Run at 50% speed for better visual perception of acceleration
+
+// State
+let state = {
+    running: false,
+    finished: false,
+    time: 0,
+    angle: 30,      
+    friction: 0.0,
+    mass: 2.0,      
+    slopeLength: 0, 
+    position: 0,    
+    velocity: 0,    
+    data: [],       
+    graphMode: 'time', 
+    show: {         
+        pe: false,
+        ke: false,
+        tme: false,
+        thermal: false,
+        total: false
+    }
+};
+
+// DOM Elements
+const canvasSim = document.getElementById('sim-canvas');
+const ctxSim = canvasSim.getContext('2d');
+const canvasGraph = document.getElementById('graph-canvas');
+const ctxGraph = canvasGraph.getContext('2d');
+
+const elAngle = document.getElementById('angle');
+const elFriction = document.getElementById('friction');
+const elMass = document.getElementById('mass');
+const valAngle = document.getElementById('val-angle');
+const valFriction = document.getElementById('val-friction');
+const valMass = document.getElementById('val-mass');
+const btnStart = document.getElementById('btn-start');
+const btnReset = document.getElementById('btn-reset');
+const elStats = document.getElementById('sim-stats');
+const btnModeTime = document.getElementById('btn-mode-time');
+const btnModeDist = document.getElementById('btn-mode-dist');
+
+const chkPe = document.getElementById('chk-pe');
+const chkKe = document.getElementById('chk-ke');
+const chkTme = document.getElementById('chk-tme');
+const chkThermal = document.getElementById('chk-thermal');
+const chkTotal = document.getElementById('chk-total');
+
+// Handlers
+function updateVisibility() {
+    state.show.pe = chkPe.checked;
+    state.show.ke = chkKe.checked;
+    state.show.tme = chkTme.checked;
+    state.show.thermal = chkThermal.checked;
+    state.show.total = chkTotal.checked;
+    drawGraph();
+}
+
+[chkPe, chkKe, chkTme, chkThermal, chkTotal].forEach(el => {
+    el.addEventListener('change', updateVisibility);
+    el.checked = false; // reset on load
+});
+
+// Resizing
+function resizeCanvas() {
+    // Robust resize: get size from CSS layout, set internal size
+    const dpr = window.devicePixelRatio || 1;
+    
+    [ {c: canvasSim, id: 'sim-container'}, {c: canvasGraph, id: 'graph-container'} ].forEach(item => {
+        const rect = document.getElementById(item.id).getBoundingClientRect();
+        // IMPORTANT: Set raw pixel dimensions to match display size * pixel density
+        item.c.width = rect.width * dpr;
+        item.c.height = rect.height * dpr;
+        
+        // Reset transform to identity then scale
+        const ctx = item.c.getContext('2d');
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.scale(dpr, dpr);
+    });
+
+    drawSim();
+    drawGraph();
+}
+// Listen to resize and orientation change
+window.addEventListener('resize', resizeCanvas);
+window.addEventListener('orientationchange', () => { setTimeout(resizeCanvas, 100); });
+
+function updateUIValues() {
+    state.angle = parseFloat(elAngle.value);
+    state.friction = parseFloat(elFriction.value);
+    state.mass = parseFloat(elMass.value);
+
+    // L = H / sin(theta)
+    const thetaRad = state.angle * Math.PI / 180;
+    state.slopeLength = FIXED_HEIGHT / Math.sin(thetaRad);
+
+    valAngle.textContent = state.angle + '°';
+    valFriction.textContent = state.friction.toFixed(2);
+    valMass.textContent = state.mass.toFixed(1);
+
+    // Initial draw will happen via resetSim
+    if (!state.running && state.time === 0) {
+        // Redraw to reflect slider changes immediately if paused/reset
+        // But we rely on resetSim for data update usually
+    }
+}
+
+function setGraphMode(mode) {
+    state.graphMode = mode;
+    const activeClass = "px-3 py-1 text-[10px] font-bold rounded bg-blue-100 text-blue-700 uppercase";
+    const inactiveClass = "px-3 py-1 text-[10px] font-bold rounded text-slate-500 hover:bg-slate-100 uppercase";
+    
+    if (mode === 'time') {
+        btnModeTime.className = activeClass;
+        btnModeDist.className = inactiveClass;
+    } else {
+        btnModeTime.className = inactiveClass;
+        btnModeDist.className = activeClass;
+    }
+    drawGraph();
+}
+
+btnModeTime.addEventListener('click', () => setGraphMode('time'));
+btnModeDist.addEventListener('click', () => setGraphMode('dist'));
+
+[elAngle, elFriction, elMass].forEach(el => {
+    el.addEventListener('input', () => { 
+        updateUIValues(); 
+        resetSim(); 
+    });
+});
+
+btnStart.addEventListener('click', () => {
+    if (state.finished) resetSim();
+    state.running = !state.running;
+    btnStart.textContent = state.running ? "Pause" : "Resume";
+    
+    if (state.running) {
+        lastTime = 0;
+        requestAnimationFrame(loop);
+    }
+});
+
+btnReset.addEventListener('click', resetSim);
+
+function resetSim() {
+    state.running = false;
+    state.finished = false;
+    state.time = 0;
+    state.position = 0;
+    state.velocity = 0;
+    state.data = [];
+    
+    btnStart.textContent = "Start";
+    
+    calculateEnergies(); // Initial point
+    drawSim();
+    drawGraph();
+}
+
+let lastTime = 0;
+function loop(timestamp) {
+    if (!state.running) return;
+
+    if (!lastTime) lastTime = timestamp;
+    const dt = Math.min((timestamp - lastTime) / 1000, 0.1);
+    lastTime = timestamp;
+
+    if (!isNaN(dt)) {
+        updatePhysics(dt);
+        drawSim();
+        drawGraph();
+    }
+
+    if (state.running) requestAnimationFrame(loop);
+}
+
+function updatePhysics(dt) {
+    if (state.finished) return;
+
+    const thetaRad = state.angle * Math.PI / 180;
+    
+    // Forces
+    const fGravityParallel = state.mass * GRAVITY * Math.sin(thetaRad);
+    const fNormal = state.mass * GRAVITY * Math.cos(thetaRad);
+    const fFriction = state.friction * fNormal;
+    
+    let fNet = fGravityParallel - fFriction;
+    if (fNet <= 0) fNet = 0;
+
+    const accel = fNet / state.mass;
+
+    // Use TIME_SCALE for visual slowing, but calculations remain physically consistent
+    // because graphs plot against 'state.time' which is the simulation time.
+    state.time += dt * TIME_SCALE;
+
+    // Kinematics
+    state.velocity = accel * state.time;
+    state.position = 0.5 * accel * state.time * state.time;
+
+    if (state.position >= state.slopeLength) {
+        state.position = state.slopeLength;
+        if (accel > 0) {
+            state.velocity = Math.sqrt(2 * accel * state.slopeLength);
+            state.time = state.velocity / accel;
+        }
+        state.running = false;
+        state.finished = true;
+        btnStart.textContent = "Restart";
+    }
+
+    calculateEnergies();
+    elStats.textContent = `t: ${state.time.toFixed(2)}s | v: ${state.velocity.toFixed(2)}m/s`;
+}
+
+function calculateEnergies() {
+    const thetaRad = state.angle * Math.PI / 180;
+    // h = (L - x)sin(theta)
+    const height = (state.slopeLength - state.position) * Math.sin(thetaRad);
+    
+    const pe = state.mass * GRAVITY * height;
+    const ke = 0.5 * state.mass * state.velocity * state.velocity;
+    const tme = pe + ke;
+    
+    const fNormal = state.mass * GRAVITY * Math.cos(thetaRad);
+    const fFriction = state.friction * fNormal;
+    const thermal = fFriction * state.position;
+    
+    const total = pe + ke + thermal;
+
+    state.data.push({ t: state.time, pos: state.position, pe, ke, tme, thermal, total });
+}
+
+function drawSim() {
+    const rect = canvasSim.getBoundingClientRect();
+    const w = rect.width;
+    const h = rect.height;
+    
+    ctxSim.clearRect(0, 0, w, h);
+    
+    const thetaRad = state.angle * Math.PI / 180;
+
+    // Padding
+    const p = { t: 40, b: 20, l: 30, r: 30 };
+    const availW = w - p.l - p.r;
+    const availH = h - p.t - p.b;
+
+    // We draw a triangle. Height is fixed in physics (4m), but visual scale depends on aspect.
+    // Base = 4 / tan(theta).
+    // Let's maximize fit.
+    const phyH = 4.0;
+    const phyBase = 4.0 / Math.tan(thetaRad);
+    
+    // Scale factor
+    const scaleX = availW / phyBase;
+    const scaleY = availH / phyH;
+    const scale = Math.min(scaleX, scaleY);
+    
+    const drawBase = phyBase * scale;
+    const drawH = phyH * scale;
+    
+    // Anchor bottom-left
+    const startX = p.l;
+    const startY = h - p.b;
+    
+    // Triangle
+    ctxSim.beginPath();
+    ctxSim.moveTo(startX, startY - drawH); // Top Left
+    ctxSim.lineTo(startX + drawBase, startY); // Bottom Right
+    ctxSim.lineTo(startX, startY); // Bottom Left
+    ctxSim.closePath();
+    
+    ctxSim.fillStyle = '#e2e8f0';
+    ctxSim.fill();
+    ctxSim.lineWidth = 2;
+    ctxSim.strokeStyle = '#94a3b8';
+    ctxSim.stroke();
+    
+    // Friction marks
+    if (state.friction > 0) {
+        ctxSim.beginPath();
+        ctxSim.strokeStyle = 'rgba(0,0,0,0.2)';
+        ctxSim.lineWidth = 1;
+        const hyp = Math.sqrt(drawBase**2 + drawH**2);
+        for(let i=0; i<hyp; i+=10) {
+             const r = i/hyp;
+             const mx = startX + r*drawBase;
+             const my = (startY - drawH) + r*drawH;
+             ctxSim.moveTo(mx, my);
+             ctxSim.lineTo(mx+3, my+3);
+        }
+        ctxSim.stroke();
+    }
+    
+    // Box
+    const boxSize = 25; // px
+    const r = state.position / state.slopeLength;
+    const bx = startX + r * drawBase;
+    const by = (startY - drawH) + r * drawH;
+    
+    ctxSim.save();
+    ctxSim.translate(bx, by);
+    ctxSim.rotate(thetaRad);
+    
+    ctxSim.fillStyle = '#3b82f6';
+    ctxSim.fillRect(-boxSize/2, -boxSize, boxSize, boxSize);
+    ctxSim.strokeStyle = '#1e3a8a';
+    ctxSim.strokeRect(-boxSize/2, -boxSize, boxSize, boxSize);
+    
+    // dot
+    ctxSim.fillStyle = 'white';
+    ctxSim.beginPath();
+    ctxSim.arc(0, -boxSize/2, 2, 0, Math.PI*2);
+    ctxSim.fill();
+    
+    ctxSim.restore();
+}
+
+function drawGraph() {
+    const rect = canvasGraph.getBoundingClientRect();
+    const w = rect.width;
+    const h = rect.height;
+    ctxGraph.clearRect(0, 0, w, h);
+    
+    // Always draw axes/grid, even if data is minimal
+    
+    const p = { t: 20, b: 50, l: 50, r: 20 }; // Increased bottom padding to 50
+    const gw = w - p.l - p.r;
+    const gh = h - p.t - p.b;
+    
+    const isTime = state.graphMode === 'time';
+    
+    // X Scale
+    let maxX = isTime ? 5.0 : state.slopeLength;
+    if (isTime && state.time > 4.5) maxX = state.time + 1.0;
+    if (!isTime && maxX < 1) maxX = 1;
+    
+    // Y Scale (Nice numbers)
+    // Max Energy = m*g*h
+    const rawMax = state.mass * GRAVITY * FIXED_HEIGHT * 1.1; // 10% padding
+    
+    // Calculate nice step
+    const roughStep = rawMax / 5;
+    const mag = Math.pow(10, Math.floor(Math.log10(roughStep)));
+    let norm = roughStep / mag;
+    let nice = 1;
+    if (norm > 1.5) nice = 2;
+    if (norm > 3) nice = 5;
+    if (norm > 7) nice = 10;
+    const step = nice * mag;
+    const maxY = step * 5; // 5 ticks
+    
+    const toX = (v) => p.l + (v / maxX) * gw;
+    const toY = (v) => (h - p.b) - (v / maxY) * gh;
+    
+    // Axes
+    ctxGraph.beginPath();
+    ctxGraph.strokeStyle = '#cbd5e1';
+    ctxGraph.lineWidth = 1;
+    ctxGraph.moveTo(p.l, p.t);
+    ctxGraph.lineTo(p.l, h - p.b); // Y
+    ctxGraph.lineTo(w - p.r, h - p.b); // X
+    ctxGraph.stroke();
+    
+    // Ticks & Grid
+    ctxGraph.font = "bold 10px sans-serif";
+    ctxGraph.fillStyle = "#64748b";
+    ctxGraph.textAlign = "right";
+    ctxGraph.textBaseline = "middle";
+    
+    // Y Axis
+    for(let i=0; i<=5; i++) {
+        const v = step * i;
+        const y = toY(v);
+        ctxGraph.fillText(v.toFixed(0), p.l - 5, y);
+        
+        ctxGraph.beginPath();
+        ctxGraph.strokeStyle = '#f1f5f9';
+        ctxGraph.moveTo(p.l, y);
+        ctxGraph.lineTo(w-p.r, y);
+        ctxGraph.stroke();
+    }
+    
+    // X Axis
+    ctxGraph.textAlign = "center";
+    ctxGraph.textBaseline = "top";
+    for(let i=0; i<=5; i++) {
+        const v = maxX * (i/5);
+        const x = toX(v);
+        ctxGraph.fillText(v.toFixed(1), x, h - p.b + 5);
+        
+        if (i>0) {
+            ctxGraph.beginPath();
+            ctxGraph.strokeStyle = '#f1f5f9';
+            ctxGraph.moveTo(x, h-p.b);
+            ctxGraph.lineTo(x, p.t);
+            ctxGraph.stroke();
+        }
+    }
+    
+    // Labels
+    ctxGraph.save();
+    ctxGraph.fillStyle = "#334155";
+    ctxGraph.font = "bold 11px sans-serif";
+    
+    // Y Label
+    ctxGraph.translate(12, h/2);
+    ctxGraph.rotate(-Math.PI/2);
+    ctxGraph.textAlign = "center";
+    ctxGraph.fillText("Energy (J)", 0, 0);
+    ctxGraph.restore();
+    
+    // X Label
+    ctxGraph.textAlign = "center";
+    ctxGraph.fillText(isTime ? "Time (s)" : "Distance (m)", p.l + gw/2, h - 10);
+    
+    // Data Lines
+    if (state.data.length === 0) return;
+
+    function plot(key, color) {
+        if (state.data.length === 1) {
+             // Draw single point
+             const d = state.data[0];
+             const px = toX(isTime ? d.t : d.pos);
+             const py = toY(d[key]);
+             ctxGraph.fillStyle = color;
+             ctxGraph.beginPath();
+             ctxGraph.arc(px, py, 3, 0, Math.PI*2);
+             ctxGraph.fill();
+        } else {
+             // Draw line
+             ctxGraph.beginPath();
+             ctxGraph.strokeStyle = color;
+             ctxGraph.lineWidth = 2;
+             let first = true;
+             for(let d of state.data) {
+                 const xVal = isTime ? d.t : d.pos;
+                 const px = toX(xVal);
+                 const py = toY(d[key]);
+                 if (first) { ctxGraph.moveTo(px, py); first=false; }
+                 else ctxGraph.lineTo(px, py);
+             }
+             ctxGraph.stroke();
+        }
+    }
+    
+    if (state.show.pe) plot('pe', '#3b82f6');
+    if (state.show.ke) plot('ke', '#22c55e');
+    if (state.show.tme) plot('tme', '#a855f7');
+    if (state.show.thermal) plot('thermal', '#ef4444');
+    if (state.show.total) plot('total', '#1e293b');
+}
+
+// Boot
+resizeCanvas();
+updateUIValues();
+resetSim(); // Initialize data so graph shows starting state
+</script>
+<script src="../../../assets/sim.js" data-root="../../../#force-and-motion"></script>
+</body>
+</html>

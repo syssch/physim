@@ -1,0 +1,42 @@
+/* Shared mobile baseline for every PhySim simulation */
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+button, select, label, a, input[type=checkbox], input[type=radio] { touch-action: manipulation; }
+input[type=range] { touch-action: pan-y; }
+@media (pointer: coarse) {
+  input[type=range] { min-height: 28px; }
+}
+.physim-home {
+  position: fixed; left: 10px; bottom: 10px; z-index: 2147483000;
+  display: flex; align-items: center; gap: 6px;
+  height: 36px; padding: 0 12px 0 10px; border-radius: 18px;
+  background: rgba(15, 23, 42, .78); color: #fff !important;
+  font: 600 13px/1 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  text-decoration: none !important; box-shadow: 0 2px 8px rgba(0,0,0,.25);
+  opacity: .72; transition: opacity .15s;
+  -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px);
+}
+.physim-home:hover, .physim-home:focus-visible { opacity: 1; }
+.physim-home svg { width: 16px; height: 16px; flex: none; }
+@media (max-width: 640px) { .physim-home span { display: none; } .physim-home { width: 36px; padding: 0; justify-content: center; } }
+@media print { .physim-home { display: none; } }
+
+/* Collapsible control panel for full-screen sims (mark the panel with data-physim-panel) */
+.physim-panel-toggle { display: none; }
+@media (max-width: 900px) {
+  [data-physim-panel] {
+    position: fixed !important; left: 8px !important; right: 8px !important; bottom: 8px !important;
+    top: auto !important; transform: none !important; width: auto !important; max-width: none !important;
+    max-height: 46vh; overflow-y: auto !important; -webkit-overflow-scrolling: touch;
+    z-index: 1000; margin: 0 !important; box-sizing: border-box;
+  }
+  [data-physim-panel].physim-collapsed { display: none !important; }
+  .physim-panel-toggle {
+    display: flex !important; align-items: center; gap: 6px; position: fixed !important; right: 10px !important; left: auto !important;
+    top: 10px !important; bottom: auto !important; z-index: 2147483001 !important;
+    width: auto !important; height: 36px !important; margin: 0 !important; padding: 0 14px !important; border: 0 !important;
+    border-radius: 18px !important; cursor: pointer; background: rgba(15, 23, 42, .82) !important; color: #fff !important;
+    font: 600 13px/1 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif !important; letter-spacing: 0 !important;
+    text-transform: none !important; box-shadow: 0 2px 8px rgba(0,0,0,.25) !important;
+  }
+  body.physim-has-panel .physim-home { top: 10px; bottom: auto; }
+}

@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="../../../assets/sim-early.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gravitational Analogue of Rutherford Scattering · PhySim</title>
+    <link rel="stylesheet" href="../../../assets/vendor/tailwind.css">
+    <script src="../../../assets/vendor/chart.umd.js"></script>
+    <link rel="stylesheet" href="../../../assets/vendor/inter/inter.css">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            overflow: hidden; /* Prevent scrollbars */
+        }
+        #simulationContainer, #graphContainer {
+            width: 100%;
+            height: 100%;
+        }
+        #simulationCanvas {
+            display: block;
+        }
+        .control-panel {
+            background-color: rgba(20, 20, 30, 0.8);
+            backdrop-filter: blur(10px);
+        }
+        /* ---- Phone / narrow-screen layout ---- */
+        @media (max-width: 900px) {
+            body { overflow: auto; height: auto !important; width: auto !important; display: block !important; }
+            #appBox { width: 100%; height: auto; max-width: none; max-height: none; overflow: visible; }
+            #appBox > div { height: auto; }
+            #appBox h1 { font-size: 1.3rem; }
+            #appBox .control-panel { display: grid; grid-template-columns: 1fr; gap: 12px; padding: 14px; }
+            #appBox .control-panel > * { margin-left: 0 !important; }
+            #appBox .control-panel > div:last-child { padding-left: 0; justify-content: stretch; }
+            #appBox .control-panel > div:last-child button { flex: 1; padding-top: .7rem; padding-bottom: .7rem; }
+            #bottomPanels { flex-direction: column; overflow: visible; }
+            #simulationContainer { width: 100%; height: 400px; order: 1; }
+            #graphContainer { width: 100%; height: 280px; padding: 12px; order: 2; }
+            #angleInfo { font-size: .85rem; bottom: 8px; white-space: nowrap; }
+        }
+    </style>
+<link rel="icon" href="../../../favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../../../assets/sim.css">
+</head>
+<body class="bg-black flex items-center justify-center h-screen w-screen">
+
+    <div id="appBox" class="w-screen h-[calc(100vw*9/16)] max-h-screen max-w-[calc(100vh*16/9)] bg-gray-900 text-white shadow-2xl overflow-hidden">
+        <div class="flex flex-col h-full w-full">
+            <!-- Top Control Panel -->
+            <div class="p-4 space-y-4">
+                <div class="text-left">
+                    <h1 class="text-2xl lg:text-3xl font-bold tracking-tight">Gravitational Analogue of Rutherford Scattering</h1>
+                    <p class="text-gray-300 mt-1 text-sm lg:text-base">Drag to rotate. Scroll (or pinch) to zoom.</p>
+                </div>
+                <div class="control-panel border border-gray-700 shadow-2xl rounded-2xl p-4 flex items-center space-x-6">
+                    <!-- Initial Velocity Slider -->
+                    <div class="flex-grow">
+                        <label for="velocitySlider" class="block text-sm font-medium text-gray-200 text-center">Initial Speed</label>
+                        <div class="flex items-center space-x-3 mt-1">
+                            <input id="velocitySlider" type="range" min="3" max="10" step="0.1" value="7" class="w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer">
+                            <span id="velocityValue" class="text-base font-semibold text-cyan-400 w-10 text-center">7.0</span>
+                        </div>
+                    </div>
+
+                    <!-- Impact Parameter Slider -->
+                    <div class="flex-grow">
+                        <label for="impactSlider" class="block text-sm font-medium text-gray-200 text-center">Impact Parameter (b)</label>
+                        <div class="flex items-center space-x-3 mt-1">
+                            <input id="impactSlider" type="range" min="0" max="300" step="20" value="20" class="w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer">
+                            <span id="impactValue" class="text-base font-semibold text-cyan-400 w-10 text-center">20</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Atomic Number Slider -->
+                    <div class="flex-grow">
+                        <label for="zSlider" class="block text-sm font-medium text-gray-200 text-center">Atomic Number (Z)</label>
+                        <div class="flex items-center space-x-3 mt-1">
+                            <input id="zSlider" type="range" min="1" max="100" step="1" value="79" class="w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer">
+                            <span id="zValue" class="text-base font-semibold text-cyan-400 w-10 text-center">79</span>
+                        </div>
+                    </div>
+
+                     <div class="flex items-center space-x-3 pl-4">
+                        <button id="startButton" class="bg-cyan-500 hover:bg-cyan-600 text-white font-bold py-2 px-5 rounded-lg transition-transform transform hover:scale-105 shadow-lg text-sm">
+                            Fire
+                        </button>
+                        <button id="resetButton" class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-5 rounded-lg transition-transform transform hover:scale-105 shadow-lg text-sm">
+                            Reset
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bottom Panels -->
+            <div id="bottomPanels" class="flex-grow flex w-full overflow-hidden">
+                <!-- Left Graph Panel -->
+                <div id="graphContainer" class="w-1/3 p-4 pr-2">
+                     <canvas id="energyChartCanvas"></canvas>
+                </div>
+
+                <!-- Right 3D Panel -->
+                <div id="simulationContainer" class="w-2/3 relative">
+                    <canvas id="simulationCanvas"></canvas>
+                    <div id="angleInfo" class="absolute bottom-4 left-1/2 -translate-x-1/2 bg-gray-900/70 backdrop-blur-sm border border-gray-700 rounded-lg px-4 py-2 text-lg text-yellow-300 font-medium whitespace-nowrap z-10 hidden"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "../../../assets/vendor/three-0.160/three.module.js",
+                "three/addons/": "../../../assets/vendor/three-0.160/addons/"
+            }
+        }
+    </script>
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { ParametricGeometry } from 'three/addons/geometries/ParametricGeometry.js';
+        import { FontLoader } from 'three/addons/loaders/FontLoader.js';
+        import { TextGeometry } from 'three/addons/geometries/TextGeometry.js';
+
+        let scene, camera, renderer, controls;
+        let particleMesh, nucleusMesh, trajectoryLine, potentialHill;
+        let initialPathLine, finalPathLine, angleArc, angleLabel;
+        let energyChart;
+        let chartData = { labels: [], datasets: [] };
+        let simStep = 0;
+        let minDistance;
+        
+        let particle = {};
+        let trajectoryPoints = [];
+        let font;
+        
+        const baseForceConstant = 101; // Proportionality constant for force, derived from original value for Gold (Z=79)
+        const hillRadius = 500;
+        const bounds = hillRadius * 0.95;
+
+        const velocitySlider = document.getElementById('velocitySlider');
+        const velocityValue = document.getElementById('velocityValue');
+        const impactSlider = document.getElementById('impactSlider');
+        const impactValue = document.getElementById('impactValue');
+        const zSlider = document.getElementById('zSlider');
+        const zValue = document.getElementById('zValue');
+        const startButton = document.getElementById('startButton');
+        const resetButton = document.getElementById('resetButton');
+        const angleInfo = document.getElementById('angleInfo');
+        const simContainer = document.getElementById('simulationContainer');
+
+        velocitySlider.oninput = () => velocityValue.textContent = parseFloat(velocitySlider.value).toFixed(1);
+        
+        const updateOnParameterChange = () => {
+            if (potentialHill) scene.remove(potentialHill);
+            createPotentialHill();
+
+            const b = impactSlider.value;
+            impactValue.textContent = b;
+            zValue.textContent = zSlider.value;
+            
+            particle = {}; 
+
+            if (finalPathLine) finalPathLine.visible = false;
+            if (angleArc) angleArc.visible = false;
+            if (angleLabel) angleLabel.visible = false;
+            if (angleInfo) {
+                angleInfo.textContent = '';
+                angleInfo.classList.add('hidden');
+            }
+            if (trajectoryLine) trajectoryLine.geometry.setFromPoints([]);
+
+            if (initialPathLine) {
+                initialPathLine.position.y = parseFloat(b);
+                initialPathLine.visible = true;
+            }
+            if (particleMesh) {
+                const startX = -hillRadius * 1.1;
+                const startY = parseFloat(impactSlider.value);
+                const startZ = getPotential(startX, startY);
+                particleMesh.position.set(startX, startY, startZ);
+                particleMesh.visible = true;
+            }
+        };
+
+        impactSlider.oninput = updateOnParameterChange;
+        zSlider.oninput = updateOnParameterChange;
+
+
+        startButton.addEventListener('click', startSimulation);
+        resetButton.addEventListener('click', resetSimulation);
+        window.addEventListener('resize', onWindowResize, false);
+
+
+        function init() {
+            scene = new THREE.Scene();
+            scene.fog = new THREE.Fog(0x14141e, 1500, 3500);
+            camera = new THREE.PerspectiveCamera(75, simContainer.clientWidth / simContainer.clientHeight, 0.1, 5000);
+            camera.up.set(0, 0, 1);
+            camera.position.set(-600, 600, 500);
+            
+            const canvas = document.getElementById('simulationCanvas');
+            renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true });
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.setSize(simContainer.clientWidth, simContainer.clientHeight);
+            renderer.setClearColor(0x000000, 0);
+
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.screenSpacePanning = false;
+            controls.enablePan = false; 
+            controls.minDistance = 100;
+            controls.maxDistance = 2000;
+            controls.target.set(0, 0, 0);
+            const fixedPolarAngle = Math.PI / 2.8;
+            controls.minPolarAngle = fixedPolarAngle;
+            controls.maxPolarAngle = fixedPolarAngle;
+            
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+            scene.add(ambientLight);
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+            directionalLight.position.set(-1, 1, 1).normalize();
+            scene.add(directionalLight);
+
+            initChart();
+
+            const fontLoader = new FontLoader();
+            fontLoader.load('../../../assets/vendor/three-0.160/fonts/helvetiker_regular.typeface.json', (loadedFont) => {
+                font = loadedFont;
+                createSceneObjects();
+                impactSlider.oninput();
+                animate();
+            });
+        }
+        
+        function initChart() {
+            const ctx = document.getElementById('energyChartCanvas').getContext('2d');
+            chartData = {
+                datasets: [
+                    {
+                        label: 'Kinetic Energy',
+                        data: [],
+                        borderColor: 'rgb(0, 255, 255)',
+                        backgroundColor: 'rgba(0, 255, 255, 0.2)',
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        tension: 0.4
+                    },
+                    {
+                        label: 'Potential Energy',
+                        data: [],
+                        borderColor: 'rgb(255, 215, 0)',
+                        backgroundColor: 'rgba(255, 215, 0, 0.2)',
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        tension: 0.4
+                    },
+                    {
+                        label: 'Total Energy',
+                        data: [],
+                        borderColor: 'rgb(255, 100, 100)',
+                        backgroundColor: 'rgba(255, 100, 100, 0.2)',
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        tension: 0.4
+                    }
+                ]
+            };
+            energyChart = new Chart(ctx, {
+                type: 'line',
+                data: chartData,
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: { 
+                            type: 'linear', // Treat x-axis as a numerical scale
+                            title: { display: true, text: 'Time', color: '#ccc' },
+                            ticks: { color: '#ccc' },
+                            grid: { color: 'rgba(255,255,255,0.1)' },
+                            min: 0,
+                            max: 400
+                        },
+                        y: { 
+                            title: { display: true, text: 'Energy', color: '#ccc' },
+                            ticks: { color: '#ccc' },
+                            grid: { color: 'rgba(255,255,255,0.1)' },
+                            min: 0,
+                            max: 250
+                        }
+                    },
+                    plugins: {
+                        legend: { labels: { color: '#ccc' } }
+                    },
+                    animation: { duration: 0 }
+                }
+            });
+        }
+
+        function createSceneObjects(){
+            createPotentialHill();
+            createNucleus();
+            createParticle();
+            createTrajectory();
+            createHelperLines();
+        }
+
+        function getPotential(x, y) {
+            const r = Math.sqrt(x * x + y * y);
+            const currentForceConstant = baseForceConstant * parseFloat(zSlider.value);
+            return currentForceConstant / Math.max(r, 15);
+        }
+
+        function createPotentialHill() {
+            const potentialFunction = (u, v, target) => {
+                const radius = u * hillRadius;
+                const theta = v * 2 * Math.PI;
+                const x = radius * Math.cos(theta);
+                const y = radius * Math.sin(theta);
+                const z = getPotential(x, y);
+                target.set(x, y, z);
+            };
+            const geometry = new ParametricGeometry(potentialFunction, 60, 60);
+            const material = new THREE.MeshStandardMaterial({ 
+                color: 0xadd8e6, 
+                metalness: 0.9, 
+                roughness: 0.4, 
+                side: THREE.DoubleSide,
+                transparent: true,
+                opacity: 0.6
+            });
+            potentialHill = new THREE.Mesh(geometry, material);
+            scene.add(potentialHill);
+        }
+
+        function createNucleus() {
+            const geometry = new THREE.SphereGeometry(8, 32, 32);
+            const material = new THREE.MeshStandardMaterial({ color: 0xffd700, emissive: 0xffd700, emissiveIntensity: 0.5, metalness: 0.8, roughness: 0.2 });
+            nucleusMesh = new THREE.Mesh(geometry, material);
+            nucleusMesh.position.set(0, 0, getPotential(0.1, 0.1));
+            scene.add(nucleusMesh);
+        }
+
+        function createParticle() {
+            const geometry = new THREE.SphereGeometry(8, 16, 16);
+            const material = new THREE.MeshStandardMaterial({ color: 0x00ffff, emissive: 0x00ffff, emissiveIntensity: 0.7 });
+            particleMesh = new THREE.Mesh(geometry, material);
+            scene.add(particleMesh);
+        }
+
+        function createTrajectory() {
+            const material = new THREE.LineBasicMaterial({ color: 0xffff00, linewidth: 3, depthTest: false });
+            trajectoryLine = new THREE.Line(new THREE.BufferGeometry(), material);
+            trajectoryLine.renderOrder = 1;
+            scene.add(trajectoryLine);
+        }
+
+        function createHelperLines() {
+            const lineLength = bounds * 2;
+            const helperMaterial = new THREE.LineDashedMaterial({ color: 0xffa500, dashSize: 10, gapSize: 5, transparent: true, opacity: 0.8, depthTest: false });
+
+            let points = [new THREE.Vector3(-lineLength, 0, 0.1), new THREE.Vector3(lineLength, 0, 0.1)];
+            initialPathLine = new THREE.Line(new THREE.BufferGeometry().setFromPoints(points), helperMaterial.clone());
+            initialPathLine.computeLineDistances();
+            initialPathLine.renderOrder = 1;
+            scene.add(initialPathLine);
+
+            points = [new THREE.Vector3(0, 0, 0.1), new THREE.Vector3(lineLength, 0, 0.1)];
+            finalPathLine = new THREE.Line(new THREE.BufferGeometry().setFromPoints(points), helperMaterial.clone());
+            finalPathLine.computeLineDistances();
+            finalPathLine.renderOrder = 1;
+            finalPathLine.visible = false;
+            scene.add(finalPathLine);
+
+            const arcMaterial = new THREE.LineBasicMaterial({ color: 0xffa500, transparent: true, opacity: 0.8, depthTest: false });
+            angleArc = new THREE.Line(new THREE.BufferGeometry(), arcMaterial);
+            angleArc.renderOrder = 1;
+            angleArc.visible = false;
+            scene.add(angleArc);
+
+            const bZeroMaterial = new THREE.LineDashedMaterial({ color: 0xffffff, dashSize: 15, gapSize: 10, transparent: true, opacity: 0.5 });
+            let bZeroPoints = [new THREE.Vector3(-lineLength, 0, 0.1), new THREE.Vector3(lineLength, 0, 0.1)];
+            let bZeroGeometry = new THREE.BufferGeometry().setFromPoints(bZeroPoints);
+            const bZeroLine = new THREE.Line(bZeroGeometry, bZeroMaterial);
+            bZeroLine.computeLineDistances();
+            bZeroLine.position.y = 0;
+            bZeroLine.renderOrder = 0;
+            scene.add(bZeroLine);
+        }
+
+        function getForceAt(x, y) {
+            const dx = x;
+            const dy = y;
+            let distSq = dx * dx + dy * dy;
+            
+            if (distSq < 225) { 
+                distSq = 225;
+            }
+
+            const dist = Math.sqrt(distSq);
+            const currentForceConstant = baseForceConstant * parseFloat(zSlider.value);
+            const forceMag = currentForceConstant / distSq;
+            const forceX = forceMag * (dx / dist);
+            const forceY = forceMag * (dy / dist);
+            return { forceX, forceY };
+        }
+
+        function startSimulation() {
+            if (finalPathLine) finalPathLine.visible = false;
+            if (angleArc) angleArc.visible = false;
+            if (angleLabel) angleLabel.visible = false;
+            if (angleInfo) {
+                angleInfo.textContent = '';
+                angleInfo.classList.add('hidden');
+            }
+            if (trajectoryLine) trajectoryLine.geometry.setFromPoints([]);
+
+            simStep = 0;
+            minDistance = Infinity;
+            chartData.datasets.forEach(dataset => dataset.data = []);
+            energyChart.update();
+
+            const startX = -hillRadius * 1.1;
+            const startY = parseFloat(impactSlider.value);
+            
+            if (particleMesh) {
+                const startZ = getPotential(startX, startY);
+                particleMesh.position.set(startX, startY, startZ);
+                particleMesh.visible = true;
+            }
+            
+            const initialForce = getForceAt(startX, startY);
+            const initialAx = initialForce.forceX / 4;
+            const initialAy = initialForce.forceY / 4;
+
+            particle = {
+                x: startX,
+                y: startY,
+                vx: parseFloat(velocitySlider.value),
+                vy: 0,
+                ax: initialAx,
+                ay: initialAy,
+                mass: 4
+            };
+            trajectoryPoints = [particleMesh.position.clone()];
+        }
+        
+        function resetSimulation() {
+            velocitySlider.value = 7;
+            impactSlider.value = 20;
+            zSlider.value = 79;
+            velocityValue.textContent = "7.0";
+            
+            chartData.datasets.forEach(dataset => dataset.data = []);
+            energyChart.update();
+            
+            impactSlider.oninput();
+        }
+
+        function updatePhysics() {
+            if (!particle.vx && particle.vx !== 0) return;
+
+            const dt = 1.0; 
+
+            particle.x += particle.vx * dt + 0.5 * particle.ax * dt * dt;
+            particle.y += particle.vy * dt + 0.5 * particle.ay * dt * dt;
+
+            const newForce = getForceAt(particle.x, particle.y);
+            const newAx = newForce.forceX / particle.mass;
+            const newAy = newForce.forceY / particle.mass;
+
+            particle.vx += 0.5 * (particle.ax + newAx) * dt;
+            particle.vy += 0.5 * (particle.ay + newAy) * dt;
+
+            particle.ax = newAx;
+            particle.ay = newAy;
+            
+            const currentZ = getPotential(particle.x, particle.y);
+            particleMesh.position.set(particle.x, particle.y, currentZ);
+            trajectoryPoints.push(new THREE.Vector3(particle.x, particle.y, currentZ));
+            trajectoryLine.geometry.setFromPoints(trajectoryPoints);
+            
+            const dist = Math.sqrt(particle.x * particle.x + particle.y * particle.y);
+            minDistance = Math.min(minDistance, dist);
+
+            const vSq = particle.vx * particle.vx + particle.vy * particle.vy;
+            const kineticEnergy = 0.5 * particle.mass * vSq;
+            const potentialEnergy = getPotential(particle.x, particle.y);
+            const totalEnergy = kineticEnergy + potentialEnergy;
+
+            chartData.datasets[0].data.push({x: simStep, y: kineticEnergy});
+            chartData.datasets[1].data.push({x: simStep, y: potentialEnergy});
+            chartData.datasets[2].data.push({x: simStep, y: totalEnergy});
+            simStep++;
+
+            if (simStep % 2 === 0) {
+                 energyChart.update();
+            }
+        }
+        
+        function isOutOfBounds() {
+            const pos = particleMesh.position;
+            return pos.x * pos.x + pos.y * pos.y > (bounds * 2) * (bounds * 2) ;
+        }
+
+        function calculateScatteringAngle() {
+            const angleRad = Math.atan2(particle.vy, particle.vx);
+            return angleRad * (180 / Math.PI);
+        }
+
+        function onWindowResize() {
+            if (!renderer || !camera) return;
+            const newWidth = simContainer.clientWidth;
+            const newHeight = simContainer.clientHeight;
+            camera.aspect = newWidth / newHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(newWidth, newHeight);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            if (particle.vx) {
+                if (isOutOfBounds()) {
+                    const angle = calculateScatteringAngle();
+                    angleInfo.innerHTML = `Scattering Angle: ${angle.toFixed(1)}°<span class="text-white mx-2">|</span><span class="text-green-400">Closest Approach: ${minDistance.toFixed(1)}</span>`;
+                    angleInfo.classList.remove('hidden');
+                    
+                    const finalAngleRad = angle * (Math.PI / 180);
+                    const b = parseFloat(impactSlider.value);
+
+                    const lastPoint = trajectoryPoints[trajectoryPoints.length - 1];
+                    const slope = Math.tan(finalAngleRad);
+                    let intersectionPoint = (Math.abs(slope) < 1e-9) ? 
+                        new THREE.Vector3(0, b, 0.1) : 
+                        new THREE.Vector3(lastPoint.x + (b - lastPoint.y) / slope, b, 0.1);
+
+                    const lineLength = bounds * 2.5;
+                    const finalDir = new THREE.Vector3(Math.cos(finalAngleRad), Math.sin(finalAngleRad), 0);
+                    const p2 = intersectionPoint.clone().addScaledVector(finalDir, lineLength);
+                    
+                    finalPathLine.geometry.setFromPoints([intersectionPoint, p2]);
+                    finalPathLine.computeLineDistances();
+                    finalPathLine.visible = true;
+
+                    const arcRadius = 60;
+                    const arcPoints = new THREE.ArcCurve(intersectionPoint.x, intersectionPoint.y, arcRadius, 0, finalAngleRad, false).getPoints(20);
+                    angleArc.geometry.setFromPoints(arcPoints);
+                    angleArc.visible = true;
+                    
+                    if(angleLabel) scene.remove(angleLabel);
+                    const textGeo = new TextGeometry('θ', { font: font, size: 20, height: 2 });
+                    const textMat = new THREE.MeshBasicMaterial({ color: 0xffa500, depthTest: false });
+                    angleLabel = new THREE.Mesh(textGeo, textMat);
+                    angleLabel.renderOrder = 2;
+                    const labelRadius = 80;
+                    const labelX = intersectionPoint.x + labelRadius * Math.cos(finalAngleRad/2);
+                    const labelY = intersectionPoint.y + labelRadius * Math.sin(finalAngleRad/2);
+                    angleLabel.position.set(labelX, labelY, 1);
+                    scene.add(angleLabel);
+
+                    particle = {}; 
+                    energyChart.update(); 
+                } else {
+                    updatePhysics();
+                }
+            }
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        init();
+    </script>
+<script src="../../../assets/sim.js" data-root="../../../#atomic-world"></script>
+</body>
+</html>
+
+

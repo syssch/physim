@@ -1,0 +1,1066 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="../../../assets/sim-early.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Truck Model for Electric Circuit · PhySim</title>
+    <link rel="stylesheet" href="../../../assets/vendor/tailwind.css">
+    <style>
+        @import url('../../../assets/vendor/inter/inter.css');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #111827;
+            height: 100vh;
+            width: 100vw;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            margin: 0;
+            padding: 0;
+        }
+
+        #app-container {
+            width: min(100vw, 177.778vh); 
+            height: min(100vh, 56.25vw);
+            background-color: #f9fafb;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 0 40px rgba(0, 0, 0, 0.5);
+            overflow: hidden;
+            position: relative;
+        }
+
+        #top-bar {
+            background-color: white;
+            border-bottom: 1px solid #e5e7eb;
+            padding: 0 1.5rem;
+            height: 60px;
+            /* Changed from Grid to Flex for left/right alignment */
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            z-index: 20;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+            flex-shrink: 0;
+        }
+
+        #main-content {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+            position: relative;
+            height: calc(100% - 60px);
+        }
+
+        #sim-panel {
+            width: 50%;
+            height: 100%;
+            background-color: #ffffff;
+            position: relative;
+            border-right: 1px solid #e5e7eb;
+        }
+
+        canvas {
+            width: 100%;
+            height: 100%;
+            cursor: default;
+            touch-action: none;
+        }
+
+        #data-panel {
+            width: 50%;
+            height: 100%;
+            background-color: #f3f4f6;
+            padding: 1.5rem;
+            overflow-y: auto;
+        }
+
+        input[type=range] {
+            -webkit-appearance: none; 
+            background: transparent; 
+            width: 100%;
+        }
+        
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 16px;
+            width: 16px;
+            border-radius: 50%;
+            background: #3b82f6;
+            cursor: pointer;
+            margin-top: -6px; 
+            box-shadow: 0 1px 2px rgba(0,0,0,0.3);
+        }
+        
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: #e5e7eb;
+            border-radius: 2px;
+        }
+
+        .stat-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: 1rem;
+        }
+
+        @keyframes popIn {
+            0% { opacity: 0; transform: scale(0.9); }
+            100% { opacity: 1; transform: scale(1); }
+        }
+        .stat-card {
+            animation: popIn 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            background: white;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            border: 1px solid #e5e7eb;
+            border-top-width: 4px;
+        }
+
+        .mode-toggle {
+            display: flex;
+            background-color: #f3f4f6;
+            border-radius: 0.5rem;
+            padding: 0.25rem;
+        }
+        .mode-btn {
+            padding: 0.35rem 0.75rem;
+            border-radius: 0.375rem;
+            font-size: 0.8rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .mode-btn.active {
+            background-color: white;
+            color: #2563eb;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+        }
+        .mode-btn:not(.active) {
+            color: #6b7280;
+        }
+        .mode-btn:not(.active):hover {
+            color: #374151;
+        }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding-left: 1rem;
+            padding-right: 1rem;
+            border-right: 1px solid #e5e7eb;
+        }
+        .control-group:last-child {
+            border-right: none;
+            padding-right: 0;
+        }
+        /* ---- Phone / narrow-screen layout ---- */
+        @media (max-width: 900px) {
+            body { height: auto; width: auto; display: block; overflow: auto; }
+            #app-container { width: 100%; height: auto; overflow: visible; }
+            #top-bar { height: auto; flex-direction: column; align-items: stretch; padding: 10px; gap: 10px; }
+            #top-bar > div { flex-wrap: wrap; justify-content: center; gap: 8px; }
+            #top-bar > div:first-child > .h-6 { display: none; }
+            #top-bar button { padding-top: 8px; padding-bottom: 8px; }
+            #top-bar .control-group { padding-left: 8px; padding-right: 8px; }
+            #top-bar .control-group .w-24 { width: 7.5rem; }
+            #top-bar > div:last-child > .pl-4 { padding-left: 0; }
+            #main-content { flex-direction: column; height: auto; overflow: visible; }
+            #sim-panel { width: 100%; height: 520px; border-right: 0; border-bottom: 1px solid #e5e7eb; }
+            #data-panel { width: 100%; height: auto; padding: 1rem 1rem 4rem; overflow: visible; }
+            #hintOverlay { bottom: 12px; font-size: 12px; white-space: normal; width: max-content; max-width: 92%; text-align: center; }
+        }
+    </style>
+<link rel="icon" href="../../../favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../../../assets/sim.css">
+</head>
+<body>
+
+    <div id="app-container">
+        
+        <!-- TOP: Controls -->
+        <div id="top-bar">
+            <!-- Left Side Container: Title, Playback, Circuit Config, Ratio -->
+            <div class="flex items-center gap-4">
+                <div class="hidden xl:block flex-shrink-0">
+                    <h1 class="text-lg font-bold text-gray-800 leading-none">Circuit Lab</h1>
+                    <p class="text-[10px] text-gray-500 font-medium">Physics Sim</p>
+                </div>
+                
+                <div class="flex bg-gray-100 p-1 rounded-lg flex-shrink-0">
+                    <button onclick="setRunning(true)" id="btn-start" class="px-3 py-1.5 rounded-md text-xs font-bold transition-colors text-gray-600 hover:bg-gray-200 uppercase tracking-wide">Start</button>
+                    <button onclick="setRunning(false)" id="btn-pause" class="px-3 py-1.5 rounded-md text-xs font-bold transition-colors bg-white shadow-sm text-red-600 uppercase tracking-wide">Pause</button>
+                </div>
+
+                <!-- Vertical Divider -->
+                <div class="h-6 w-px bg-gray-200 mx-1"></div>
+
+                <!-- Circuit Config -->
+                <div class="flex bg-gray-100 p-1 rounded-lg flex-shrink-0">
+                    <button onclick="setCircuit('single')" id="btn-single" class="px-3 py-1.5 rounded-md text-xs font-bold transition-colors bg-white shadow-sm text-blue-600">Single</button>
+                    <button onclick="setCircuit('series')" id="btn-series" class="px-3 py-1.5 rounded-md text-xs font-bold transition-colors text-gray-600 hover:bg-gray-200">Series</button>
+                    <button onclick="setCircuit('parallel')" id="btn-parallel" class="px-3 py-1.5 rounded-md text-xs font-bold transition-colors text-gray-600 hover:bg-gray-200">Parallel</button>
+                </div>
+
+                <!-- Resistance Ratio Label (Now flows naturally) -->
+                <div id="ratio-controls" class="hidden flex items-center gap-2 bg-gray-100 p-1 rounded-lg animate-fade-in pl-3 flex-shrink-0">
+                    <span class="text-[10px] font-bold text-gray-400 uppercase">Resistance Ratio</span>
+                    <div class="flex gap-1">
+                        <button onclick="setRatio(1)" id="btn-r1" class="px-2 py-1.5 rounded text-xs font-bold bg-white text-blue-600 shadow-sm">1:1</button>
+                        <button onclick="setRatio(2)" id="btn-r2" class="px-2 py-1.5 rounded text-xs font-bold text-gray-600 hover:bg-gray-200">1:2</button>
+                        <button onclick="setRatio(3)" id="btn-r3" class="px-2 py-1.5 rounded text-xs font-bold text-gray-600 hover:bg-gray-200">1:3</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Group: Sliders & Tools -->
+            <div class="flex items-center">
+                
+                <!-- Voltage -->
+                <div class="control-group">
+                    <div class="flex flex-col w-24">
+                        <div class="flex justify-between text-[10px] font-bold text-gray-500 uppercase">
+                            <span>Voltage</span>
+                            <span id="voltageVal" class="text-blue-600">6V</span>
+                        </div>
+                        <input type="range" id="voltageSlider" min="1" max="12" value="6">
+                    </div>
+                </div>
+
+                <!-- Trucks -->
+                <div class="control-group">
+                    <label class="flex items-center cursor-pointer gap-2">
+                        <div class="relative">
+                            <input type="checkbox" id="toggleCharges" class="sr-only peer">
+                            <div class="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+                        </div>
+                        <span class="text-[10px] font-bold text-gray-500 uppercase">Trucks</span>
+                    </label>
+                </div>
+
+                <!-- Tools -->
+                <div class="pl-4 flex items-center gap-2">
+                    <span class="text-[10px] font-bold text-gray-400 uppercase">Tool</span>
+                    <div class="mode-toggle">
+                        <button onclick="setMeasureMode('current')" id="mode-current" class="mode-btn active">Current</button>
+                        <button onclick="setMeasureMode('voltage')" id="mode-voltage" class="mode-btn">Voltage</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- MAIN CONTENT: Split View -->
+        <div id="main-content">
+            
+            <!-- Left: Sim -->
+            <div id="sim-panel">
+                <canvas id="simCanvas"></canvas>
+                <div id="hintOverlay" class="absolute bottom-6 left-1/2 transform -translate-x-1/2 bg-black/70 text-white px-4 py-2 rounded-full text-sm pointer-events-none transition-all duration-300 backdrop-blur-sm shadow-lg whitespace-nowrap">
+                    Click wire to place Current Gate
+                </div>
+            </div>
+
+            <!-- Right: Data -->
+            <div id="data-panel">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-sm font-bold text-gray-400 uppercase tracking-wider">Live Measurements</h2>
+                    <span class="text-xs text-gray-400" id="data-status">Waiting for input...</span>
+                </div>
+
+                <!-- Stats Grid -->
+                <div id="statsContainer" class="stat-grid mb-6">
+                    <!-- Cards injected here -->
+                </div>
+                
+                <!-- Voltage Analysis (Dynamic) -->
+                <!-- Removed max-h-[300px] and overflow-y-auto so it shares the main scrollbar -->
+                <div id="voltageDataPanel" class="hidden bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4 shadow-sm">
+                    <div class="flex justify-between items-start mb-3">
+                        <h4 class="font-bold text-gray-800 text-sm flex items-center gap-2">
+                            <span class="w-2 h-2 rounded-full bg-yellow-400"></span>
+                            Voltmeter Readings
+                        </h4>
+                        <button onclick="resetVoltageProbes()" class="text-gray-400 hover:text-red-500 text-lg leading-none transition-colors">&times;</button>
+                    </div>
+
+                    <!-- Reading 1 (A-B) -->
+                    <div id="reading-row-1">
+                        <div class="text-[10px] font-bold text-gray-400 mb-1">READING 1</div>
+                        <div class="grid grid-cols-3 gap-2 text-center mb-4">
+                             <div class="bg-white p-2 rounded border border-yellow-100 flex flex-col items-center">
+                                 <div class="text-[10px] text-gray-500 uppercase font-bold mb-1">Probe A</div>
+                                 <canvas id="canvas-truck-a" width="60" height="30" class="mb-1"></canvas>
+                                 <div class="font-mono font-bold text-red-600 text-lg" id="potA">0 V</div>
+                             </div>
+                             <div class="bg-white p-2 rounded border border-yellow-100 flex flex-col items-center">
+                                 <div class="text-[10px] text-gray-500 uppercase font-bold mb-1">Probe B</div>
+                                 <canvas id="canvas-truck-b" width="60" height="30" class="mb-1"></canvas>
+                                 <div class="font-mono font-bold text-blue-600 text-lg" id="potB">0 V</div>
+                             </div>
+                             <div class="bg-white p-2 rounded border border-yellow-200 shadow-inner bg-yellow-50/50 flex flex-col justify-center">
+                                 <div class="text-sm text-gray-700 uppercase font-black leading-tight">DIFFERENCE<br>= VOLTAGE</div>
+                                 <div class="font-mono font-bold text-xl text-gray-900" id="potDiff">0 V</div>
+                             </div>
+                        </div>
+                    </div>
+
+                    <!-- Reading 2 (C-D) -->
+                    <div id="reading-row-2" class="hidden border-t border-yellow-200 pt-2">
+                        <div class="text-[10px] font-bold text-gray-400 mb-1">READING 2</div>
+                        <div class="grid grid-cols-3 gap-2 text-center">
+                             <div class="bg-white p-2 rounded border border-yellow-100 flex flex-col items-center">
+                                 <div class="text-[10px] text-gray-500 uppercase font-bold mb-1">Probe C</div>
+                                 <canvas id="canvas-truck-c" width="60" height="30" class="mb-1"></canvas>
+                                 <div class="font-mono font-bold text-green-600 text-lg" id="potC">0 V</div>
+                             </div>
+                             <div class="bg-white p-2 rounded border border-yellow-100 flex flex-col items-center">
+                                 <div class="text-[10px] text-gray-500 uppercase font-bold mb-1">Probe D</div>
+                                 <canvas id="canvas-truck-d" width="60" height="30" class="mb-1"></canvas>
+                                 <div class="font-mono font-bold text-purple-600 text-lg" id="potD">0 V</div>
+                             </div>
+                             <div class="bg-white p-2 rounded border border-yellow-200 shadow-inner bg-yellow-50/50 flex flex-col justify-center">
+                                 <div class="text-sm text-gray-700 uppercase font-black leading-tight">DIFFERENCE<br>= VOLTAGE</div>
+                                 <div class="font-mono font-bold text-xl text-gray-900" id="potDiff2">0 V</div>
+                             </div>
+                        </div>
+                    </div>
+
+                    <p class="text-[10px] text-gray-500 mt-3 text-center">Potential Difference represents the energy used per charge moving between the two points.</p>
+                </div>
+
+                <!-- Empty State -->
+                <div id="empty-state" class="flex flex-col items-center justify-center py-12 text-gray-400 border-2 border-dashed border-gray-200 rounded-lg bg-gray-50/50">
+                    <svg class="w-12 h-12 mb-2 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"></path></svg>
+                    <p class="text-sm font-medium">No active measurements</p>
+                    <p class="text-xs mt-1">Select a tool above and click the circuit</p>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        /**
+         * CIRCUIT SIMULATION ENGINE
+         */
+        const canvas = document.getElementById('simCanvas');
+        const simPanel = document.getElementById('sim-panel');
+        const ctx = canvas.getContext('2d');
+        const voltageSlider = document.getElementById('voltageSlider');
+        const voltageDisplay = document.getElementById('voltageVal');
+        const toggleCharges = document.getElementById('toggleCharges');
+        
+        // UI Elements
+        const statsContainer = document.getElementById('statsContainer');
+        const voltageDataPanel = document.getElementById('voltageDataPanel');
+        const readingRow2 = document.getElementById('reading-row-2');
+        const emptyState = document.getElementById('empty-state');
+        const hintOverlay = document.getElementById('hintOverlay');
+        
+        // Reading 1 Elements
+        const elPotA = document.getElementById('potA');
+        const elPotB = document.getElementById('potB');
+        const elPotDiff = document.getElementById('potDiff');
+        
+        // Reading 2 Elements
+        const elPotC = document.getElementById('potC');
+        const elPotD = document.getElementById('potD');
+        const elPotDiff2 = document.getElementById('potDiff2');
+
+        const ratioControls = document.getElementById('ratio-controls');
+        const dataStatus = document.getElementById('data-status');
+        
+        // Mini Canvas Elements
+        const canvasTruckA = document.getElementById('canvas-truck-a');
+        const canvasTruckB = document.getElementById('canvas-truck-b');
+        const canvasTruckC = document.getElementById('canvas-truck-c');
+        const canvasTruckD = document.getElementById('canvas-truck-d');
+
+        // State
+        let voltage = 6;
+        let mode = 'single'; 
+        let resistanceRatio = 1; 
+        let measureMode = 'current'; 
+        let showTrucks = false; 
+        let isRunning = false; 
+        let simulationTime = 0; 
+        let lastTime = 0;
+        let parallelCounter = 0; 
+        let tempHintTimeout;
+
+        // Measurement State
+        let currentGates = [];
+        let nextGateId = 1;
+        let voltageProbes = []; 
+
+        // Circuit Components
+        let paths = []; 
+        let bulbs = []; 
+        let battery = {x: 0, y: 0};
+        let trucks = [];
+        
+        // Physics Constants
+        const TRUCK_SPACING_BASE = 35; 
+        const BASE_SPEED = 100; 
+
+        // ---------------------------------------------------------------------
+        // Initialization & Rotation Logic
+        // ---------------------------------------------------------------------
+
+        function resize() {
+            canvas.width = simPanel.clientWidth;
+            canvas.height = simPanel.clientHeight;
+            setupCircuit();
+        }
+        window.addEventListener('resize', resize);
+
+        function setupCircuit() {
+            paths = [];
+            bulbs = [];
+            trucks = [];
+            resetAllMeasurements(); 
+            parallelCounter = 0;
+
+            const w = canvas.width;
+            const h = canvas.height;
+            const cx = w / 2;
+            const cy = h / 2;
+            
+            // Layout: Rotated 90 degrees CW.
+            const loopW = Math.min(400, w - 100); 
+            // Increased vertical padding
+            const loopH = Math.min(550, h - 250);
+            
+            const left = cx - loopW/2;
+            const right = cx + loopW/2;
+            const top = cy - loopH/2;
+            const bottom = cy + loopH/2;
+            
+            battery = {x: cx, y: top}; 
+
+            const nTL = {x: left, y: top};   
+            const nTR = {x: right, y: top};  
+            const nBR = {x: right, y: bottom}; 
+            const nBL = {x: left, y: bottom};  
+            const nTM = {x: cx, y: top}; 
+            
+            if (mode === 'single') {
+                const nBM = {x: cx, y: bottom};
+                addPath([nTM, nTR, nBR, nBM], 'main_top'); 
+                addPath([nBM, nBL, nTL, nTM], 'main_bot'); 
+                bulbs.push({x: cx, y: bottom, id: 1, r: 1});
+
+            } else if (mode === 'series') {
+                const nBulb1 = {x: right - (right-left)/3, y: bottom};
+                const nBulb2 = {x: left + (right-left)/3, y: bottom};
+                addPath([nTM, nTR, nBR, nBulb1], 'seg1');
+                addPath([nBulb1, nBulb2], 'seg2');
+                addPath([nBulb2, nBL, nTL, nTM], 'seg3');
+                bulbs.push({x: right - (right-left)/3, y: bottom, id: 1, r: 1});
+                bulbs.push({x: left + (right-left)/3, y: bottom, id: 2, r: resistanceRatio});
+
+            } else if (mode === 'parallel') {
+                const midY = cy; 
+                const nMR = {x: right, y: midY}; 
+                const nML = {x: left, y: midY};  
+                const nBulb1 = {x: cx, y: midY}; 
+                const nBulb2 = {x: cx, y: bottom}; 
+                const nBM = {x: cx, y: bottom};
+
+                addPath([nTM, nTR, nMR], 'feeder');
+                addPath([nMR, nBulb1], 'branch1_in');
+                addPath([nBulb1, nML], 'branch1_out');
+                addPath([nMR, nBR, nBulb2], 'branch2_in');
+                addPath([nBulb2, nBL, nML], 'branch2_out');
+                addPath([nML, nTL, nTM], 'return');
+                
+                bulbs.push({x: cx, y: midY, id: 1, r: 1});
+                bulbs.push({x: cx, y: bottom, id: 2, r: resistanceRatio});
+            }
+            populateTrucks();
+        }
+
+        function addPath(points, id) {
+            let totalLen = 0;
+            let segments = [];
+            for(let i=0; i<points.length-1; i++) {
+                const p1 = points[i];
+                const p2 = points[i+1];
+                const dx = p2.x - p1.x;
+                const dy = p2.y - p1.y;
+                const len = Math.sqrt(dx*dx + dy*dy);
+                segments.push({p1, p2, len, startDist: totalLen, dx, dy, unitX: dx/len, unitY: dy/len});
+                totalLen += len;
+            }
+            paths.push({id, points, segments, totalLength: totalLen});
+        }
+
+        function getPotential(pathId) {
+            if (['main_top', 'seg1', 'feeder', 'branch1_in', 'branch2_in'].includes(pathId)) return voltage;
+            else if (pathId === 'seg2') {
+                const val = voltage * resistanceRatio / (1 + resistanceRatio);
+                // Return exact value for reading, rounding for visuals happens in draw
+                return val;
+            }
+            else return 0;
+        }
+
+        function populateTrucks() {
+            paths.forEach((p, pIdx) => {
+                const count = Math.floor(p.totalLength / TRUCK_SPACING_BASE);
+                const energy = getPotential(p.id);
+                for(let i=0; i<count; i++) {
+                    trucks.push({
+                        pathIndex: pIdx, dist: i * TRUCK_SPACING_BASE, energy: energy, maxEnergy: voltage,
+                        measuredBy: [], id: Math.random() 
+                    });
+                }
+            });
+        }
+
+        function update(dt) {
+            let currentFactor = 1;
+            if (mode === 'single') currentFactor = voltage / 6; 
+            else if (mode === 'series') currentFactor = (voltage / 6) * (2 / (1 + resistanceRatio)) * 0.5; 
+            else if (mode === 'parallel') {
+                const totalR = resistanceRatio / (1 + resistanceRatio);
+                currentFactor = (voltage / 6) * (0.5 / totalR) * 2.0; 
+            }
+
+            const speed = BASE_SPEED * Math.max(0.1, currentFactor);
+            const spawnDist = TRUCK_SPACING_BASE; 
+            
+            let lastTruck = null;
+            for(let t of trucks) {
+                if(t.pathIndex === 0 && t.dist < spawnDist * 1.5) {
+                    if(!lastTruck || t.dist < lastTruck.dist) lastTruck = t;
+                }
+            }
+            if (!lastTruck || lastTruck.dist > spawnDist) {
+                const energy = voltage;
+                trucks.push({pathIndex: 0, dist: 0, energy, maxEnergy: voltage, measuredBy: [], id: Math.random()});
+            }
+
+            for (let i = trucks.length - 1; i >= 0; i--) {
+                let t = trucks[i];
+                const oldDist = t.dist;
+                t.dist += speed * dt;
+                
+                if (t.dist >= paths[t.pathIndex].totalLength) handlePathEnd(t, i);
+                
+                currentGates.forEach(m => {
+                    if (t.pathIndex === m.pathId && oldDist < m.distOnPath && t.dist >= m.distOnPath) {
+                        if (!t.measuredBy.includes(m.id)) {
+                            m.count++; t.measuredBy.push(m.id); 
+                        }
+                    }
+                });
+            }
+        }
+
+        function handlePathEnd(t, index) {
+            const pid = paths[t.pathIndex].id;
+            const trans = (tid, e) => {
+                t.pathIndex = paths.findIndex(p => p.id === tid);
+                t.dist = 0; t.energy = e;
+            };
+
+            if (mode === 'single') {
+                if (pid === 'main_top') trans('main_bot', 0); else trucks.splice(index, 1);
+            } else if (mode === 'series') {
+                if (pid === 'seg1') trans('seg2', getPotential('seg2'));
+                else if (pid === 'seg2') trans('seg3', 0);
+                else trucks.splice(index, 1);
+            } else if (mode === 'parallel') {
+                if (pid === 'feeder') {
+                    t.dist = 0;
+                    const mod = parallelCounter++ % (resistanceRatio + 1);
+                    t.pathIndex = paths.findIndex(p => p.id === (mod < resistanceRatio ? 'branch1_in' : 'branch2_in'));
+                }
+                else if (pid === 'branch1_in') trans('branch1_out', 0);
+                else if (pid === 'branch2_in') trans('branch2_out', 0);
+                else if (pid === 'branch1_out' || pid === 'branch2_out') trans('return', 0);
+                else trucks.splice(index, 1);
+            }
+        }
+
+        // ---------------------------------------------------------------------
+        // Interactions
+        // ---------------------------------------------------------------------
+        function getMousePos(evt) {
+            const rect = canvas.getBoundingClientRect();
+            return { x: evt.clientX - rect.left, y: evt.clientY - rect.top };
+        }
+        canvas.addEventListener('mousedown', (e) => handleInput(getMousePos(e)));
+        canvas.addEventListener('touchstart', (e) => { e.preventDefault(); handleInput(getMousePos(e.touches[0])); }, {passive: false});
+        canvas.addEventListener('mousemove', (e) => {
+            const pos = getMousePos(e);
+            canvas.style.cursor = findNearestPath(pos) ? 'pointer' : 'default';
+        });
+
+        function findNearestPath(pos) {
+            let minDist = 50; 
+            let found = null;
+            paths.forEach((p, pIdx) => {
+                let distOnPath = 0;
+                p.segments.forEach((seg) => {
+                    const l2 = seg.len * seg.len;
+                    if (l2 == 0) return;
+                    let t = ((pos.x - seg.p1.x) * seg.dx + (pos.y - seg.p1.y) * seg.dy) / l2;
+                    t = Math.max(0, Math.min(1, t));
+                    const px = seg.p1.x + t * seg.dx, py = seg.p1.y + t * seg.dy;
+                    const d = Math.sqrt((pos.x - px)**2 + (pos.y - py)**2);
+                    if (d < minDist) { minDist = d; found = { x: px, y: py, pathId: pIdx, distOnPath: distOnPath + t * seg.len }; }
+                    distOnPath += seg.len;
+                });
+            });
+            return found;
+        }
+
+        function handleInput(pos) {
+            const found = findNearestPath(pos);
+            if (!found) return;
+
+            if (measureMode === 'current') {
+                if (currentGates.length >= 3) { showTemporaryHint("Max 3 Gates"); return; }
+                addCurrentGate(found);
+            } else {
+                addVoltageProbe(found);
+            }
+        }
+
+        function showTemporaryHint(msg) {
+            if (tempHintTimeout) clearTimeout(tempHintTimeout);
+            hintOverlay.innerText = msg;
+            hintOverlay.classList.remove('hidden');
+            tempHintTimeout = setTimeout(() => {
+                if (measureMode === 'current') {
+                    hintOverlay.innerText = "Click wire to place Current Gate";
+                } else {
+                    updateVoltageHint(); // Reset to correct voltage hint
+                }
+            }, 2000);
+        }
+
+        function updateVoltageHint() {
+            if (voltageProbes.length === 0) hintOverlay.innerText = "Click two points for Voltage (Reading 1)";
+            else if (voltageProbes.length === 1) hintOverlay.innerText = "Select point B...";
+            else if (voltageProbes.length === 2) hintOverlay.innerText = "Reading 1 Done. Click for Reading 2 (Point C)";
+            else if (voltageProbes.length === 3) hintOverlay.innerText = "Select point D...";
+            else hintOverlay.innerText = "Max readings reached.";
+        }
+
+        function addCurrentGate(data) {
+            const now = simulationTime;
+            const id = nextGateId++;
+            const newGate = {
+                id, labelId: id, active: true, x: data.x, y: data.y, pathId: data.pathId, distOnPath: data.distOnPath,
+                startTime: now, count: 0, lastUpdate: now, lastUIUpdate: 0, lastRateUpdate: now,
+                uiColor: ['#ef4444', '#8b5cf6', '#ea580c'][(id-1)%3]
+            };
+            currentGates.push(newGate);
+            createStatCard(newGate);
+            updateUIState();
+        }
+
+        function addVoltageProbe(data) {
+            // Allow up to 4 probes (2 pairs)
+            if (voltageProbes.length >= 4) {
+                // If full, reset and start over at A
+                voltageProbes = [];
+            }
+            
+            const labels = ['A', 'B', 'C', 'D'];
+            const colors = ['#dc2626', '#2563eb', '#16a34a', '#9333ea']; // Red, Blue, Green, Purple
+            
+            voltageProbes.push({
+                x: data.x, 
+                y: data.y, 
+                potential: getPotential(paths[data.pathId].id),
+                label: labels[voltageProbes.length],
+                color: colors[voltageProbes.length]
+            });
+            updateUIState();
+        }
+
+        // ---------------------------------------------------------------------
+        // Rendering
+        // ---------------------------------------------------------------------
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+            
+            paths.forEach(p => {
+                ctx.beginPath(); ctx.moveTo(p.points[0].x, p.points[0].y);
+                for(let i=1; i<p.points.length; i++) ctx.lineTo(p.points[i].x, p.points[i].y);
+                ctx.strokeStyle = '#9ca3af'; ctx.lineWidth = 8; ctx.stroke();
+                ctx.strokeStyle = '#d1d5db'; ctx.lineWidth = 4; ctx.stroke();
+            });
+
+            drawBattery(battery.x, battery.y);
+            bulbs.forEach(b => drawBulb(b));
+
+            if (measureMode === 'current' || currentGates.length > 0) currentGates.forEach(m => drawGate(m));
+            if (showTrucks) trucks.forEach(t => drawTruck(t));
+            if (measureMode === 'voltage' && voltageProbes.length > 0) drawVoltageAnalysis();
+        }
+
+        function drawBattery(x, y) {
+            ctx.save(); ctx.translate(x, y);
+            ctx.fillStyle = '#374151'; ctx.fillRect(-30, -20, 60, 40); 
+            ctx.fillStyle = '#f59e0b'; ctx.fillRect(15, -20, 10, 40); 
+            ctx.fillStyle = '#9ca3af'; ctx.fillRect(-35, -10, 5, 20); 
+            ctx.fillStyle = '#9ca3af'; ctx.fillRect(30, -10, 5, 20); 
+            ctx.font = 'bold 20px Arial';
+            ctx.fillStyle = '#ef4444'; ctx.fillText('+', 40, 8); 
+            ctx.fillStyle = '#3b82f6'; ctx.fillText('-', -45, 8); 
+            ctx.restore();
+        }
+
+        function drawBulb(b) {
+            ctx.save(); ctx.translate(b.x, b.y);
+            let brightness = 0;
+            if (mode === 'single') brightness = voltage / 12;
+            else if (mode === 'series') brightness = (voltage * (b.r / (1 + resistanceRatio))) / 12;
+            else if (mode === 'parallel') brightness = (voltage / b.r) / 12;
+
+            if (brightness > 0.1) {
+                const grad = ctx.createRadialGradient(0, 0, 10, 0, 0, 40);
+                grad.addColorStop(0, `rgba(255, 255, 0, ${Math.min(1, brightness)})`);
+                grad.addColorStop(1, 'rgba(255, 255, 0, 0)');
+                ctx.fillStyle = grad; ctx.beginPath(); ctx.arc(0, 0, 40, 0, Math.PI*2); ctx.fill();
+            }
+            ctx.fillStyle = `rgba(255, 255, 240, 0.9)`; ctx.strokeStyle = '#6b7280'; ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.arc(0, 0, 15, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+            ctx.fillStyle = '#4b5563'; ctx.fillRect(-8, -20, 16, 8); 
+            ctx.beginPath(); ctx.moveTo(-5, -5); ctx.lineTo(0, 5); ctx.lineTo(5, -5);
+            ctx.strokeStyle = brightness > 0.2 ? '#fef08a' : '#9ca3af'; ctx.lineWidth = 2; ctx.stroke();
+            
+            ctx.fillStyle = '#111827';
+            ctx.font = 'bold 16px Inter, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'top';
+            // Calculate Resistance based on simulation physics (approx 21 Ohms per unit)
+            const ohms = b.r * 21;
+            ctx.fillText(ohms + 'Ω', 0, 25);
+            
+            ctx.restore();
+        }
+
+        function drawTruck(t) {
+            const p = paths[t.pathIndex];
+            let currentDist = t.dist;
+            let seg = null;
+            for(let s of p.segments) { if (currentDist <= s.len) { seg = s; break; } currentDist -= s.len; }
+            if (!seg) return;
+            const px = seg.p1.x + seg.unitX * currentDist;
+            const py = seg.p1.y + seg.unitY * currentDist;
+            const angle = Math.atan2(seg.dy, seg.dx);
+            
+            ctx.save(); ctx.translate(px, py); ctx.rotate(angle);
+            
+            // Dynamic Color Logic
+            ctx.fillStyle = t.energy > 0 ? '#ef4444' : '#3b82f6';
+            
+            ctx.strokeStyle = '#1f2937'; ctx.lineWidth = 1;
+            ctx.beginPath(); ctx.roundRect(-15, -8, 30, 16, 2); ctx.fill(); ctx.stroke();
+            ctx.fillStyle = '#cbd5e1'; ctx.beginPath(); ctx.roundRect(15, -8, 8, 16, 2); ctx.fill(); ctx.stroke();
+            ctx.fillStyle = 'black';
+            ctx.beginPath(); ctx.arc(-10, -10, 3, 0, Math.PI*2); ctx.fill(); 
+            ctx.beginPath(); ctx.arc(10, -10, 3, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.arc(-10, 10, 3, 0, Math.PI*2); ctx.fill(); 
+            ctx.beginPath(); ctx.arc(10, 10, 3, 0, Math.PI*2); ctx.fill();
+            
+            // Quantize energy to nearest 0.5 for visual representation
+            const circles = Math.round(t.energy * 2) / 2;
+            
+            ctx.fillStyle = '#fbbf24'; 
+            
+            // Handle partial circles (0.5V steps)
+            const count = Math.ceil(circles);
+            for (let i=0; i<count; i++) {
+                const col = i % 4; const row = Math.floor(i / 4);
+                const cx = -9 + col * 6;
+                const cy = -4 + row * 4.5;
+                
+                ctx.beginPath();
+                // Check if this is the last one and needs to be a half circle
+                if (circles % 1 !== 0 && i === count - 1) {
+                    ctx.arc(cx, cy, 1.5, Math.PI * 0.5, Math.PI * 1.5); // Left half
+                    ctx.fill();
+                } else {
+                    ctx.arc(cx, cy, 1.5, 0, Math.PI*2); 
+                    ctx.fill();
+                }
+            }
+            ctx.restore();
+        }
+
+        // Helper to draw truck on small canvas
+        function drawTruckToContext(ctx, energy) {
+            const w = ctx.canvas.width;
+            const h = ctx.canvas.height;
+            ctx.clearRect(0, 0, w, h);
+            
+            ctx.save();
+            ctx.translate(w/2, h/2);
+            ctx.scale(1.2, 1.2); 
+            
+            // Draw body
+            ctx.fillStyle = energy > 0 ? '#ef4444' : '#3b82f6';
+            ctx.strokeStyle = '#1f2937'; ctx.lineWidth = 1;
+            ctx.beginPath(); ctx.roundRect(-15, -8, 30, 16, 2); ctx.fill(); ctx.stroke();
+            
+            // Cab
+            ctx.fillStyle = '#cbd5e1'; ctx.beginPath(); ctx.roundRect(15, -8, 8, 16, 2); ctx.fill(); ctx.stroke();
+            
+            // Wheels
+            ctx.fillStyle = 'black';
+            [-10, 10].forEach(x => { [-10, 10].forEach(y => {
+                ctx.beginPath(); ctx.arc(x, y, 3, 0, Math.PI*2); ctx.fill();
+            })});
+
+            // Cargo
+            // Quantize energy to nearest 0.5 for visual representation
+            const circles = Math.round(energy * 2) / 2;
+            
+            ctx.fillStyle = '#fbbf24'; 
+            const count = Math.ceil(circles);
+            for (let i=0; i<count; i++) {
+                const col = i % 4; const row = Math.floor(i / 4);
+                const cx = -9 + col * 6;
+                const cy = -4 + row * 4.5;
+                
+                ctx.beginPath();
+                if (circles % 1 !== 0 && i === count - 1) {
+                    ctx.arc(cx, cy, 1.5, Math.PI * 0.5, Math.PI * 1.5);
+                    ctx.fill();
+                } else {
+                    ctx.arc(cx, cy, 1.5, 0, Math.PI*2);
+                    ctx.fill();
+                }
+            }
+            ctx.restore();
+        }
+
+        function drawGate(m) {
+            ctx.save(); ctx.translate(m.x, m.y);
+            ctx.strokeStyle = m.uiColor; ctx.lineWidth = 3; ctx.setLineDash([4, 2]);
+            ctx.beginPath(); ctx.arc(0, 0, 15, 0, Math.PI*2); ctx.stroke();
+            ctx.fillStyle = m.uiColor; ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center';
+            ctx.fillText(m.labelId, 0, -20); ctx.restore();
+        }
+
+        function drawVoltageAnalysis() {
+            voltageProbes.forEach((p, idx) => {
+                ctx.beginPath(); ctx.arc(p.x, p.y, 6, 0, Math.PI*2);
+                ctx.fillStyle = p.color; ctx.fill(); ctx.strokeStyle = 'white'; ctx.lineWidth = 2; ctx.stroke();
+                const offsetX = idx === 0 ? -40 : 40; const offsetY = -40;
+                ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p.x + offsetX, p.y + offsetY);
+                ctx.strokeStyle = p.color; ctx.stroke();
+                ctx.fillStyle = p.color; ctx.font = "bold 14px sans-serif"; ctx.textAlign = "center";
+                ctx.fillText(p.label, p.x + offsetX, p.y + offsetY - 5);
+            });
+        }
+
+        // ---------------------------------------------------------------------
+        // Controls Logic
+        // ---------------------------------------------------------------------
+        function updateUIState() {
+            // Toggle empty state based on if we have ANY data points
+            emptyState.classList.toggle('hidden', currentGates.length > 0 || voltageProbes.length > 0);
+            
+            dataStatus.innerText = measureMode === 'current' ? `Active Gates: ${currentGates.length}/3` : `Active Probes: ${voltageProbes.length}/2`;
+
+            if (measureMode === 'voltage') {
+                updateVoltageHint();
+                
+                // Show panel if at least 1 probe exists
+                if (voltageProbes.length > 0) {
+                    voltageDataPanel.classList.remove('hidden');
+                    
+                    // --- Reading 1 Handling (A & B) ---
+                    // Probe A (Always exists if length > 0)
+                    const pA = voltageProbes[0];
+                    elPotA.innerText = pA.potential.toFixed(1) + " V";
+                    drawTruckToContext(canvasTruckA.getContext('2d'), pA.potential);
+
+                    if (voltageProbes.length >= 2) {
+                        const pB = voltageProbes[1];
+                        elPotB.innerText = pB.potential.toFixed(1) + " V";
+                        elPotDiff.innerText = Math.abs(pA.potential - pB.potential).toFixed(1) + " V";
+                        drawTruckToContext(canvasTruckB.getContext('2d'), pB.potential);
+                    } else {
+                        // Reset B placeholders
+                        elPotB.innerText = "---";
+                        elPotDiff.innerText = "---";
+                        canvasTruckB.getContext('2d').clearRect(0, 0, 60, 30);
+                    }
+
+                    // --- Reading 2 Handling (C & D) ---
+                    if (voltageProbes.length >= 3) {
+                        readingRow2.classList.remove('hidden');
+                        
+                        // Probe C
+                        const pC = voltageProbes[2];
+                        elPotC.innerText = pC.potential.toFixed(1) + " V";
+                        drawTruckToContext(canvasTruckC.getContext('2d'), pC.potential);
+
+                        if (voltageProbes.length >= 4) {
+                            // Probe D
+                            const pD = voltageProbes[3];
+                            elPotD.innerText = pD.potential.toFixed(1) + " V";
+                            elPotDiff2.innerText = Math.abs(pC.potential - pD.potential).toFixed(1) + " V";
+                            drawTruckToContext(canvasTruckD.getContext('2d'), pD.potential);
+                            hintOverlay.classList.add('hidden'); // All done
+                        } else {
+                            // Reset D placeholders
+                            elPotD.innerText = "---";
+                            elPotDiff2.innerText = "---";
+                            canvasTruckD.getContext('2d').clearRect(0, 0, 60, 30);
+                        }
+                    } else {
+                        readingRow2.classList.add('hidden');
+                    }
+
+                } else {
+                    voltageDataPanel.classList.add('hidden');
+                    hintOverlay.classList.remove('hidden');
+                }
+            } else {
+                voltageDataPanel.classList.add('hidden');
+                hintOverlay.classList.remove('hidden');
+                hintOverlay.innerText = currentGates.length >= 3 ? "Max 3 Gates" : "Click wire to place Current Gate";
+            }
+        }
+
+        window.setMeasureMode = function(newMode) {
+            measureMode = newMode;
+            document.getElementById('mode-current').className = newMode === 'current' ? 'mode-btn active' : 'mode-btn';
+            document.getElementById('mode-voltage').className = newMode === 'voltage' ? 'mode-btn active' : 'mode-btn';
+            updateUIState();
+            draw();
+        };
+
+        window.resetVoltageProbes = function() {
+            voltageProbes = [];
+            updateUIState();
+            draw();
+        };
+
+        window.removeMeasurement = function(id) {
+            currentGates = currentGates.filter(m => m.id !== id);
+            const card = document.getElementById(`card-${id}`);
+            if (card) card.remove();
+            trucks.forEach(t => {
+                t.measuredBy = t.measuredBy.filter(mid => mid !== id);
+            });
+            updateUIState();
+        };
+
+        function resetAllMeasurements() {
+            currentGates = [];
+            voltageProbes = [];
+            statsContainer.innerHTML = '';
+            nextGateId = 1;
+            // Tool mode (current/voltage) is now preserved across resets
+            updateUIState();
+        }
+
+        function createStatCard(m) {
+            const card = document.createElement('div');
+            card.id = `card-${m.id}`;
+            card.className = "stat-card";
+            card.style.borderColor = m.uiColor;
+            card.innerHTML = `
+                <div class="flex justify-between items-center mb-2 border-b pb-1">
+                    <span class="font-bold text-gray-700 text-xs" style="color:${m.uiColor}">Gate ${m.labelId}</span>
+                    <button onclick="removeMeasurement(${m.id})" class="text-gray-400 hover:text-red-500 font-bold text-lg leading-none">&times;</button>
+                </div>
+                <div class="text-center">
+                    <span class="text-xs text-gray-600 font-black uppercase block tracking-wide">CURRENT</span>
+                    
+                    <div class="flex flex-col gap-1 mt-2 mb-1">
+                        <!-- mA Display -->
+                        <div class="flex justify-center items-baseline gap-1">
+                            <span id="ma-${m.id}" class="font-mono font-bold text-xl text-blue-600">---</span>
+                            <span class="text-sm font-bold text-gray-500">mA</span>
+                        </div>
+
+                        <!-- Trucks/s Display -->
+                        <div class="flex justify-center items-baseline gap-1">
+                            <span id="rate-${m.id}" class="font-mono font-bold text-xl text-gray-800">---</span>
+                            <span class="text-sm font-bold text-gray-500">trucks/s</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-2 text-[10px] text-gray-400 flex justify-between border-t pt-2">
+                    <span>Count: <b id="count-${m.id}">0</b></span>
+                    <span id="time-${m.id}">0.0s</span>
+                </div>
+            `;
+            statsContainer.appendChild(card);
+            updateUIState();
+        }
+
+        function updateStats(currentTime) {
+            currentGates.forEach(m => {
+                if (currentTime - m.lastUIUpdate > 100) {
+                    m.lastUIUpdate = currentTime;
+                    const elCount = document.getElementById(`count-${m.id}`);
+                    const elTime = document.getElementById(`time-${m.id}`);
+                    if(elCount) elCount.innerText = m.count;
+                    if(elTime) elTime.innerText = ((currentTime - m.startTime)/1000).toFixed(1) + "s";
+                }
+                if (currentTime - m.lastRateUpdate > 10000) {
+                    m.lastRateUpdate = currentTime;
+                    const elapsed = (currentTime - m.startTime) / 1000;
+                    if (elapsed > 0) {
+                        const rate = m.count / elapsed;
+                        document.getElementById(`rate-${m.id}`).innerText = rate.toFixed(1);
+                        document.getElementById(`ma-${m.id}`).innerText = Math.round(rate * 100);
+                    }
+                }
+            });
+        }
+
+        // Standard helpers
+        window.setRunning = (s) => { isRunning = s; document.getElementById('btn-start').className = s ? "px-3 py-1.5 rounded-md text-xs font-bold transition-colors bg-white shadow-sm text-green-600 uppercase tracking-wide" : "px-3 py-1.5 rounded-md text-xs font-bold transition-colors text-gray-600 hover:bg-gray-200 uppercase tracking-wide"; document.getElementById('btn-pause').className = !s ? "px-3 py-1.5 rounded-md text-xs font-bold transition-colors bg-white shadow-sm text-red-600 uppercase tracking-wide" : "px-3 py-1.5 rounded-md text-xs font-bold transition-colors text-gray-600 hover:bg-gray-200 uppercase tracking-wide"; };
+        window.setCircuit = (m) => { mode = m; ['single','series','parallel'].forEach(id => document.getElementById(`btn-${id}`).className = id===m ? "px-3 py-1.5 rounded-md text-xs font-bold transition-colors bg-white shadow-sm text-blue-600" : "px-3 py-1.5 rounded-md text-xs font-bold transition-colors text-gray-600 hover:bg-gray-200"); ratioControls.classList.toggle('hidden', m==='single'); setupCircuit(); };
+        window.setRatio = (r) => { resistanceRatio = r; [1,2,3].forEach(id => document.getElementById(`btn-r${id}`).className = id===r ? "px-2 py-1.5 rounded text-xs font-bold bg-white text-blue-600 shadow-sm" : "px-2 py-1.5 rounded text-xs font-bold text-gray-600 hover:bg-gray-200"); setupCircuit(); };
+        voltageSlider.addEventListener('input', (e) => { 
+            voltage = parseInt(e.target.value); 
+            voltageDisplay.innerText = voltage + "V"; 
+            trucks.forEach(t => { 
+                t.maxEnergy = voltage; 
+                t.energy = getPotential(paths[t.pathIndex].id); 
+            });
+            // Clear measurements when voltage changes
+            resetAllMeasurements(); 
+        });
+        toggleCharges.addEventListener('change', (e) => showTrucks = e.target.checked);
+
+        function loop(timestamp) {
+            const dt = Math.min((timestamp - lastTime) / 1000, 0.1); 
+            lastTime = timestamp;
+            if (isRunning) { simulationTime += dt * 1000; update(dt); updateStats(simulationTime); }
+            draw();
+            requestAnimationFrame(loop);
+        }
+
+        resize();
+        setRunning(false);
+        requestAnimationFrame(loop);
+    </script>
+<script src="../../../assets/sim.js" data-root="../../../#electricity-and-magnetism"></script>
+</body>
+</html>

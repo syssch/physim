@@ -1,0 +1,863 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="../../../assets/sim-early.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Phases of Venus · PhySim</title>
+    <link rel="stylesheet" href="../../../assets/vendor/tailwind.css">
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "../../../assets/vendor/three-0.160/three.module.js",
+                "three/addons/": "../../../assets/vendor/three-0.160/addons/"
+            }
+        }
+    </script>
+    <style>
+        /* Basic body styling to remove margins and hide overflow, ensuring the canvas fills the screen */
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: 'Inter', sans-serif;
+            background-color: #111827; /* bg-gray-900 */
+            display: flex; /* Make body a flex container */
+            justify-content: center; /* Center content horizontally */
+            align-items: center; /* Center content vertically */
+            height: 100vh; /* Ensure body takes full viewport height */
+            width: 100vw; /* Ensure body takes full viewport width */
+        }
+        
+        /* Main container for the entire application */
+        #main-container {
+            display: flex;
+            flex-direction: column;
+            max-width: 100vw; /* Ensure it doesn't overflow */
+            max-height: 100vh; /* Ensure it doesn't overflow */
+            flex-grow: 1; /* Allow it to grow to fill available space */
+            align-items: center; /* Center top-controls and simulation-panels horizontally */
+        }
+
+        /* Top controls for the shared button */
+        #top-controls {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 10px;
+            background-color: rgba(0,0,0,0.7);
+            border-bottom-left-radius: 8px;
+            border-bottom-right-radius: 8px;
+            z-index: 20; /* Ensure it's above everything */
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            gap: 10px; /* Space between buttons */
+        }
+        #top-controls button {
+            background-color: #3B82F6; /* bg-blue-500 */
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: background-color 0.3s, transform 0.1s;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        #top-controls button:hover {
+            background-color: #2563EB; /* bg-blue-600 */
+        }
+        #top-controls button:active {
+            transform: translateY(1px);
+        }
+
+        /* Container for the two simulation panels */
+        #simulation-panels {
+            display: flex;
+            /* flex-grow: 1; Removed, size will be set by JS */
+            width: 100%; /* This will be overridden by JS */
+            height: 100%; /* This will be overridden by JS */
+            justify-content: center; /* Center panels within this container if there's extra space */
+            align-items: center; /* Center panels within this container if there's extra space */
+        }
+
+        /* Styles for individual simulation panels */
+        .simulation-panel {
+            position: relative; /* For absolute positioning of overlays */
+            flex: 1; /* Each panel takes equal width */
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            border-right: 1px solid rgba(255,255,255,0.1); /* Separator */
+        }
+        .simulation-panel:last-child {
+            border-right: none; /* No border on the last panel */
+        }
+
+        /* 3D container within each panel */
+        .container3D {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        /* Panel titles */
+        .panel-title {
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(0,0,0,0.7);
+            color: white;
+            padding: 8px 15px;
+            border-radius: 8px;
+            font-size: 1.1em;
+            font-weight: bold;
+            z-index: 10;
+        }
+
+        /* Overlay for the 2D phase diagram at the top-right/left of each panel */
+        .phase-overlay {
+            position: absolute;
+            top: 10px;
+            width: 120px; 
+            height: 120px; 
+            background-color: rgba(0,0,0,0.6);
+            border: 1px solid #4B5563; /* gray-600 */
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 10; 
+        }
+        .phase-overlay.copernican {
+            right: 10px;
+        }
+        .phase-overlay.ptolemaic {
+            left: 10px;
+        }
+        .phase-canvas {
+            width: 100px; 
+            height: 100px; 
+        }
+
+        /* Message box for user notifications */
+        #messageBox {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(255, 255, 255, 0.9);
+            color: #1f2937; /* gray-800 */
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.3);
+            z-index: 1000; /* Ensure it's on top of everything */
+            display: none; /* Hidden by default */
+            text-align: center;
+        }
+        #messageBox button {
+            background-color: #10B981; /* bg-green-500 */
+            margin-top: 15px;
+        }
+        #messageBox button:hover {
+            background-color: #059669; /* bg-green-600 */
+        }
+        /* ---- Phone / narrow-screen layout ---- */
+        @media (max-width: 900px) {
+            body { overflow: auto; height: auto; width: auto; display: block; }
+            #main-container { max-height: none; }
+            #top-controls { width: 100%; box-sizing: border-box; border-radius: 0; flex-wrap: wrap; gap: 8px; }
+            #top-controls button { flex: 1; padding: 10px 6px; font-size: .85em; }
+            .simulation-panel { border-right: 0; border-bottom: 1px solid rgba(255,255,255,0.1); }
+            .panel-title { font-size: .9em; padding: 6px 10px; top: 8px; }
+            .phase-overlay { top: 48px; width: 96px; height: 96px; }
+            .phase-canvas { width: 80px; height: 80px; }
+            #messageBox { position: fixed; width: 85%; box-sizing: border-box; }
+        }
+    </style>
+<link rel="icon" href="../../../favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../../../assets/sim.css">
+</head>
+<body>
+    <div id="main-container">
+        <div id="top-controls">
+            <button id="rewindWeekBtn">Rewind 1/12 Cycle</button>
+            <button id="advanceWeekBtn">Advance 1/12 Cycle</button>
+            <button id="autoAdvanceBtn">Auto Advance</button>
+        </div>
+
+        <div id="simulation-panels">
+            <div id="copernican-panel" class="simulation-panel">
+                <div class="panel-title">Copernican Model</div>
+                <div id="copernican-container3D" class="container3D"></div>
+                <div id="copernican-phaseOverlay" class="phase-overlay copernican">
+                    <canvas id="copernican-phaseCanvas" class="phase-canvas"></canvas>
+                </div>
+            </div>
+
+            <div id="ptolemaic-panel" class="simulation-panel">
+                <div class="panel-title">Ptolemaic Model</div>
+                <div id="ptolemaic-container3D" class="container3D"></div>
+                <div id="ptolemaic-phaseOverlay" class="phase-overlay ptolemaic">
+                    <canvas id="ptolemaic-phaseCanvas" class="phase-canvas"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="messageBox">
+        <p id="messageText"></p>
+        <button id="messageOkBtn">OK</button>
+    </div>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        // --- Global Simulation Parameters ---
+        const CENTRAL_BODY_RADIUS_MODEL = 15; // Represents the Sun's size
+        const OBSERVER_BODY_RADIUS_MODEL = 5; // Represents Earth's size
+        const ORBITING_BODY_RADIUS_MODEL = 5; // Represents Venus's size
+
+        const OBSERVER_BODY_ORBIT_RADIUS_MODEL = 150; // Earth's orbit radius in Copernican
+        const ORBITING_BODY_ORBIT_RADIUS_MODEL = OBSERVER_BODY_ORBIT_RADIUS_MODEL * 0.5; // Venus's orbit radius in Copernican (Moved nearer to Sun)
+
+        const ORBITING_BODY_ORBITAL_PERIOD_DAYS = 224.7; // Venus's sidereal period
+        const EARTH_SIDEREAL_PERIOD_DAYS = 365.25; // Earth's sidereal period
+        const VENUS_SYNODIC_PERIOD_DAYS = 583.92; // Venus's synodic period
+
+        // Ptolemaic Model specific parameters
+        const PTOLEMAIC_SUN_APPARENT_ORBIT_RADIUS = OBSERVER_BODY_ORBIT_RADIUS_MODEL; // Sun's apparent orbit around Earth
+        // The deferent radius for Venus in Ptolemaic model is often the same as Venus's own orbital radius in Copernican,
+        // as the epicycle center aligns with the Sun-Earth line.
+        const PTOLEMAIC_DEFERENT_RADIUS = ORBITING_BODY_ORBIT_RADIUS_MODEL; 
+        const PTOLEMAIC_EPICYCLE_RADIUS = ORBITING_BODY_RADIUS_MODEL * 8; // Further increased size for Venus's epicycle
+        
+        let currentTimeInDays = 0; // Shared simulation time
+        let autoAdvanceInterval = null; // Variable to hold the interval ID for auto advance
+
+        // Define the angular step size for advancing/rewinding phases (1/12th of a full circle)
+        const PHASE_STEP_ANGLE = Math.PI / 6; // Equivalent to 30 degrees
+
+        // --- Copernican Model Variables ---
+        let copernicanScene, copernicanCamera, copernicanRenderer, copernicanControls;
+        let copernicanCentralBody, copernicanOrbitingBody, copernicanObserverBody;
+        let copernicanOrbitingBodyOrbitLine;
+        let copernicanPhaseCtx;
+        // Initial angle for Copernican Venus to start at "new phase" (between Sun and Earth)
+        let copernicanOrbitingBodyAngle = Math.PI / 2; 
+
+        // --- Ptolemaic Model Variables ---
+        let ptolemaicScene, ptolemaicCamera, ptolemaicRenderer, ptolemaicControls;
+        let ptolemaicObserverBody; // Earth
+        let ptolemaicSunLightSource; // Sun (light source for Venus)
+        let ptolemaicOrbitingBody; // Venus
+        let ptolemaicEpicycleCenter; // Invisible point around which Venus orbits
+        let ptolemaicEpicycleOrbitLine; // Epicycle orbit line
+        let ptolemaicPhaseCtx;
+        // Initial angle for Ptolemaic Venus to start at "new phase" (closest to Earth)
+        let ptolemaicEpicycleAngle = Math.PI / 2; // Adjusted to start at "new phase" (closest to Earth)
+
+        // DOM Elements references
+        const advanceWeekBtn = document.getElementById('advanceWeekBtn');
+        const rewindWeekBtn = document.getElementById('rewindWeekBtn'); // New rewind button
+        const autoAdvanceBtn = document.getElementById('autoAdvanceBtn'); // New auto advance button
+        const messageBox = document.getElementById('messageBox');
+        const messageText = document.getElementById('messageText');
+        const messageOkBtn = document.getElementById('messageOkBtn');
+
+        // Event listener for the message box OK button
+        messageOkBtn.addEventListener('click', () => {
+            messageBox.style.display = 'none'; // Hide the message box
+        });
+
+        /**
+         * Displays a custom message box to the user.
+         * @param {string} text - The message to display.
+         */
+        function showMessage(text) {
+            messageText.textContent = text;
+            messageBox.style.display = 'block';
+        }
+
+        /**
+         * Creates a 2D text label that can be added to the 3D scene.
+         * @param {string} text - The text content of the label.
+         * @param {number} planetRadius - The radius of the planet the label is associated with, used for scaling.
+         * @returns {THREE.Sprite} - A Three.js Sprite object representing the label.
+         */
+        function createLabel(text, planetRadius) {
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            context.font = 'Bold 20px Arial';
+            const textWidth = context.measureText(text).width;
+            canvas.width = textWidth + 10; // Add some padding
+            canvas.height = 30; // Fixed height for the label canvas
+            context.font = 'Bold 20px Arial';
+            context.fillStyle = 'rgba(255, 255, 255, 0.95)'; // White text, slightly transparent
+            context.textAlign = 'center';
+            context.textBaseline = 'middle';
+            context.fillText(text, canvas.width / 2, canvas.height / 2);
+            const texture = new THREE.CanvasTexture(canvas);
+            const material = new THREE.SpriteMaterial({ map: texture, transparent: true });
+            const sprite = new THREE.Sprite(material); 
+            // Scale the sprite based on the planet's size for better visibility
+            const labelScale = planetRadius * 5; 
+            sprite.scale.set(labelScale * (canvas.width / canvas.height), labelScale, 1);
+            return sprite;
+        }
+
+        /**
+         * Draws the 2D representation of the orbiting body's phase on a canvas.
+         * This function ensures the bright area expands from left to right,
+         * with the dark side shrinking from right to left.
+         * @param {CanvasRenderingContext2D} ctx - The 2D rendering context.
+         * @param {number} cx - Center X coordinate of the circle.
+         * @param {number} cy - Center Y coordinate of the circle.
+         * @param {number} radius - Radius of the orbiting body disk.
+         * @param {number} k - Illuminated fraction (0 to 1).
+         * @param {number} centralBodyAngle - Angle of the central body relative to the 2D canvas's x-axis.
+         */
+        function drawOrbitingBodyPhase2D(ctx, cx, cy, radius, k, centralBodyAngle) {
+            ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height); // Clear the canvas
+            ctx.save(); // Save the current canvas state
+            ctx.translate(cx, cy); // Move origin to the center of the circle
+            ctx.rotate(centralBodyAngle); // Rotate the canvas so the central body direction is along the positive X-axis
+
+            // Define colors
+            const brightColor = '#FFFACD'; // Light yellowish for illuminated part
+            const darkColor = 'black';     // Black for unilluminated part
+
+            // Draw the outer grey circle (the full disk outline of the orbiting body)
+            ctx.strokeStyle = 'grey';
+            ctx.beginPath();
+            ctx.arc(0, 0, radius, 0, 2 * Math.PI);
+            ctx.stroke();
+
+            // Handle edge cases for new and full phases explicitly
+            if (k <= 0.005) { // New phase (almost completely dark)
+                ctx.fillStyle = darkColor;
+                ctx.beginPath();
+                ctx.arc(0, 0, radius, 0, 2 * Math.PI);
+                ctx.fill();
+            } else if (k >= 0.995) { // Full phase (almost completely lit)
+                ctx.fillStyle = brightColor;
+                ctx.beginPath();
+                ctx.arc(0, 0, radius, 0, 2 * Math.PI);
+                ctx.fill();
+            } else { // Intermediate phases (crescent or gibbous)
+                // 1. Fill the entire circle with the dark color as a base.
+                ctx.fillStyle = darkColor;
+                ctx.beginPath();
+                ctx.arc(0, 0, radius, 0, 2 * Math.PI);
+                ctx.fill();
+
+                // 2. Now, draw the bright portion on top.
+                ctx.fillStyle = brightColor;
+                ctx.beginPath();
+
+                // The fixed left circular arc for the bright limb.
+                // This arc goes from top (Math.PI/2) to bottom (-Math.PI/2) anticlockwise (true).
+                // This ensures the bright area starts from the left edge.
+                ctx.arc(0, 0, radius, Math.PI / 2, -Math.PI / 2, true); 
+
+                // Calculate the x-coordinate of the terminator.
+                // This determines the horizontal extent and curvature of the elliptical arc.
+                // When k=0 (new), terminatorX_model = -radius.
+                // When k=0.5 (half), terminatorX_model = 0.
+                // When k=1 (full), terminatorX_model = radius.
+                const terminatorX_model = (2 * k - 1) * radius;
+
+                // The elliptical arc for the terminator (the right boundary of the bright area).
+                // This arc connects the bottom (-Math.PI/2) to the top (Math.PI/2).
+                // Its bulge direction depends on whether it's crescent or gibbous.
+                // - If `k < 0.5` (crescent): `terminatorX_model` is negative. The bright area is a crescent on the left.
+                //   The terminator should bulge *right* (towards positive X).
+                //   To draw from -Math.PI/2 to Math.PI/2 and bulge right, `anticlockwise` should be `false`.
+                // - If `k > 0.5` (gibbous): `terminatorX_model` is positive. The bright area is gibbous on the left.
+                //   To draw from -Math.PI/2 to Math.PI/2 and bulge left, `anticlockwise` should be `true`.
+                // Therefore, `anticlockwise` should be `terminatorX_model > 0`.
+                ctx.ellipse(0, 0, Math.abs(terminatorX_model), radius, 0, -Math.PI / 2, Math.PI / 2, terminatorX_model > 0);
+                
+                ctx.closePath(); // Close the path to form a complete shape
+                ctx.fill(); // Fill the bright area
+            }
+            
+            ctx.restore(); // Restore the canvas state (undo translation and rotation)
+        }
+
+        /**
+         * Initializes the Copernican model Three.js scene.
+         */
+        function initCopernican() {
+            // Scene setup
+            copernicanScene = new THREE.Scene();
+            copernicanScene.background = new THREE.Color(0x111827);
+
+            // Camera setup
+            copernicanCamera = new THREE.PerspectiveCamera(75, (window.innerWidth / 2) / window.innerHeight, 0.1, 2000);
+            copernicanCamera.position.set(0, 200, 300); // Adjusted camera position to zoom out and center on Sun
+            copernicanCamera.lookAt(0, 0, 0); // Look at the Sun (origin)
+            
+            // Renderer setup
+            copernicanRenderer = new THREE.WebGLRenderer({ antialias: true });
+            document.getElementById('copernican-container3D').appendChild(copernicanRenderer.domElement);
+
+            // Lighting
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.3);
+            copernicanScene.add(ambientLight);
+            const pointLight = new THREE.PointLight(0xffffff, 2, 2000);
+            pointLight.position.set(0, 0, 0); // Sun is at origin
+            copernicanScene.add(pointLight);
+
+            // OrbitControls
+            copernicanControls = new OrbitControls(copernicanCamera, copernicanRenderer.domElement);
+            copernicanControls.enableDamping = true;
+            copernicanControls.dampingFactor = 0.05;
+            copernicanControls.screenSpacePanning = false;
+            copernicanControls.minDistance = 50;
+            copernicanControls.maxDistance = 1000;
+            copernicanControls.target.set(0, 0, 0); // Target controls at the Sun (origin)
+
+            // Central Body (Sun)
+            const centralBodyGeometry = new THREE.SphereGeometry(CENTRAL_BODY_RADIUS_MODEL, 32, 32);
+            const centralBodyMaterial = new THREE.MeshBasicMaterial({ color: 0xffff00 });
+            copernicanCentralBody = new THREE.Mesh(centralBodyGeometry, centralBodyMaterial);
+            copernicanCentralBody.position.set(0, 0, 0);
+            copernicanScene.add(copernicanCentralBody);
+
+            // Observer Body (Earth) - Fixed in this simplified Copernican view
+            const observerBodyGeometry = new THREE.SphereGeometry(OBSERVER_BODY_RADIUS_MODEL, 32, 32);
+            const observerBodyMaterial = new THREE.MeshPhongMaterial({ color: 0x4A90E2 });
+            copernicanObserverBody = new THREE.Mesh(observerBodyGeometry, observerBodyMaterial);
+            copernicanObserverBody.position.set(0, 0, OBSERVER_BODY_ORBIT_RADIUS_MODEL); 
+            copernicanScene.add(copernicanObserverBody);
+
+            // Orbiting Body (Venus)
+            const orbitingBodyGeometry = new THREE.SphereGeometry(ORBITING_BODY_RADIUS_MODEL, 32, 32);
+            const orbitingBodyVertexShader = `
+                varying vec3 vWorldNormal;
+                varying vec3 vWorldPosition;
+                void main() {
+                    vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+                    vWorldPosition = worldPosition.xyz;
+                    vWorldNormal = normalize(mat3(modelMatrix) * normal); 
+                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                }
+            `;
+            const orbitingBodyFragmentShader = `
+                varying vec3 vWorldNormal;
+                varying vec3 vWorldPosition;
+                uniform vec3 centralBodyWorldPosition;
+                uniform vec3 litSideColor;
+                uniform vec3 darkSideColor;
+                void main() {
+                    vec3 normal = normalize(vWorldNormal);
+                    vec3 surfaceToCentralBodyDirection = normalize(centralBodyWorldPosition - vWorldPosition); 
+                    float lightIntensityFactor = max(0.0, dot(normal, surfaceToCentralBodyDirection));
+                    if (lightIntensityFactor > 0.001) {
+                        gl_FragColor = vec4(litSideColor * lightIntensityFactor, 1.0);
+                    } else {
+                        gl_FragColor = vec4(darkSideColor, 1.0);
+                    }
+                }
+            `;
+            const orbitingBodyMaterial = new THREE.ShaderMaterial({
+                vertexShader: orbitingBodyVertexShader,
+                fragmentShader: orbitingBodyFragmentShader,
+                uniforms: {
+                    centralBodyWorldPosition: { value: new THREE.Vector3(0, 0, 0) },
+                    litSideColor: { value: new THREE.Color(0xFFEECC) },
+                    darkSideColor: { value: new THREE.Color(0x2C2C2C) }
+                }
+            });
+            copernicanOrbitingBody = new THREE.Mesh(orbitingBodyGeometry, orbitingBodyMaterial);
+            copernicanScene.add(copernicanOrbitingBody);
+
+            // Orbiting Body Orbit Line
+            const orbitPoints = [];
+            for (let i = 0; i <= 360; i++) {
+                const angle = (i / 180) * Math.PI;
+                orbitPoints.push(
+                    new THREE.Vector3(
+                        Math.cos(angle) * ORBITING_BODY_ORBIT_RADIUS_MODEL,
+                        0,
+                        Math.sin(angle) * ORBITING_BODY_ORBIT_RADIUS_MODEL
+                    )
+                );
+            }
+            const orbitGeometry = new THREE.BufferGeometry().setFromPoints(orbitPoints);
+            const orbitMaterial = new THREE.LineBasicMaterial({ color: 0xaaaaaa, transparent: true, opacity: 0.5 });
+            copernicanOrbitingBodyOrbitLine = new THREE.Line(orbitGeometry, orbitMaterial);
+            copernicanScene.add(copernicanOrbitingBodyOrbitLine);
+
+            // Initialize 2D phase canvas context
+            copernicanPhaseCtx = document.getElementById('copernican-phaseCanvas').getContext('2d');
+            copernicanPhaseCtx.canvas.width = 100; 
+            copernicanPhaseCtx.canvas.height = 100; 
+        }
+
+        /**
+         * Initializes the Ptolemaic model Three.js scene.
+         */
+        function initPtolemaic() {
+            // Scene setup
+            ptolemaicScene = new THREE.Scene();
+            ptolemaicScene.background = new THREE.Color(0x111827);
+
+            // Camera setup
+            ptolemaicCamera = new THREE.PerspectiveCamera(75, (window.innerWidth / 2) / window.innerHeight, 0.1, 2000);
+            ptolemaicCamera.position.set(0, 200, 300); // Adjusted camera position to zoom out and center on Sun
+            ptolemaicCamera.lookAt(0, 0, 0); // Look at the Sun (origin)
+
+            // Renderer setup
+            ptolemaicRenderer = new THREE.WebGLRenderer({ antialias: true });
+            document.getElementById('ptolemaic-container3D').appendChild(ptolemaicRenderer.domElement);
+
+            // Lighting
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.3);
+            ptolemaicScene.add(ambientLight);
+            const pointLight = new THREE.PointLight(0xffffff, 2, 2000);
+            pointLight.position.set(0, 0, 0); // Sun fixed at origin
+            ptolemaicScene.add(pointLight); 
+
+            // OrbitControls
+            ptolemaicControls = new OrbitControls(ptolemaicCamera, ptolemaicRenderer.domElement);
+            ptolemaicControls.enableDamping = true;
+            ptolemaicControls.dampingFactor = 0.05;
+            ptolemaicControls.screenSpacePanning = false;
+            ptolemaicControls.minDistance = 50;
+            ptolemaicControls.maxDistance = 1000;
+            ptolemaicControls.target.set(0, 0, 0); // Target controls at the Sun (origin)
+
+            // Sun (Light Source) - Fixed at the origin
+            const sunGeometry = new THREE.SphereGeometry(CENTRAL_BODY_RADIUS_MODEL, 32, 32);
+            const sunMaterial = new THREE.MeshBasicMaterial({ color: 0xffff00 });
+            ptolemaicSunLightSource = new THREE.Mesh(sunGeometry, sunMaterial);
+            ptolemaicSunLightSource.position.set(0, 0, 0); // Sun fixed at origin
+            ptolemaicScene.add(ptolemaicSunLightSource);
+            pointLight.position.copy(ptolemaicSunLightSource.position); // Point light at the fixed Sun
+
+            // Observer Body (Earth) - Fixed at a distance from the Sun (origin)
+            const observerBodyGeometry = new THREE.SphereGeometry(OBSERVER_BODY_RADIUS_MODEL, 32, 32);
+            const observerBodyMaterial = new THREE.MeshPhongMaterial({ color: 0x4A90E2 }); // Same blue color as Copernican Earth
+            ptolemaicObserverBody = new THREE.Mesh(observerBodyGeometry, observerBodyMaterial);
+            ptolemaicObserverBody.position.set(0, 0, OBSERVER_BODY_ORBIT_RADIUS_MODEL); // Earth fixed on Z-axis
+            ptolemaicScene.add(ptolemaicObserverBody);
+
+            // Epicycle Center (invisible object) - Fixed on the Sun-Earth line
+            ptolemaicEpicycleCenter = new THREE.Object3D(); // Use Object3D as it's just a position reference
+            // Epicycle center fixed on the Sun-Earth line, at a distance from the Sun
+            ptolemaicEpicycleCenter.position.set(0, 0, PTOLEMAIC_DEFERENT_RADIUS); 
+            ptolemaicScene.add(ptolemaicEpicycleCenter);
+
+            // Orbiting Body (Venus)
+            const orbitingBodyGeometry = new THREE.SphereGeometry(ORBITING_BODY_RADIUS_MODEL, 32, 32);
+            const orbitingBodyVertexShader = `
+                varying vec3 vWorldNormal;
+                varying vec3 vWorldPosition;
+                void main() {
+                    vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+                    vWorldPosition = worldPosition.xyz;
+                    vWorldNormal = normalize(mat3(modelMatrix) * normal); 
+                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                }
+            `;
+            const orbitingBodyFragmentShader = `
+                varying vec3 vWorldNormal;
+                varying vec3 vWorldPosition;
+                uniform vec3 centralBodyWorldPosition; 
+                uniform vec3 litSideColor;
+                uniform vec3 darkSideColor;
+                void main() {
+                    vec3 normal = normalize(vWorldNormal);
+                    vec3 surfaceToCentralBodyDirection = normalize(centralBodyWorldPosition - vWorldPosition); 
+                    float lightIntensityFactor = max(0.0, dot(normal, surfaceToCentralBodyDirection));
+                    if (lightIntensityFactor > 0.001) {
+                        gl_FragColor = vec4(litSideColor * lightIntensityFactor, 1.0);
+                    } else {
+                        gl_FragColor = vec4(darkSideColor, 1.0);
+                    }
+                }
+            `;
+            const orbitingBodyMaterial = new THREE.ShaderMaterial({
+                vertexShader: orbitingBodyVertexShader,
+                fragmentShader: orbitingBodyFragmentShader,
+                uniforms: {
+                    centralBodyWorldPosition: { value: ptolemaicSunLightSource.position }, // Pass Sun's fixed position
+                    litSideColor: { value: new THREE.Color(0xFFEECC) },
+                    darkSideColor: { value: new THREE.Color(0x2C2C2C) }
+                }
+            });
+            ptolemaicOrbitingBody = new THREE.Mesh(orbitingBodyGeometry, orbitingBodyMaterial);
+            ptolemaicScene.add(ptolemaicOrbitingBody);
+
+            // Epicycle orbit line (around epicycle center)
+            const epicyclePoints = [];
+            for (let i = 0; i <= 360; i++) {
+                const angle = (i / 180) * Math.PI;
+                epicyclePoints.push(
+                    new THREE.Vector3(
+                        Math.cos(angle) * PTOLEMAIC_EPICYCLE_RADIUS,
+                        0,
+                        Math.sin(angle) * PTOLEMAIC_EPICYCLE_RADIUS
+                    )
+                );
+            }
+            const epicycleGeometry = new THREE.BufferGeometry().setFromPoints(epicyclePoints);
+            ptolemaicEpicycleOrbitLine = new THREE.Line(epicycleGeometry, new THREE.LineBasicMaterial({ color: 0x8888ff, transparent: true, opacity: 0.5 }));
+            ptolemaicEpicycleCenter.add(ptolemaicEpicycleOrbitLine); // Add to epicycle center so it moves with it
+
+            // Initialize 2D phase canvas context
+            ptolemaicPhaseCtx = document.getElementById('ptolemaic-phaseCanvas').getContext('2d');
+            ptolemaicPhaseCtx.canvas.width = 100; 
+            ptolemaicPhaseCtx.canvas.height = 100; 
+        }
+
+        /**
+         * Updates the position of the orbiting body in the Copernican 3D scene.
+         */
+        function updateCopernicanPositions() {
+            // Earth's position is fixed in this simplified model.
+            // Update Venus's position
+            copernicanOrbitingBody.position.x = ORBITING_BODY_ORBIT_RADIUS_MODEL * Math.cos(copernicanOrbitingBodyAngle);
+            copernicanOrbitingBody.position.y = 0;
+            copernicanOrbitingBody.position.z = ORBITING_BODY_ORBIT_RADIUS_MODEL * Math.sin(copernicanOrbitingBodyAngle);
+        }
+
+        /**
+         * Updates the position of the orbiting body in the Ptolemaic 3D scene.
+         */
+        function updatePtolemaicPositions() {
+            // Sun and Earth positions are fixed in this simplified Ptolemaic model.
+            // Only Venus moves on its epicycle.
+            ptolemaicOrbitingBody.position.x = ptolemaicEpicycleCenter.position.x + PTOLEMAIC_EPICYCLE_RADIUS * Math.cos(ptolemaicEpicycleAngle);
+            ptolemaicOrbitingBody.position.y = 0;
+            ptolemaicOrbitingBody.position.z = ptolemaicEpicycleCenter.position.z + PTOLEMAIC_EPICYCLE_RADIUS * Math.sin(ptolemaicEpicycleAngle);
+            
+            // Ensure the light source's uniform is updated for the Venus shader (Sun is fixed at origin)
+            ptolemaicOrbitingBody.material.uniforms.centralBodyWorldPosition.value.copy(ptolemaicSunLightSource.position);
+        }
+
+        /**
+         * Calculates and updates the 2D phase diagram of the orbiting body for the Copernican model.
+         */
+        function updateCopernicanPhaseDiagram() {
+            // Vector from Orbiting Body to Central Body (P-S)
+            const vec_PS = new THREE.Vector3().subVectors(copernicanCentralBody.position, copernicanOrbitingBody.position);
+            // Vector from Orbiting Body to Observer Body (P-E)
+            const vec_PE = new THREE.Vector3().subVectors(copernicanObserverBody.position, copernicanOrbitingBody.position);
+            
+            // Calculate the phase angle (phi_SPE): angle between Central Body-Orbiting Body and Orbiting Body-Observer Body vectors
+            const phi_SPE = vec_PS.angleTo(vec_PE);
+            const k_illuminated_fraction = (1 + Math.cos(phi_SPE)) / 2;
+
+            // Calculate the direction of the Central Body as seen from Orbiting Body, normalized
+            const centralBody_dir_PS_abs = new THREE.Vector3().subVectors(copernicanCentralBody.position, copernicanOrbitingBody.position).normalize();
+            
+            // Calculate the view direction from Observer Body to Orbiting Body, normalized
+            const view_dir_PE = new THREE.Vector3().subVectors(copernicanOrbitingBody.position, copernicanObserverBody.position).normalize();
+
+            // Robust calculation of screen basis vectors for 2D phase diagram orientation
+            let tempUp = new THREE.Vector3(0, 1, 0);
+            if (Math.abs(view_dir_PE.dot(tempUp)) > 0.99) { // If view_dir_PE is close to (0,1,0) or (0,-1,0)
+                tempUp.set(0, 0, 1); // Use Z-axis as a temporary up
+            }
+            const screen_x_dir = new THREE.Vector3().crossVectors(view_dir_PE, tempUp).normalize();
+            const screen_y_dir = new THREE.Vector3().crossVectors(view_dir_PE, screen_x_dir).normalize();
+
+            // Project the light source direction onto the screen plane
+            const centralBody_proj_x = centralBody_dir_PS_abs.dot(screen_x_dir);
+            const centralBody_proj_y = centralBody_dir_PS_abs.dot(screen_y_dir);
+            const centralBodyAngleOnScreen = Math.atan2(centralBody_proj_y, centralBody_proj_x);
+            
+            // Removed + Math.PI to make the crescent appear on the left for waxing phases
+            drawOrbitingBodyPhase2D(copernicanPhaseCtx, copernicanPhaseCtx.canvas.width / 2, copernicanPhaseCtx.canvas.height / 2, copernicanPhaseCtx.canvas.width / 2 - 5, k_illuminated_fraction, centralBodyAngleOnScreen);
+        }
+
+        /**
+         * Calculates and updates the 2D phase diagram of the orbiting body for the Ptolemaic model.
+         */
+        function updatePtolemaicPhaseDiagram() {
+            // Vector from Orbiting Body to Sun (P-S) - Sun is ptolemaicSunLightSource
+            const vec_PS = new THREE.Vector3().subVectors(ptolemaicSunLightSource.position, ptolemaicOrbitingBody.position);
+            // Vector from Orbiting Body to Observer Body (P-E) - Observer is ptolemaicObserverBody (Earth at origin)
+            const vec_PE = new THREE.Vector3().subVectors(ptolemaicObserverBody.position, ptolemaicOrbitingBody.position);
+            
+            // Calculate the phase angle (phi_SPE): angle between Sun-Orbiting Body and Orbiting Body-Observer Body vectors
+            const phi_SPE = vec_PS.angleTo(vec_PE);
+            const k_illuminated_fraction = (1 + Math.cos(phi_SPE)) / 2;
+
+            // Calculate the direction of the Sun as seen from Orbiting Body, normalized
+            const centralBody_dir_PS_abs = new THREE.Vector3().subVectors(ptolemaicSunLightSource.position, ptolemaicOrbitingBody.position).normalize();
+            
+            // Calculate the view direction from Observer Body to Orbiting Body, normalized
+            const view_dir_PE = new THREE.Vector3().subVectors(ptolemaicOrbitingBody.position, ptolemaicObserverBody.position).normalize();
+
+            // Robust calculation of screen basis vectors for 2D phase diagram orientation
+            let tempUp = new THREE.Vector3(0, 1, 0); 
+            if (Math.abs(view_dir_PE.dot(tempUp)) > 0.99) { // If view_dir_PE is close to (0,1,0) or (0,-1,0)
+                tempUp.set(0, 0, 1); // Use Z-axis as a temporary up
+            }
+            const screen_x_dir = new THREE.Vector3().crossVectors(view_dir_PE, tempUp).normalize();
+            const screen_y_dir = new THREE.Vector3().crossVectors(view_dir_PE, screen_x_dir).normalize();
+
+            const centralBody_proj_x = centralBody_dir_PS_abs.dot(screen_x_dir);
+            const centralBody_proj_y = centralBody_dir_PS_abs.dot(screen_y_dir);
+            const centralBodyAngleOnScreen = Math.atan2(centralBody_proj_y, centralBody_proj_x);
+            
+            // Removed + Math.PI to make the crescent appear on the left for waxing phases
+            drawOrbitingBodyPhase2D(ptolemaicPhaseCtx, ptolemaicPhaseCtx.canvas.width / 2, ptolemaicPhaseCtx.canvas.height / 2, ptolemaicPhaseCtx.canvas.width / 2 - 5, k_illuminated_fraction, centralBodyAngleOnScreen);
+        }
+
+        /**
+         * Advances the simulation time for both models by one step (1/12th of synodic period).
+         */
+        function advanceTime() {
+            // Update Copernican Model (Earth is fixed, only Venus orbits)
+            copernicanOrbitingBodyAngle -= PHASE_STEP_ANGLE; 
+            copernicanOrbitingBodyAngle %= (2 * Math.PI);
+            updateCopernicanPositions();
+            updateCopernicanPhaseDiagram();
+
+            // Update Ptolemaic Model (Venus moves on epicycle)
+            ptolemaicEpicycleAngle -= PHASE_STEP_ANGLE; 
+            ptolemaicEpicycleAngle %= (2 * Math.PI);
+
+            updatePtolemaicPositions();
+            updatePtolemaicPhaseDiagram();
+        }
+
+        /**
+         * Rewinds the simulation time for both models by one step (1/12th of synodic period).
+         */
+        function rewindTime() {
+            // Update Copernican Model (Earth is fixed, only Venus orbits)
+            copernicanOrbitingBodyAngle += PHASE_STEP_ANGLE; 
+            copernicanOrbitingBodyAngle %= (2 * Math.PI);
+            updateCopernicanPositions();
+            updateCopernicanPhaseDiagram();
+
+            // Update Ptolemaic Model (Venus moves on epicycle)
+            ptolemaicEpicycleAngle += PHASE_STEP_ANGLE; 
+            ptolemaicEpicycleAngle %= (2 * Math.PI);
+
+            updatePtolemaicPositions();
+            updatePtolemaicPhaseDiagram();
+        }
+
+        /**
+         * Toggles the auto-advance feature.
+         */
+        function toggleAutoAdvance() {
+            if (autoAdvanceInterval) {
+                // Stop auto advance
+                clearInterval(autoAdvanceInterval);
+                autoAdvanceInterval = null;
+                autoAdvanceBtn.textContent = 'Auto Advance';
+            } else {
+                // Start auto advance
+                autoAdvanceInterval = setInterval(advanceTime, 1000); // Advance every 1 second
+                autoAdvanceBtn.textContent = 'Stop Auto Advance';
+            }
+        }
+
+        /**
+         * Handles window resize events to maintain responsiveness for both models.
+         */
+        function onWindowResize() {
+            const topControlsHeight = document.getElementById('top-controls').offsetHeight;
+            const availableHeight = window.innerHeight - topControlsHeight;
+            const availableWidth = Math.min(window.innerWidth, document.documentElement.clientWidth || window.innerWidth);
+
+            let targetWidth, targetHeight;
+            const aspectRatio = 16 / 9;
+
+            // Calculate dimensions to fit 16:9 within available space
+            if (availableWidth / availableHeight > aspectRatio) {
+                // Window is wider than 16:9, constrain by height
+                targetHeight = availableHeight;
+                targetWidth = availableHeight * aspectRatio;
+            } else {
+                // Window is taller than 16:9, constrain by width
+                targetWidth = availableWidth;
+                targetHeight = availableWidth / aspectRatio;
+            }
+
+            // Apply calculated dimensions to the simulation-panels container
+            const simulationPanels = document.getElementById('simulation-panels');
+            // Phones / narrow screens: stack the two models vertically, each roughly square
+            const stacked = window.innerWidth <= 900;
+            let panelWidth = targetWidth / 2;
+            let panelHeight = targetHeight;
+            if (stacked) {
+                panelWidth = availableWidth;
+                panelHeight = Math.round(Math.min(availableWidth, 460));
+                targetWidth = panelWidth;
+                targetHeight = panelHeight * 2;
+            }
+            simulationPanels.style.flexDirection = stacked ? 'column' : '';
+            simulationPanels.style.width = `${targetWidth}px`;
+            simulationPanels.style.height = `${targetHeight}px`;
+            simulationPanels.style.margin = 'auto'; // Center the content
+            document.querySelectorAll('.simulation-panel').forEach(el => {
+                el.style.flex = stacked ? 'none' : '';
+                el.style.width = stacked ? `${panelWidth}px` : '';
+                el.style.height = stacked ? `${panelHeight}px` : '';
+            });
+
+            // Copernican
+            copernicanCamera.aspect = panelWidth / panelHeight;
+            copernicanCamera.updateProjectionMatrix();
+            copernicanRenderer.setSize(panelWidth, panelHeight);
+
+            // Ptolemaic
+            ptolemaicCamera.aspect = panelWidth / panelHeight;
+            ptolemaicCamera.updateProjectionMatrix();
+            ptolemaicRenderer.setSize(panelWidth, panelHeight);
+
+            // Re-render phase diagrams with updated canvas sizes (though not strictly necessary for resize, good for consistency)
+            updateCopernicanPhaseDiagram();
+            updatePtolemaicPhaseDiagram();
+        }
+
+        /**
+         * The main animation loop for both Three.js scenes.
+         */
+        function animate() {
+            requestAnimationFrame(animate);
+
+            copernicanControls.update();
+            ptolemaicControls.update();
+
+            copernicanRenderer.render(copernicanScene, copernicanCamera);
+            ptolemaicRenderer.render(ptolemaicScene, ptolemaicCamera);
+        }
+
+        // Initialize both simulations when the script loads
+        function initializeAllSimulations() {
+            initCopernican();
+            initPtolemaic();
+            
+            // Set initial positions and phase diagrams
+            updateCopernicanPositions();
+            updatePtolemaicPositions();
+            updateCopernicanPhaseDiagram();
+            updatePtolemaicPhaseDiagram();
+
+            advanceWeekBtn.addEventListener('click', advanceTime);
+            rewindWeekBtn.addEventListener('click', rewindTime); // Add event listener for rewind button
+            autoAdvanceBtn.addEventListener('click', toggleAutoAdvance); // Add event listener for auto advance button
+            window.addEventListener('resize', onWindowResize, false);
+            onWindowResize(); // Call once to set initial size
+            animate(); // Start the animation loop
+        }
+
+        // Call the main initialization function
+        initializeAllSimulations();
+    </script>
+<script src="../../../assets/sim.js" data-root="../../../#astronomy-and-space-science"></script>
+</body>
+</html>

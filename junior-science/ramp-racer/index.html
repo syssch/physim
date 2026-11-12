@@ -1,0 +1,826 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="../../assets/sim-early.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ramp Racer · PhySim</title>
+    <link rel="stylesheet" href="../../assets/vendor/tailwind.css">
+    <script src="../../assets/vendor/chart.umd.js"></script>
+    <style>
+        @import url('../../assets/vendor/comic-neue/comic-neue.css'); @import url('../../assets/vendor/inter/inter.css');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f9ff;
+        }
+        
+        h1, h2, h3 {
+            font-family: 'Comic Neue', cursive;
+        }
+
+        .canvas-container {
+            background: linear-gradient(180deg, #e0f2fe 0%, #bae6fd 100%);
+            border-bottom: 4px solid #7dd3fc;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Custom Range Slider */
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100%;
+            background: transparent;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 20px;
+            width: 20px;
+            border-radius: 50%;
+            background: #0ea5e9;
+            cursor: pointer;
+            margin-top: -8px; 
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: #cbd5e1;
+            border-radius: 2px;
+        }
+    </style>
+<link rel="icon" href="../../favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../../assets/sim.css">
+</head>
+<body class="text-slate-800">
+
+    <!-- Header -->
+    <header class="bg-white shadow-sm p-4 sticky top-0 z-10">
+        <div class="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center">
+            <div class="flex items-center gap-3">
+                <div class="bg-blue-500 text-white p-2 rounded-lg">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+                    </svg>
+                </div>
+                <h1 class="text-2xl font-bold text-blue-600">Fair Test Lab: Ramp Racer</h1>
+            </div>
+            <div class="mt-2 md:mt-0 text-sm text-slate-500 bg-blue-50 px-3 py-1 rounded-full border border-blue-100">
+                Junior Science Simulation
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-6xl mx-auto p-4 grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+        <!-- Left Column: Controls & Sim -->
+        <div class="lg:col-span-5 space-y-6">
+            
+            <!-- Step 1: Hypothesis -->
+            <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+                <h2 class="text-lg font-bold text-slate-700 mb-3 flex items-center gap-2">
+                    <span class="bg-yellow-400 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs">1</span>
+                    Make a Hypothesis
+                </h2>
+                <p class="text-sm text-slate-600 mb-3">I want to investigate how changing the <span class="font-bold text-blue-600" id="hypo-var-display">...</span> affects the time taken.</p>
+                <div class="flex gap-2">
+                    <select id="hypothesisSelect" class="w-full p-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                        <option value="" disabled selected>Choose a variable...</option>
+                        <option value="height">Ramp Height</option>
+                        <option value="mass">Cart Mass</option>
+                        <option value="surface">Surface Material</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Step 2: Experiment Setup -->
+            <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 relative overflow-hidden">
+                <h2 class="text-lg font-bold text-slate-700 mb-4 flex items-center gap-2">
+                    <span class="bg-green-500 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs">2</span>
+                    Set Variables
+                </h2>
+
+                <!-- Controls -->
+                <div class="space-y-5">
+                    
+                    <!-- Variable 1: Height -->
+                    <div>
+                        <div class="flex justify-between items-end mb-2">
+                            <label class="text-sm font-semibold text-slate-700">Ramp Height (cm)</label>
+                            <span id="val-height" class="text-xl font-bold font-mono text-blue-600 bg-blue-50 px-3 py-1 rounded">30</span>
+                        </div>
+                        <input type="range" id="input-height" min="10" max="80" value="30" step="5" oninput="updateSimState()">
+                        <div class="flex justify-between text-xs text-slate-400 mt-1">
+                            <span>Low (10)</span>
+                            <span>High (80)</span>
+                        </div>
+                    </div>
+
+                    <!-- Variable 2: Mass -->
+                    <div>
+                        <div class="flex justify-between items-end mb-2">
+                            <label class="text-sm font-semibold text-slate-700">Cart Mass (g)</label>
+                            <span id="val-mass" class="text-xl font-bold font-mono text-blue-600 bg-blue-50 px-3 py-1 rounded">200</span>
+                        </div>
+                        <input type="range" id="input-mass" min="50" max="500" value="200" step="10" oninput="updateSimState()">
+                        <div class="flex justify-between text-xs text-slate-400 mt-1">
+                            <span>Light (50g)</span>
+                            <span>Heavy (500g)</span>
+                        </div>
+                    </div>
+
+                    <!-- Variable 3: Surface -->
+                    <div>
+                        <div class="flex justify-between items-end mb-2">
+                            <label class="text-sm font-semibold text-slate-700">Surface Type</label>
+                            <span id="val-surface" class="text-xl font-bold font-mono text-blue-600 bg-blue-50 px-3 py-1 rounded">Wood</span>
+                        </div>
+                        <select id="input-surface" onchange="updateSimState()" class="w-full p-2 border border-slate-300 rounded-lg text-sm">
+                            <option value="glass">Glass (Very Smooth)</option>
+                            <option value="wood" selected>Wood (Normal)</option>
+                            <option value="carpet">Carpet (Rough)</option>
+                        </select>
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- Simulation Viewport -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                <div class="p-3 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
+                    <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">Simulation View</span>
+                    <div id="timer-display" class="font-mono text-2xl font-bold text-slate-800">0.00 s</div>
+                </div>
+                
+                <div class="canvas-container h-64 w-full relative">
+                    <canvas id="simCanvas" class="w-full h-full"></canvas>
+                    
+                    <!-- Play Button Overlay -->
+                    <div id="play-overlay" class="absolute inset-0 flex items-center justify-center bg-black/5 pointer-events-none">
+                        <!-- Visual cue only, interaction is via button below -->
+                    </div>
+                </div>
+
+                <div class="p-4 bg-white border-t border-slate-200 grid grid-cols-2 gap-3">
+                    <button onclick="resetSim()" class="px-4 py-2 text-slate-600 font-medium hover:bg-slate-100 rounded-lg transition-colors border border-slate-300">
+                        Reset
+                    </button>
+                    <button onclick="runExperiment()" id="btn-run" class="px-4 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200 flex justify-center items-center gap-2">
+                        <span>Start Test</span>
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                    </button>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Right Column: Data & Graph -->
+        <div class="lg:col-span-7 space-y-6">
+
+            <!-- Step 4: Analysis (Moved Up) -->
+            <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-lg font-bold text-slate-700 flex items-center gap-2">
+                        <span class="bg-rose-500 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs">4</span>
+                        Graph Analysis
+                    </h2>
+                    <div class="flex items-center gap-2">
+                        <button id="btn-copy-graph" onclick="copyGraph()" class="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded border border-transparent hover:border-blue-100 transition-all" title="Copy Graph Image to Clipboard">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2" />
+                            </svg>
+                        </button>
+                        <select id="graph-x-axis" onchange="updateGraph()" class="text-xs border-slate-300 rounded border p-1">
+                            <option value="height">X-Axis: Height</option>
+                            <option value="mass">X-Axis: Mass</option>
+                            <option value="surface">X-Axis: Surface (Bar)</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="h-64 w-full">
+                    <canvas id="dataChart"></canvas>
+                </div>
+
+                <!-- Fair Test Checker Feedback -->
+                <div id="fair-test-feedback" class="mt-4 p-3 bg-blue-50 text-blue-700 text-sm rounded-lg border border-blue-200 hidden">
+                    <!-- Dynamic Content -->
+                </div>
+            </div>
+            
+            <!-- Step 3: Data Table (Moved Down) -->
+            <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 min-h-[400px]">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-lg font-bold text-slate-700 flex items-center gap-2">
+                        <span class="bg-purple-500 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs">3</span>
+                        Record Sheet
+                    </h2>
+                    <div class="flex gap-4">
+                        <button onclick="uncheckAll()" class="text-xs text-slate-500 hover:text-blue-600 hover:underline">Uncheck All</button>
+                        <button onclick="clearData()" class="text-xs text-red-500 hover:underline">Clear All</button>
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm text-left">
+                        <thead class="text-xs text-slate-500 uppercase bg-slate-50 border-b">
+                            <tr>
+                                <th class="px-4 py-3 w-10">Plot</th>
+                                <th class="px-4 py-3">Trial</th>
+                                <th class="px-4 py-3">Height (cm)</th>
+                                <th class="px-4 py-3">Mass (g)</th>
+                                <th class="px-4 py-3">Surface</th>
+                                <th class="px-4 py-3 text-right">Time (s)</th>
+                                <th class="px-4 py-3"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="results-body">
+                            <!-- Rows go here -->
+                            <tr id="empty-msg">
+                                <td colspan="7" class="px-4 py-8 text-center text-slate-400 italic">
+                                    No experiments run yet. Set variables and click "Start Test".
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <p class="text-xs text-slate-400 mt-3 text-center">Tip: Check the box "Plot" to see the data point on the graph above.</p>
+            </div>
+
+        </div>
+
+    </main>
+
+    <!-- Custom Confirmation Modal -->
+    <div id="confirm-modal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50">
+        <div class="bg-white p-6 rounded-lg shadow-xl max-w-sm w-full mx-4 border border-slate-200">
+            <h3 class="text-lg font-bold text-slate-800 mb-2">Clear all data?</h3>
+            <p class="text-slate-600 mb-6 text-sm">This will permanently delete all your recorded experiment results.</p>
+            <div class="flex justify-end gap-3">
+                <button onclick="closeModal()" class="px-4 py-2 text-slate-600 font-medium hover:bg-slate-100 rounded-lg transition-colors">Cancel</button>
+                <button onclick="performClear()" class="px-4 py-2 bg-red-500 text-white font-bold rounded-lg hover:bg-red-600 shadow-lg shadow-red-200 transition-colors">Yes, Clear</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Script Logic -->
+    <script>
+        // --- State ---
+        let state = {
+            height: 30, // cm
+            mass: 200,  // g
+            surface: 'wood',
+            running: false,
+            progress: 0, // 0 to 1
+            results: []
+        };
+
+        const PHYSICS = {
+            gravity: 9.8,
+            length: 1.0, // m (ramp length)
+            friction: {
+                // Reduced friction values to ensure movement at low angles (10cm)
+                'glass': 0.005,
+                'wood': 0.05, 
+                'carpet': 0.15
+            }
+        };
+
+        // --- Init ---
+        const canvas = document.getElementById('simCanvas');
+        const ctx = canvas.getContext('2d');
+        let animationFrame;
+        let chartInstance = null;
+
+        // Resize canvas
+        function resizeCanvas() {
+            canvas.width = canvas.parentElement.clientWidth;
+            canvas.height = canvas.parentElement.clientHeight;
+            drawSim();
+        }
+        window.addEventListener('resize', resizeCanvas);
+        
+        // Setup Chart
+        function initChart() {
+            const ctxChart = document.getElementById('dataChart').getContext('2d');
+            chartInstance = new Chart(ctxChart, {
+                type: 'scatter',
+                data: {
+                    datasets: [{
+                        label: 'Experiment Data',
+                        data: [],
+                        backgroundColor: 'rgb(59, 130, 246)',
+                        pointRadius: 6,
+                        pointHoverRadius: 8
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            title: { display: true, text: 'Height (cm)' },
+                            type: 'linear',
+                            position: 'bottom'
+                        },
+                        y: {
+                            title: { display: true, text: 'Time (s)' },
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+
+        // --- Physics Engine ---
+        function calculateTime() {
+            // Physics: a = g*sin(theta) - mu*g*cos(theta)
+            // sin(theta) = h / L
+            // For h in cm, L=100cm.
+            // Simplified for schools: Time t = sqrt(2d/a)
+            
+            const h_m = state.height / 100;
+            const L_m = PHYSICS.length;
+            const theta = Math.asin(h_m / L_m);
+            const mu = PHYSICS.friction[state.surface];
+            
+            // Acceleration (gravity component - friction component)
+            let acc = PHYSICS.gravity * Math.sin(theta) - (mu * PHYSICS.gravity * Math.cos(theta));
+            
+            // If friction is too high, it might not move, but for the simulation, we want a result.
+            // We set a minimum acceleration of 0.05 to prevent "stuck" scenarios at very low angles/high friction
+            // which causes confusing "same time" results for students.
+            if (acc <= 0.05) acc = 0.05; 
+
+            const time = Math.sqrt((2 * L_m) / acc);
+            
+            // Add tiny random noise to simulate real world measurement error (+/- 0.05s)
+            const noise = (Math.random() - 0.5) * 0.05;
+            return Math.max(0, time + noise);
+        }
+
+        // --- Interaction ---
+        
+        function updateSimState() {
+            if(state.running) return;
+            state.height = parseInt(document.getElementById('input-height').value);
+            state.mass = parseInt(document.getElementById('input-mass').value);
+            state.surface = document.getElementById('input-surface').value;
+            
+            // Update labels
+            document.getElementById('val-height').innerText = state.height;
+            document.getElementById('val-mass').innerText = state.mass;
+            document.getElementById('val-surface').innerText = state.surface.charAt(0).toUpperCase() + state.surface.slice(1);
+
+            state.progress = 0;
+            document.getElementById('timer-display').innerText = "0.00 s";
+            drawSim();
+        }
+
+        document.getElementById('hypothesisSelect').addEventListener('change', (e) => {
+            const map = { 'height': 'Ramp Height', 'mass': 'Cart Mass', 'surface': 'Surface Material' };
+            document.getElementById('hypo-var-display').innerText = map[e.target.value];
+            
+            // Auto-switch graph axis to match hypothesis for convenience
+            const graphSelect = document.getElementById('graph-x-axis');
+            if(e.target.value === 'surface') {
+                graphSelect.value = 'surface';
+            } else if (e.target.value === 'mass') {
+                graphSelect.value = 'mass';
+            } else {
+                graphSelect.value = 'height';
+            }
+            updateGraph();
+        });
+
+        // --- Simulation Loop ---
+        function runExperiment() {
+            if (state.running) return;
+            
+            const calculatedTime = calculateTime();
+            state.running = true;
+            document.getElementById('btn-run').classList.add('opacity-50', 'cursor-not-allowed');
+            
+            const fps = 60;
+            const totalFrames = calculatedTime * fps; 
+            let frame = 0;
+
+            function animate() {
+                if (!state.running) return;
+
+                frame++;
+                state.progress = Math.min(1, (frame / totalFrames)); // Linear for simplicity or ease-in for accel
+                
+                // Acceleration easing: d = 0.5 * a * t^2. 
+                // Since d varies with t^2, progress along track should be quadratic.
+                const quadProgress = state.progress * state.progress; 
+                
+                drawSim(quadProgress);
+
+                // Live Timer
+                document.getElementById('timer-display').innerText = (state.progress * calculatedTime).toFixed(2) + " s";
+
+                if (frame < totalFrames) {
+                    animationFrame = requestAnimationFrame(animate);
+                } else {
+                    finishExperiment(calculatedTime);
+                }
+            }
+            animate();
+        }
+
+        function finishExperiment(time) {
+            state.running = false;
+            document.getElementById('btn-run').classList.remove('opacity-50', 'cursor-not-allowed');
+            
+            // Add data
+            const trialId = state.results.length + 1;
+            const newData = {
+                id: trialId,
+                height: state.height,
+                mass: state.mass,
+                surface: state.surface,
+                time: time.toFixed(2),
+                selected: true // Auto select for plotting
+            };
+            state.results.push(newData);
+            renderTable();
+            updateGraph();
+        }
+
+        function resetSim() {
+            state.running = false;
+            state.progress = 0;
+            cancelAnimationFrame(animationFrame);
+            document.getElementById('timer-display').innerText = "0.00 s";
+            document.getElementById('btn-run').classList.remove('opacity-50', 'cursor-not-allowed');
+            drawSim();
+        }
+
+        // --- Rendering ---
+        function drawSim(cartProgress = 0) {
+            const w = canvas.width;
+            const h = canvas.height;
+            ctx.clearRect(0, 0, w, h);
+
+            // Coordinates
+            const groundY = h - 40;
+            const rampLenPixels = w * 0.7; // Fixed pixel length for ramp visualization
+            
+            // Calculate Ramp angle visual (exaggerated for effect, but linked to height)
+            // Real physics angle:
+            const realAngleRad = Math.asin((state.height/100) / PHYSICS.length);
+            
+            // Pivot point (bottom right of ramp)
+            const endX = w - 50;
+            const endY = groundY;
+            
+            const startX = endX - (Math.cos(realAngleRad) * rampLenPixels);
+            const startY = endY - (Math.sin(realAngleRad) * rampLenPixels);
+
+            // Draw Ramp
+            ctx.beginPath();
+            ctx.moveTo(startX, startY);
+            ctx.lineTo(endX, endY);
+            ctx.lineTo(startX, endY); // Base
+            ctx.closePath();
+            
+            // Ramp Color based on surface
+            const colors = { 'glass': '#a5f3fc', 'wood': '#d4a373', 'carpet': '#9f1239' };
+            ctx.fillStyle = colors[state.surface] || '#d4a373';
+            ctx.fill();
+            ctx.strokeStyle = '#475569';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            // Draw Surface Texture indicator
+            if(state.surface === 'carpet') {
+                ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+                ctx.lineWidth = 1;
+                for(let i=0; i<10; i++) {
+                    ctx.beginPath();
+                    ctx.moveTo(startX + i*20, startY + i*10); // rough approximation
+                    ctx.lineTo(endX - i*20, endY); 
+                    ctx.stroke();
+                }
+            }
+
+            // Draw Cart
+            // Position along the hypotenuse
+            const currentX = startX + (endX - startX) * cartProgress;
+            const currentY = startY + (endY - startY) * cartProgress;
+
+            ctx.save();
+            ctx.translate(currentX, currentY);
+            ctx.rotate(realAngleRad); // Rotate to match ramp slope
+
+            // Cart Body (on top of line)
+            // Dynamic size based on mass slider (min 20px, max 35px)
+            const cartSize = 20 + ((state.mass - 50) / 450) * 15;
+            
+            ctx.fillStyle = '#ef4444';
+            ctx.strokeStyle = '#7f1d1d';
+            ctx.lineWidth = 2;
+            ctx.fillRect(-cartSize/2, -cartSize - 5, cartSize, cartSize);
+            ctx.strokeRect(-cartSize/2, -cartSize - 5, cartSize, cartSize);
+            
+            // Wheels
+            const wheelSize = cartSize * 0.25;
+            ctx.fillStyle = '#1e293b';
+            ctx.beginPath();
+            ctx.arc(-cartSize/2 + wheelSize, -5, wheelSize, 0, Math.PI*2);
+            ctx.arc(cartSize/2 - wheelSize, -5, wheelSize, 0, Math.PI*2);
+            ctx.fill();
+
+            // Weight label
+            ctx.fillStyle = 'white';
+            ctx.font = '10px Arial';
+            ctx.textAlign = 'center';
+            if(cartSize > 24) ctx.fillText(state.mass, 0, -cartSize/2 - 5);
+
+            ctx.restore();
+
+            // Ground Line
+            ctx.beginPath();
+            ctx.moveTo(0, groundY);
+            ctx.lineTo(w, groundY);
+            ctx.strokeStyle = '#334155';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+        }
+
+        // --- Data Handling ---
+        function renderTable() {
+            const tbody = document.getElementById('results-body');
+            tbody.innerHTML = '';
+            
+            if(state.results.length === 0) {
+                tbody.innerHTML = `<tr id="empty-msg"><td colspan="7" class="px-4 py-8 text-center text-slate-400 italic">No experiments run yet.</td></tr>`;
+                return;
+            }
+
+            state.results.forEach((row, index) => {
+                const tr = document.createElement('tr');
+                tr.className = "border-b hover:bg-slate-50";
+                tr.innerHTML = `
+                    <td class="px-4 py-3"><input type="checkbox" onchange="toggleSelection(${index})" ${row.selected ? 'checked' : ''} class="w-4 h-4 text-blue-600 rounded"></td>
+                    <td class="px-4 py-3 font-mono text-slate-500">#${row.id}</td>
+                    <td class="px-4 py-3">${row.height}</td>
+                    <td class="px-4 py-3">${row.mass}</td>
+                    <td class="px-4 py-3 capitalize">${row.surface}</td>
+                    <td class="px-4 py-3 text-right font-bold text-blue-600">${row.time}</td>
+                    <td class="px-4 py-3 text-right">
+                        <button onclick="deleteRow(${index})" class="text-slate-400 hover:text-red-500">&times;</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function toggleSelection(index) {
+            state.results[index].selected = !state.results[index].selected;
+            updateGraph();
+        }
+
+        function deleteRow(index) {
+            state.results.splice(index, 1);
+            renderTable();
+            updateGraph();
+        }
+        
+        function uncheckAll() {
+            state.results.forEach(r => r.selected = false);
+            renderTable();
+            updateGraph();
+        }
+
+        function clearData() {
+            // Show custom modal instead of native confirm()
+            const modal = document.getElementById('confirm-modal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+
+        function closeModal() {
+            const modal = document.getElementById('confirm-modal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+
+        function performClear() {
+            state.results = [];
+            renderTable();
+            updateGraph();
+            closeModal();
+        }
+
+        // --- Clipboard Logic ---
+        function copyGraph() {
+            const originalCanvas = document.getElementById('dataChart');
+            
+            // Create a temp canvas to flatten transparent background to white
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = originalCanvas.width;
+            tempCanvas.height = originalCanvas.height;
+            const tCtx = tempCanvas.getContext('2d');
+            
+            // Fill White Background
+            tCtx.fillStyle = '#ffffff';
+            tCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+            
+            // Draw original chart on top
+            tCtx.drawImage(originalCanvas, 0, 0);
+            
+            // Attempt Clipboard Write with Fallback
+            tempCanvas.toBlob(function(blob) {
+                try {
+                    // Check if Clipboard API is fully supported
+                    if (navigator.clipboard && navigator.clipboard.write && window.ClipboardItem) {
+                         const item = new ClipboardItem({ 'image/png': blob });
+                         navigator.clipboard.write([item]).then(() => {
+                             showFeedback(true); // Success checkmark
+                         }).catch(err => {
+                             // Fallback if permission denied or other error
+                             console.warn("Clipboard write failed, falling back to download", err);
+                             downloadGraphImage(tempCanvas);
+                         });
+                    } else {
+                        // Fallback if API missing
+                        throw new Error("Clipboard API unavailable");
+                    }
+                } catch (err) {
+                    console.warn("Clipboard API error, falling back to download", err);
+                    downloadGraphImage(tempCanvas);
+                }
+            });
+        }
+
+        function downloadGraphImage(canvas) {
+            // Trigger a download
+            const link = document.createElement('a');
+            link.download = 'ramp-experiment-graph.png';
+            link.href = canvas.toDataURL('image/png');
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            showFeedback(false); // Download icon
+        }
+
+        function showFeedback(isCopy) {
+            const btn = document.getElementById('btn-copy-graph');
+            const originalIcon = btn.innerHTML;
+            
+            if (isCopy) {
+                // Green Check for Copy
+                btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-green-600" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>`;
+            } else {
+                // Blue Download Arrow for Download Fallback
+                btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>`;
+            }
+            
+            setTimeout(() => { btn.innerHTML = originalIcon; }, 2000);
+        }
+        
+        // --- Fair Test Logic ---
+        function checkFairTest() {
+            const feedbackEl = document.getElementById('fair-test-feedback');
+            const hypothesis = document.getElementById('hypothesisSelect').value;
+            const selectedRows = state.results.filter(r => r.selected);
+
+            feedbackEl.classList.remove('hidden');
+            feedbackEl.className = "mt-4 p-3 rounded-lg text-sm border flex items-start gap-2 transition-all duration-300";
+
+            // Case 0: No hypothesis
+            if (!hypothesis) {
+                feedbackEl.classList.add('bg-yellow-50', 'text-yellow-800', 'border-yellow-200');
+                feedbackEl.innerHTML = `
+                    <svg class="h-5 w-5 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                    <span><strong>Step 1 Incomplete:</strong> Please select a hypothesis in Step 1 so we can check your work.</span>`;
+                return;
+            }
+
+            // Case 1: Not enough data
+            if (selectedRows.length < 2) {
+                feedbackEl.classList.add('bg-blue-50', 'text-blue-700', 'border-blue-200');
+                feedbackEl.innerHTML = `
+                    <svg class="h-5 w-5 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    <span>Select at least <strong>2 data points</strong> in the table below to analyze your experiment.</span>`;
+                return;
+            }
+
+            // Identify variables
+            const vars = ['height', 'mass', 'surface'];
+            const independentVar = hypothesis;
+            const controlVars = vars.filter(v => v !== independentVar);
+
+            // Check Controls (Must be constant)
+            let brokenControls = [];
+            controlVars.forEach(v => {
+                const firstVal = selectedRows[0][v];
+                const allSame = selectedRows.every(r => r[v] === firstVal);
+                if (!allSame) brokenControls.push(v);
+            });
+
+            // Check Independent Variable (Must vary)
+            const indepVal = selectedRows[0][independentVar];
+            const indepVaries = selectedRows.some(r => r[independentVar] !== indepVal);
+
+            // Case 2: Unfair Test (Controls changed)
+            if (brokenControls.length > 0) {
+                const brokenList = brokenControls.map(v => v === 'height' ? 'Height' : (v === 'mass' ? 'Mass' : 'Surface')).join(' and ');
+                feedbackEl.classList.add('bg-red-50', 'text-red-700', 'border-red-200');
+                feedbackEl.innerHTML = `
+                    <svg class="h-5 w-5 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    <div>
+                        <strong>Not a Fair Test!</strong><br>
+                        Your hypothesis is about <u>${independentVar}</u>, but you also changed <u>${brokenList}</u> in the selected trials.<br>
+                        <span class="text-xs opacity-75">Tip: Uncheck the rows where you changed ${brokenList}.</span>
+                    </div>`;
+                return;
+            } 
+
+            // Case 3: No variation in independent variable
+            if (!indepVaries) {
+                feedbackEl.classList.add('bg-orange-50', 'text-orange-800', 'border-orange-200');
+                feedbackEl.innerHTML = `
+                    <svg class="h-5 w-5 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                    <div>
+                         <strong>Check your data:</strong><br> 
+                         You said you want to test <u>${independentVar}</u>, but all your selected points have the same ${independentVar}.<br>
+                         Select points with different values to see the effect.
+                    </div>`;
+                return;
+            }
+
+            // Case 4: Success
+            feedbackEl.classList.add('bg-green-50', 'text-green-700', 'border-green-200');
+            feedbackEl.innerHTML = `
+                <svg class="h-5 w-5 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                <div>
+                    <strong>Great work! This is a Fair Test.</strong><br>
+                    You only changed the ${independentVar} and kept everything else constant. The graph now shows the relationship clearly.
+                </div>`;
+        }
+
+        function updateGraph() {
+            // Run the checker every time graph updates
+            checkFairTest();
+
+            if(!chartInstance) return;
+
+            const xAxisType = document.getElementById('graph-x-axis').value;
+            
+            // Filter only selected rows
+            const dataPoints = state.results
+                .filter(r => r.selected)
+                .map(r => {
+                    let xVal = r[xAxisType];
+                    // Handle categorical data for X axis (Chart.js scatter usually needs numbers, but we can map categories or use different chart type)
+                    // For simplicity, we stick to Scatter but if Surface is selected, we map to 1,2,3
+                    if(xAxisType === 'surface') {
+                        const map = {'glass': 1, 'wood': 2, 'carpet': 3};
+                        return { x: map[xVal], y: parseFloat(r.time), label: xVal };
+                    }
+                    return { x: xVal, y: parseFloat(r.time) };
+                });
+
+            // Update Chart Config based on type
+            chartInstance.data.datasets[0].data = dataPoints;
+            
+            if (xAxisType === 'surface') {
+                 chartInstance.options.scales.x = {
+                    type: 'category',
+                    labels: ['Glass', 'Wood', 'Carpet'],
+                    title: { display: true, text: 'Surface Material' }
+                 };
+                 // Remap data for category axis
+                 chartInstance.data.datasets[0].data = state.results
+                    .filter(r => r.selected)
+                    .map(r => ({ x: r.surface.charAt(0).toUpperCase() + r.surface.slice(1), y: parseFloat(r.time) }));
+            } else {
+                 // Set fixed scale ranges to match slider limits plus padding (0-90 for height, 0-550 for mass)
+                 const isHeight = xAxisType === 'height';
+                 chartInstance.options.scales.x = {
+                    type: 'linear',
+                    title: { display: true, text: isHeight ? 'Height (cm)' : 'Mass (g)' },
+                    min: 0,
+                    max: isHeight ? 90 : 550
+                 };
+            }
+
+            chartInstance.update();
+        }
+
+        // Initialize
+        resizeCanvas();
+        initChart();
+        updateSimState();
+
+    </script>
+<script src="../../assets/sim.js" data-root="../../#junior-science"></script>
+</body>
+</html>

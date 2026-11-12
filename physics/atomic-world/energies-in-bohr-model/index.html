@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="../../../assets/sim-early.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Energies in Bohr Model · PhySim</title>
+    <link rel="stylesheet" href="../../../assets/vendor/tailwind.css">
+    <link rel="stylesheet" href="../../../assets/vendor/inter/inter.css">
+    <script src="../../../assets/vendor/chart.umd.js"></script>
+    <script src="../../../assets/vendor/chartjs-plugin-annotation.min.js"></script>
+
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 60px;
+            height: 34px;
+        }
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .slider-knob {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 34px;
+        }
+        .slider-knob:before {
+            position: absolute;
+            content: "";
+            height: 26px;
+            width: 26px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        input:checked + .slider-knob {
+            background-color: #3b82f6; /* Tailwind blue-500 */
+        }
+        input:checked + .slider-knob:before {
+            transform: translateX(26px);
+        }
+        /* ---- Phone / narrow-screen layout ---- */
+        @media (max-width: 900px) {
+            body { height: auto !important; width: auto !important; display: block !important; padding: 8px !important; }
+            #appBox { aspect-ratio: auto; max-height: none; flex-direction: column; overflow: visible; }
+            #appBox > div { width: 100%; height: auto; overflow: visible; }
+            #appBox h1 { font-size: 1.5rem; }
+            #appBox > div:first-child > div:last-child { height: 330px; flex: none; }
+            #appBox > div:last-child > div { flex: none; height: 220px; }
+        }
+    </style>
+<link rel="icon" href="../../../favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../../../assets/sim.css">
+</head>
+<body class="bg-black flex h-screen w-screen items-center justify-center p-4">
+
+    <!-- Main 16:9 Container -->
+    <div id="appBox" class="aspect-video w-full max-h-full max-w-full flex flex-col md:flex-row antialiased overflow-hidden rounded-lg shadow-2xl bg-gray-800">
+        <!-- Left Half -->
+        <div class="w-full md:w-1/2 flex flex-col h-full p-4 gap-4 bg-gray-800">
+            <!-- Control Panel -->
+            <div class="flex flex-col gap-4">
+                <div>
+                    <h1 class="text-3xl font-bold text-blue-400 text-center">Bohr Model Simulator</h1>
+                </div>
+
+                <!-- Combined Controls Row -->
+                <div class="flex flex-col lg:flex-row gap-4 items-stretch">
+                    <!-- Radius Control -->
+                    <div class="bg-gray-700 rounded-lg p-4 flex-grow-[3]">
+                        <label for="radius-slider" class="block font-semibold mb-2 text-sm text-white">Radius (<span id="radius-value-display"></span>)</label>
+                        <input id="radius-slider" type="range" min="0.2" max="15" step="0.01" value="0.53" class="w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer">
+                    </div>
+                    
+                    <!-- Principal Quantum Number -->
+                    <div id="quantum-number-display" class="hidden p-3 bg-gray-700 rounded-lg flex-grow-[2] flex items-center justify-center">
+                        <h2 class="font-semibold text-sm text-white">Quantum Number (n): <span id="n-value" class="font-bold text-blue-400 text-lg">1</span></h2>
+                    </div>
+
+                    <!-- Quantization Control -->
+                    <div class="p-3 bg-gray-700 rounded-lg flex-grow-[2] flex items-center justify-between">
+                        <div>
+                            <h2 class="font-semibold text-sm text-white">Quantized Orbits</h2>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="quantize-switch" checked>
+                            <span class="slider-knob"></span>
+                        </label>
+                    </div>
+                </div>
+
+
+                <!-- Energy Display -->
+                <div class="flex flex-col sm:flex-row items-center gap-2 flex-wrap justify-center">
+                    <div class="flex-1 text-center p-3 bg-green-900/50 rounded-lg w-full sm:w-auto flex flex-col justify-between">
+                        <span class="font-medium text-white text-sm">Kinetic Energy</span>
+                        <p class="text-sm text-gray-400 font-mono my-1">KE = + &frac12; k e<sup>2</sup> / r</p>
+                        <p id="kinetic-energy" class="font-mono font-bold text-lg text-green-300">0.00 eV</p>
+                    </div>
+                    <div class="flex-1 text-center p-3 bg-red-900/50 rounded-lg w-full sm:w-auto flex flex-col justify-between">
+                        <span class="font-medium text-white text-sm">Potential Energy</span>
+                        <p class="text-sm text-gray-400 font-mono my-1">PE = - k e<sup>2</sup> / r</p>
+                        <p id="potential-energy" class="font-mono font-bold text-lg text-red-300">0.00 eV</p>
+                    </div>
+                    <div class="flex-1 text-center p-3 bg-blue-900/50 rounded-lg w-full sm:w-auto flex flex-col justify-between">
+                        <span class="font-medium text-white text-sm">Total Energy</span>
+                        <p class="text-sm text-gray-400 font-mono my-1">E = - &frac12; k e<sup>2</sup> / r</p>
+                        <p id="total-energy" class="font-mono font-bold text-lg text-blue-300">0.00 eV</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 2D Visualization -->
+            <div class="flex-grow flex items-center justify-center min-h-0">
+                <canvas id="atom-canvas" class="rounded-lg shadow-inner"></canvas>
+            </div>
+        </div>
+
+
+        <!-- Right Half: Graphs -->
+        <div class="w-full md:w-1/2 flex flex-col p-4 gap-2 overflow-y-auto bg-gray-900">
+            <div class="flex-1 bg-gray-800 rounded-lg p-2 min-h-[150px]"><canvas id="ke-chart"></canvas></div>
+            <div class="flex-1 bg-gray-800 rounded-lg p-2 min-h-[150px]"><canvas id="pe-chart"></canvas></div>
+            <div class="flex-1 bg-gray-800 rounded-lg p-2 min-h-[150px]"><canvas id="total-chart"></canvas></div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // DOM Elements
+            const radiusSlider = document.getElementById('radius-slider');
+            const quantizeSwitch = document.getElementById('quantize-switch');
+            const radiusValueDisplay = document.getElementById('radius-value-display');
+            const nValueDisplay = document.getElementById('n-value');
+            const quantumNumberContainer = document.getElementById('quantum-number-display');
+
+            const keDisplay = document.getElementById('kinetic-energy');
+            const peDisplay = document.getElementById('potential-energy');
+            const totalEnergyDisplay = document.getElementById('total-energy');
+            
+            const atomCanvas = document.getElementById('atom-canvas');
+            const ctxAtom = atomCanvas.getContext('2d');
+
+            // --- Physical Constants ---
+            const k = 8.98755e9; // Coulomb's constant (N m^2 / C^2)
+            const e = 1.60218e-19; // Elementary charge (C)
+            const a0 = 5.29177e-11; // Bohr radius (m)
+            const eV_in_J = 1.60218e-19; // Joules per electron-volt
+
+            // --- Simulation State ---
+            let currentRadiusMeters = a0;
+            let n = 1;
+            let charts = {};
+
+            // --- Canvas Setup ---
+            function resizeAtomCanvas() {
+                const container = atomCanvas.parentElement;
+                // Make canvas background transparent to inherit parent bg
+                atomCanvas.style.backgroundColor = 'transparent';
+                const size = Math.min(container.clientWidth, container.clientHeight) * 0.95;
+                atomCanvas.width = size;
+                atomCanvas.height = size;
+                drawAtom();
+            }
+
+            // --- Core Calculation Logic ---
+            function findNearestN(radius) {
+                return Math.max(1, Math.round(Math.sqrt(radius / a0)));
+            }
+            
+            function calculateEnergies(r_meters) {
+                 // Prevent division by zero, use a small epsilon if r is too small
+                const r = r_meters < 1e-12 ? 1e-12 : r_meters;
+
+                const potentialEnergyJ = -k * e * e / r;
+                const kineticEnergyJ = Math.abs(potentialEnergyJ) / 2;
+                const totalEnergyJ = kineticEnergyJ + potentialEnergyJ;
+
+                return {
+                    ke: kineticEnergyJ / eV_in_J,
+                    pe: potentialEnergyJ / eV_in_J,
+                    total: totalEnergyJ / eV_in_J,
+                };
+            }
+
+            // --- Charting ---
+            function setupCharts() {
+                const radiusPoints = [];
+                const kePoints = [];
+                const pePoints = [];
+                const totalPoints = [];
+
+                const minR = parseFloat(radiusSlider.min);
+                const maxR = parseFloat(radiusSlider.max);
+                const steps = 200;
+
+                for (let i = 0; i <= steps; i++) {
+                    const rA = minR + (i / steps) * (maxR - minR);
+                    radiusPoints.push(rA);
+                    const energies = calculateEnergies(rA * 1e-10);
+                    kePoints.push(energies.ke > 50 ? 50 : energies.ke); // Cap for visibility
+                    pePoints.push(energies.pe < -100 ? -100 : energies.pe); // Cap for visibility
+                    totalPoints.push(energies.total < -50 ? -50 : energies.total); // Cap for visibility
+                }
+
+                const commonOptions = {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            type: 'linear',
+                            title: { display: true, text: 'Radius (Å)', color: '#9ca3af' },
+                            ticks: { color: '#9ca3af' },
+                            grid: { color: 'rgba(255,255,255,0.1)' }
+                        },
+                        y: {
+                            title: { display: true, text: 'Energy (eV)', color: '#9ca3af' },
+                            ticks: { color: '#9ca3af' },
+                            grid: { color: 'rgba(255,255,255,0.1)' }
+                        }
+                    },
+                    plugins: {
+                        legend: { display: false },
+                        annotation: {
+                            annotations: {
+                                vLine: { type: 'line', xMin: 0.53, xMax: 0.53, borderColor: 'white', borderWidth: 1, borderDash: [5,5] },
+                                hLine: { type: 'line', yMin: 0, yMax: 0, borderColor: 'white', borderWidth: 1, borderDash: [5,5] }
+                            }
+                        }
+                    },
+                    elements: { point: { radius: 0 } },
+                    animation: { duration: 0 }
+                };
+                
+                charts.ke = new Chart(document.getElementById('ke-chart').getContext('2d'), {
+                    type: 'line',
+                    data: { labels: radiusPoints, datasets: [{ label: 'KE', data: kePoints, borderColor: '#4ade80', tension: 0.1 }] },
+                    options: { ...commonOptions, plugins: { ...commonOptions.plugins, title: { display: true, text: 'Kinetic Energy vs. Radius', color: '#4ade80' } } }
+                });
+                charts.pe = new Chart(document.getElementById('pe-chart').getContext('2d'), {
+                    type: 'line',
+                    data: { labels: radiusPoints, datasets: [{ label: 'PE', data: pePoints, borderColor: '#f87171', tension: 0.1 }] },
+                    options: { ...commonOptions, plugins: { ...commonOptions.plugins, title: { display: true, text: 'Potential Energy vs. Radius', color: '#f87171' } } }
+                });
+                charts.total = new Chart(document.getElementById('total-chart').getContext('2d'), {
+                    type: 'line',
+                    data: { labels: radiusPoints, datasets: [{ label: 'Total', data: totalPoints, borderColor: '#60a5fa', tension: 0.1 }] },
+                    options: { ...commonOptions, plugins: { ...commonOptions.plugins, title: { display: true, text: 'Total Energy vs. Radius', color: '#60a5fa' } } }
+                });
+            }
+
+            function updateCharts(radiusAngstroms, energies) {
+                if (!charts.ke) return;
+                charts.ke.options.plugins.annotation.annotations.vLine.xMin = radiusAngstroms;
+                charts.ke.options.plugins.annotation.annotations.vLine.xMax = radiusAngstroms;
+                charts.ke.options.plugins.annotation.annotations.hLine.yMin = energies.ke;
+                charts.ke.options.plugins.annotation.annotations.hLine.yMax = energies.ke;
+                charts.ke.update('none');
+
+                charts.pe.options.plugins.annotation.annotations.vLine.xMin = radiusAngstroms;
+                charts.pe.options.plugins.annotation.annotations.vLine.xMax = radiusAngstroms;
+                charts.pe.options.plugins.annotation.annotations.hLine.yMin = energies.pe;
+                charts.pe.options.plugins.annotation.annotations.hLine.yMax = energies.pe;
+                charts.pe.update('none');
+
+                charts.total.options.plugins.annotation.annotations.vLine.xMin = radiusAngstroms;
+                charts.total.options.plugins.annotation.annotations.vLine.xMax = radiusAngstroms;
+                charts.total.options.plugins.annotation.annotations.hLine.yMin = energies.total;
+                charts.total.options.plugins.annotation.annotations.hLine.yMax = energies.total;
+                charts.total.update('none');
+            }
+
+
+            // --- Main Update and Drawing ---
+            function updateSimulation() {
+                let radiusAngstroms = parseFloat(radiusSlider.value);
+                currentRadiusMeters = radiusAngstroms * 1e-10;
+                
+                if (quantizeSwitch.checked) {
+                    n = findNearestN(currentRadiusMeters);
+                    currentRadiusMeters = n * n * a0;
+                    radiusAngstroms = currentRadiusMeters / 1e-10;
+                    if (radiusSlider.value !== radiusAngstroms.toFixed(2)) {
+                       radiusSlider.value = radiusAngstroms.toFixed(2);
+                    }
+                    quantumNumberContainer.classList.remove('hidden');
+                    nValueDisplay.textContent = n;
+                } else {
+                    quantumNumberContainer.classList.add('hidden');
+                }
+
+                const energies = calculateEnergies(currentRadiusMeters);
+                
+                // Update UI display
+                radiusValueDisplay.textContent = `${radiusAngstroms.toFixed(2)} Å`;
+                keDisplay.textContent = `${energies.ke.toFixed(2)} eV`;
+                peDisplay.textContent = `${energies.pe.toFixed(2)} eV`;
+                totalEnergyDisplay.textContent = `${energies.total.toFixed(2)} eV`;
+                
+                drawAtom();
+                updateCharts(radiusAngstroms, energies);
+            }
+            
+            function drawAtom() {
+                const { width, height } = atomCanvas;
+                const centerX = width / 2;
+                const centerY = height / 2;
+                
+                const maxRadiusMeters = 15 * 1e-10;
+                const scale = width / (2 * maxRadiusMeters * 1.1);
+                
+                ctxAtom.clearRect(0, 0, width, height);
+
+                if (quantizeSwitch.checked) {
+                    ctxAtom.strokeStyle = 'rgba(59, 130, 246, 0.3)';
+                    ctxAtom.lineWidth = 1;
+                    for (let i = 1; i <= 7; i++) {
+                        const orbitRadius = i * i * a0 * scale;
+                        if(orbitRadius > width/2) continue;
+                        ctxAtom.beginPath();
+                        ctxAtom.arc(centerX, centerY, orbitRadius, 0, 2 * Math.PI);
+                        ctxAtom.stroke();
+                    }
+                }
+                
+                ctxAtom.fillStyle = '#ef4444'; // red-500
+                ctxAtom.beginPath();
+                ctxAtom.arc(centerX, centerY, Math.max(5, width * 0.01), 0, 2 * Math.PI);
+                ctxAtom.fill();
+                
+                const electronRadiusPixels = currentRadiusMeters * scale;
+                
+                ctxAtom.strokeStyle = '#a78bfa'; // violet-400
+                ctxAtom.lineWidth = 2;
+                ctxAtom.setLineDash([5, 5]);
+                ctxAtom.beginPath();
+                ctxAtom.arc(centerX, centerY, electronRadiusPixels, 0, 2 * Math.PI);
+                ctxAtom.stroke();
+                ctxAtom.setLineDash([]);
+
+                ctxAtom.fillStyle = '#3b82f6'; // blue-500
+                ctxAtom.beginPath();
+                ctxAtom.arc(centerX + electronRadiusPixels, centerY, Math.max(4, width * 0.008), 0, 2 * Math.PI);
+                ctxAtom.fill();
+            }
+
+            // --- Event Listeners & Initial Setup ---
+            radiusSlider.addEventListener('input', updateSimulation);
+            quantizeSwitch.addEventListener('change', updateSimulation);
+            window.addEventListener('resize', resizeAtomCanvas);
+            
+            resizeAtomCanvas();
+            setupCharts();
+            updateSimulation();
+        });
+    </script>
+<script src="../../../assets/sim.js" data-root="../../../#atomic-world"></script>
+</body>
+</html>
+
+
+
+
+
+
+
+

@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="../../../assets/sim-early.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bomb Problem · PhySim</title>
+    <link rel="stylesheet" href="../../../assets/vendor/tailwind.css">
+    <style>
+        body {
+            background-color: #f1f5f9;
+            color: #1e293b;
+            font-family: system-ui, -apple-system, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            overflow: hidden;
+        }
+        #stage-container {
+            width: 95vw;
+            max-width: 1200px;
+            aspect-ratio: 16 / 9;
+            background: #ffffff;
+            position: relative;
+            overflow: hidden;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+            border: 1px solid #e2e8f0;
+            display: flex;
+            flex-direction: column;
+        }
+        canvas {
+            flex-grow: 1;
+            width: 100%;
+            display: block;
+            touch-action: none;
+        }
+        .top-panel {
+            background: #f8fafc;
+            border-bottom: 1px solid #e2e8f0;
+            padding: 12px 24px;
+            display: flex;
+            gap: 24px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        .label-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        input[type="range"] {
+            width: 110px;
+        }
+        /* ---- Phone / narrow-screen layout ---- */
+        @media (max-width: 900px) {
+            body { overflow: auto; justify-content: flex-start; padding: 6px; }
+            #stage-container { width: 100%; aspect-ratio: auto; }
+            .top-panel { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 10px; padding: 12px; }
+            .top-panel > div:first-child { grid-column: span 3; margin: 0; }
+            .top-panel input[type="range"] { width: 100%; height: 8px; }
+            .top-panel .label-row label, .top-panel .label-row span { font-size: 11px; }
+            .top-panel > div:last-child { grid-column: span 3; margin-left: 0; }
+            .top-panel > div:last-child button { flex: 1; padding: 10px 0; font-size: 13px; }
+            #simCanvas { height: 420px; flex: none; }
+        }
+    </style>
+<link rel="icon" href="../../../favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../../../assets/sim.css">
+</head>
+<body>
+
+    <div id="stage-container">
+        <!-- Top Controls -->
+        <div class="top-panel">
+            <!-- Title in Control Bar -->
+            <div class="mr-4">
+                <h1 class="text-lg font-black text-slate-800 uppercase tracking-widest whitespace-nowrap">Bomb Problem</h1>
+            </div>
+
+            <div class="control-group">
+                <div class="label-row">
+                    <label class="text-[10px] uppercase font-bold text-slate-500">Velocity</label>
+                    <span id="vxVal" class="text-[10px] text-blue-600 font-mono">70</span>
+                </div>
+                <input type="range" id="vxInput" min="20" max="150" value="70" class="h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600">
+            </div>
+
+            <div class="control-group">
+                <div class="label-row">
+                    <label class="text-[10px] uppercase font-bold text-slate-500">Interval (s)</label>
+                    <span id="intervalVal" class="text-[10px] text-blue-600 font-mono">0.5</span>
+                </div>
+                <input type="range" id="intervalInput" min="0.1" max="1.0" step="0.05" value="0.5" class="h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600">
+            </div>
+
+            <div class="control-group">
+                <div class="label-row">
+                    <label class="text-[10px] uppercase font-bold text-slate-500">Gravity</label>
+                    <span id="gVal" class="text-[10px] text-blue-600 font-mono">3.0</span>
+                </div>
+                <input type="range" id="gInput" min="0.5" max="5" value="3.0" step="0.1" class="h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600">
+            </div>
+
+            <div class="flex items-center gap-3 ml-auto">
+                <button id="startBtn" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold py-1.5 px-4 rounded transition-colors uppercase tracking-tight shadow-sm">Start</button>
+                <button id="pauseBtn" class="bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold py-1.5 px-4 rounded transition-colors uppercase tracking-tight shadow-sm">Pause</button>
+                <button id="resetBtn" class="bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-bold py-1.5 px-4 rounded transition-colors uppercase tracking-tight shadow-sm">Reset</button>
+            </div>
+        </div>
+
+        <!-- Simulation Area -->
+        <canvas id="simCanvas"></canvas>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('simCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        const vxInput = document.getElementById('vxInput');
+        const intervalInput = document.getElementById('intervalInput');
+        const gInput = document.getElementById('gInput');
+        const startBtn = document.getElementById('startBtn');
+        const pauseBtn = document.getElementById('pauseBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        
+        const vxVal = document.getElementById('vxVal');
+        const intervalVal = document.getElementById('intervalVal');
+        const gVal = document.getElementById('gVal');
+
+        let width, height;
+        let lastTime = 0;
+        let running = false;
+        let dropTimer = 0;
+        
+        let plane = {
+            x: 10,
+            y: 60,
+            vx: 70,
+            width: 60,
+            height: 22,
+            active: true
+        };
+
+        let activeBombs = [];
+        let completedPaths = []; 
+        let impacts = []; 
+
+        function resize() {
+            width = canvas.clientWidth;
+            height = canvas.clientHeight;
+            canvas.width = width;
+            canvas.height = height;
+        }
+
+        window.addEventListener('resize', resize);
+        setTimeout(resize, 10);
+
+        function dropBomb() {
+            if (!plane.active) return;
+            activeBombs.push({
+                x: plane.x + plane.width / 2,
+                y: plane.y + plane.height,
+                vx: plane.vx,
+                vy: 0,
+                path: [{x: plane.x + plane.width / 2, y: plane.y + plane.height}]
+            });
+        }
+
+        function startSim() {
+            if (!plane.active) {
+                plane.x = 10;
+                plane.active = true;
+            }
+            running = true;
+        }
+
+        function pauseSim() {
+            running = false;
+        }
+
+        function reset() {
+            activeBombs = [];
+            completedPaths = [];
+            impacts = [];
+            plane.x = 10;
+            plane.active = true;
+            dropTimer = 0;
+            running = false;
+        }
+
+        startBtn.addEventListener('click', startSim);
+        pauseBtn.addEventListener('click', pauseSim);
+        resetBtn.addEventListener('click', reset);
+        
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'KeyP') running ? pauseSim() : startSim();
+            if (e.code === 'KeyR') reset();
+            if (e.code === 'Enter') startSim();
+        });
+
+        function drawPlane(x, y) {
+            if (!plane.active) return;
+            ctx.save();
+            // Plane body
+            ctx.fillStyle = '#475569';
+            ctx.beginPath();
+            ctx.roundRect(x, y, plane.width, plane.height, 4);
+            ctx.fill();
+            
+            // Cockpit
+            ctx.fillStyle = '#0ea5e9';
+            ctx.beginPath();
+            ctx.arc(x + plane.width * 0.75, y + 4, 6, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Wing
+            ctx.fillStyle = '#94a3b8';
+            ctx.fillRect(x + 15, y + plane.height/2 - 2, 30, 3);
+
+            // Tail
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+            ctx.lineTo(x, y - 10);
+            ctx.lineTo(x + 10, y);
+            ctx.fill();
+
+            if (running) {
+                ctx.fillStyle = 'rgba(249, 115, 22, 0.4)';
+                ctx.beginPath();
+                ctx.moveTo(x, y + 6);
+                ctx.lineTo(x - 12 - Math.random() * 8, y + 11);
+                ctx.lineTo(x, y + 16);
+                ctx.fill();
+            }
+            ctx.restore();
+        }
+
+        function drawBomb(b) {
+            if (!running) {
+                ctx.save();
+                ctx.setLineDash([6, 4]);
+                ctx.strokeStyle = 'rgba(100, 116, 139, 0.3)';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(b.x, plane.y + plane.height);
+                ctx.lineTo(b.x, b.y);
+                ctx.stroke();
+                ctx.restore();
+            }
+
+            ctx.fillStyle = '#1e293b';
+            ctx.beginPath();
+            ctx.ellipse(b.x, b.y, 4, 8, 0, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.strokeStyle = '#475569';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.moveTo(b.x - 3, b.y - 8);
+            ctx.lineTo(b.x + 3, b.y - 8);
+            ctx.stroke();
+        }
+
+        function drawImpact(imp) {
+            ctx.save();
+            ctx.strokeStyle = '#ef4444';
+            ctx.lineWidth = 2;
+            const size = 5;
+            ctx.beginPath();
+            ctx.moveTo(imp.x - size, height - 10 - size);
+            ctx.lineTo(imp.x + size, height - 10 + size);
+            ctx.moveTo(imp.x + size, height - 10 - size);
+            ctx.lineTo(imp.x - size, height - 10 + size);
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        function drawPath(path, isCompleted = false) {
+            if (path.length < 2) return;
+            ctx.beginPath();
+            // isCompleted (expired lines) now use dark grey
+            ctx.strokeStyle = isCompleted ? 'rgba(71, 85, 105, 0.5)' : 'rgba(37, 99, 235, 0.4)';
+            ctx.lineWidth = isCompleted ? 1 : 2;
+            ctx.moveTo(path[0].x, path[0].y);
+            for (let j = 1; j < path.length; j++) {
+                ctx.lineTo(path[j].x, path[j].y);
+            }
+            ctx.stroke();
+        }
+
+        function update(time) {
+            const dt = (time - lastTime) / 1000;
+            lastTime = time;
+
+            vxVal.textContent = vxInput.value;
+            intervalVal.textContent = intervalInput.value;
+            gVal.textContent = gInput.value;
+
+            if (running) {
+                plane.vx = parseFloat(vxInput.value);
+                const g = parseFloat(gInput.value) * 60; 
+                const interval = parseFloat(intervalInput.value);
+
+                if (plane.active) {
+                    plane.x += plane.vx * dt;
+                    if (plane.x > width) {
+                        plane.active = false;
+                    }
+
+                    dropTimer += dt;
+                    if (dropTimer >= interval) {
+                        dropBomb();
+                        dropTimer = 0;
+                    }
+                }
+
+                for (let i = activeBombs.length - 1; i >= 0; i--) {
+                    const b = activeBombs[i];
+                    b.vy += g * dt;
+                    b.x += b.vx * dt;
+                    b.y += b.vy * dt;
+
+                    b.path.push({x: b.x, y: b.y});
+
+                    if (b.y > height - 10) {
+                        impacts.push({ x: b.x });
+                        completedPaths.push(b.path);
+                        
+                        if (impacts.length > 200) impacts.shift();
+                        if (completedPaths.length > 200) completedPaths.shift();
+                        
+                        activeBombs.splice(i, 1);
+                    }
+                }
+            }
+
+            ctx.clearRect(0, 0, width, height);
+
+            // Ground and Background
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, width, height);
+            
+            // Decorative Horizon line
+            ctx.strokeStyle = '#e2e8f0';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(0, plane.y + plane.height);
+            ctx.lineTo(width, plane.y + plane.height);
+            ctx.stroke();
+
+            // Ground
+            ctx.fillStyle = '#e2e8f0';
+            ctx.fillRect(0, height - 10, width, 10);
+
+            completedPaths.forEach(path => drawPath(path, true));
+            activeBombs.forEach(b => drawPath(b.path, false));
+            impacts.forEach(drawImpact);
+            activeBombs.forEach(drawBomb);
+            drawPlane(plane.x, plane.y);
+
+            // Semi-transparent overlay without text when paused
+            if (!running && (activeBombs.length > 0 || plane.active)) {
+                ctx.fillStyle = "rgba(255,255,255,0.4)";
+                ctx.fillRect(0, 0, width, height);
+            }
+
+            requestAnimationFrame(update);
+        }
+
+        requestAnimationFrame(update);
+    </script>
+<script src="../../../assets/sim.js" data-root="../../../#force-and-motion"></script>
+</body>
+</html>

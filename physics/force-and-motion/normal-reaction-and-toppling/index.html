@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="../../../assets/sim-early.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Normal Reaction and Toppling · PhySim</title>
+    <link rel="stylesheet" href="../../../assets/vendor/tailwind.css">
+    <link rel="stylesheet" href="../../../assets/vendor/inter/inter.css">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            touch-action: none;
+        }
+        .slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            background: #3b82f6;
+            cursor: pointer;
+            border-radius: 50%;
+            border: 2px solid white;
+            box-shadow: 0 0 5px rgba(0,0,0,0.2);
+        }
+        input[type=range]::-webkit-slider-thumb {
+            @apply slider-thumb;
+        }
+        input[type=range]::-moz-range-thumb {
+            @apply slider-thumb;
+        }
+    </style>
+<link rel="icon" href="../../../favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../../../assets/sim.css">
+</head>
+<body class="bg-gray-100 flex flex-col items-center justify-center min-h-screen p-4">
+
+    <div class="w-full max-w-6xl mx-auto bg-white rounded-2xl shadow-lg p-4 sm:p-6 lg:p-8">
+        <h1 class="text-2xl sm:text-3xl font-bold text-gray-800 text-center mb-6">Normal Reaction and Toppling</h1>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
+            
+            <!-- CONTROLS PANEL -->
+            <div class="lg:col-span-1 bg-gray-50 rounded-xl p-6 order-2 lg:order-1">
+                <h2 class="text-xl font-semibold text-gray-700 mb-6 border-b pb-2">Controls</h2>
+                
+                <!-- Mass Slider -->
+                <div class="mb-8">
+                    <label for="mass" class="block text-sm font-medium text-gray-600 mb-2">Mass (m)</label>
+                    <div class="flex items-center space-x-4">
+                        <input id="mass" type="range" min="10" max="25" value="15" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                        <span id="massValue" class="font-semibold text-blue-600 w-16 text-center">15 kg</span>
+                    </div>
+                </div>
+
+                <!-- Horizontal Force Slider -->
+                <div class="mb-8">
+                    <label for="pullForce" class="block text-sm font-medium text-gray-600 mb-2">Horizontal Force (F)</label>
+                    <div class="flex items-center space-x-4">
+                        <input id="pullForce" type="range" min="0" max="500" value="100" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                        <span id="pullForceValue" class="font-semibold text-blue-600 w-16 text-center">100 N</span>
+                    </div>
+                </div>
+
+                <!-- Friction Slider -->
+                <div class="mb-8">
+                    <label for="frictionCoeff" class="block text-sm font-medium text-gray-600 mb-2">Coefficient of Static Friction (μ)</label>
+                    <div class="flex items-center space-x-4">
+                        <input id="frictionCoeff" type="range" min="0" max="2.00" value="0.4" step="0.01" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                        <span id="frictionCoeffValue" class="font-semibold text-blue-600 w-16 text-center">0.40</span>
+                    </div>
+                    <div class="text-base text-gray-600 mt-2">
+                        Limit static friction: L = μN = <span id="maxFrictionValue" class="font-bold text-orange-600">0 N</span>
+                    </div>
+                </div>
+                
+                <!-- Force Height Slider -->
+                <div class="mb-8">
+                    <label for="forceHeight" class="block text-sm font-medium text-gray-600 mb-2">Force Vertical Position (h)</label>
+                    <div class="flex items-center space-x-4">
+                        <input id="forceHeight" type="range" min="0" max="100" value="50" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                        <span id="forceHeightValue" class="font-semibold text-blue-600 w-16 text-center">50%</span>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- SIMULATION CANVAS and STATUS -->
+            <div class="lg:col-span-2 order-1 lg:order-2">
+                <div class="relative w-full bg-gray-200 rounded-xl overflow-hidden" style="aspect-ratio: 16/10;">
+                    <canvas id="simulationCanvas" class="bg-white w-full h-full"></canvas>
+                    <div id="statusMessage">
+                        <!-- Status content will be injected by JS -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // DOM Elements
+        const canvas = document.getElementById('simulationCanvas');
+        const ctx = canvas.getContext('2d');
+
+        const massSlider = document.getElementById('mass');
+        const pullForceSlider = document.getElementById('pullForce');
+        const frictionCoeffSlider = document.getElementById('frictionCoeff');
+        const forceHeightSlider = document.getElementById('forceHeight');
+
+        const massValue = document.getElementById('massValue');
+        const pullForceValue = document.getElementById('pullForceValue');
+        const frictionCoeffValue = document.getElementById('frictionCoeffValue');
+        const forceHeightValue = document.getElementById('forceHeightValue');
+        const statusMessage = document.getElementById('statusMessage');
+        const maxFrictionValue = document.getElementById('maxFrictionValue');
+
+        // --- Simulation Parameters ---
+        const g = 9.81; // Acceleration due to gravity
+        const scale = 2; // Pixels per meter (visual scaling)
+
+        // Block dimensions (in pixels)
+        const blockWidth = 100 * scale;
+        const blockHeight = 60 * scale;
+
+        let state = {
+            mass: 15,
+            pullForce: 100,
+            mu: 0.4, // coefficient of static friction
+            forceHeightPercent: 0.5, // 0 to 1
+        };
+
+        // --- Utility Functions ---
+        function resizeCanvas() {
+            const container = canvas.parentElement;
+            const dpr = window.devicePixelRatio || 1;
+            const rect = container.getBoundingClientRect();
+            canvas.width = rect.width * dpr;
+            canvas.height = rect.height * dpr;
+            ctx.scale(dpr, dpr);
+            draw(); // Redraw on resize
+        }
+        
+        // --- Drawing Functions ---
+        
+        // Function to draw an arrow
+        function drawArrow(fromX, fromY, toX, toY, color, label, magnitude) {
+            const headlen = 10;
+            const dx = toX - fromX;
+            const dy = toY - fromY;
+            const angle = Math.atan2(dy, dx);
+
+            ctx.save();
+            ctx.strokeStyle = color;
+            ctx.fillStyle = color;
+            ctx.lineWidth = 3;
+
+            // Line
+            ctx.beginPath();
+            ctx.moveTo(fromX, fromY);
+            ctx.lineTo(toX, toY);
+            ctx.stroke();
+
+            // Arrowhead
+            ctx.beginPath();
+            ctx.moveTo(toX, toY);
+            ctx.lineTo(toX - headlen * Math.cos(angle - Math.PI / 6), toY - headlen * Math.sin(angle - Math.PI / 6));
+            ctx.lineTo(toX - headlen * Math.cos(angle + Math.PI / 6), toY - headlen * Math.sin(angle + Math.PI / 6));
+            ctx.closePath();
+            ctx.fill();
+
+            // Label
+            ctx.font = `bold ${Math.round(Math.max(11, Math.min(16, ctx.canvas.width / 40)))}px Inter, system-ui, sans-serif`; // smaller on phones
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            
+            const formattedMagnitude = typeof magnitude === 'number' ? ` (${magnitude.toFixed(1)} N)` : '';
+            const fullLabel = `${label}${formattedMagnitude}`;
+            
+            // Position label near the middle of the arrow, offset perpendicularly
+            const midX = (fromX + toX) / 2;
+            const midY = (fromY + toY) / 2;
+            let offsetX = -Math.sin(angle) * 25; // Perpendicular offset
+            let offsetY = Math.cos(angle) * 25;
+
+            // Specific adjustments for better readability
+            if (label === 'N' || label === 'W') { // Vertical forces: W label on the left, N on the right so they never overlap
+                 ctx.textAlign = label === 'W' ? 'right' : 'left';
+                 offsetX = label === 'W' ? -10 : 10;
+                 offsetY = 0;
+            } else if (label === 'F') { // Pulling force
+                offsetY = -25;
+            } else if (label === 'f') { // Friction force
+                 offsetY = 25;
+            }
+
+            ctx.fillText(fullLabel, midX + offsetX, midY + offsetY);
+            
+            ctx.restore();
+        }
+
+        function draw() {
+            const { width, height } = canvas.getBoundingClientRect();
+            ctx.clearRect(0, 0, width, height);
+
+            // --- Physics Calculations ---
+            const weight = state.mass * g;
+            const normalForce = weight;
+            const maxFriction = state.mu * normalForce;
+            maxFrictionValue.textContent = `${maxFriction.toFixed(1)} N`;
+            const frictionForce = Math.min(state.pullForce, maxFriction);
+            
+            // Calculate the horizontal offset of the normal force from the center of mass
+            const forceHeightPixels = state.forceHeightPercent * blockHeight;
+            let normalForceOffset = (state.pullForce * forceHeightPixels) / normalForce;
+            
+            // Clamp the offset to the base of the block
+            normalForceOffset = Math.max(-blockWidth / 2, Math.min(blockWidth / 2, normalForceOffset));
+
+
+            // --- Status Update ---
+            let toppling = normalForceOffset >= (blockWidth / 2 - 1); // -1 for a small tolerance
+            let sliding = state.pullForce >= maxFriction;
+            
+            const baseStatusClasses = 'absolute top-20 left-1/2 -translate-x-1/2 z-10 text-center font-semibold text-lg py-2 px-4 rounded-lg transition-all duration-300 shadow-md backdrop-blur-sm';
+
+            if (toppling && sliding) {
+                statusMessage.textContent = 'Toppling & Sliding!';
+                statusMessage.className = `${baseStatusClasses} bg-red-100/80 text-red-800`;
+            } else if (toppling) {
+                statusMessage.textContent = 'Toppling!';
+                statusMessage.className = `${baseStatusClasses} bg-yellow-100/80 text-yellow-800`;
+            } else if (sliding) {
+                statusMessage.textContent = 'Sliding!';
+                statusMessage.className = `${baseStatusClasses} bg-orange-100/80 text-orange-800`;
+            } else {
+                statusMessage.textContent = 'Static Equilibrium';
+                statusMessage.className = `${baseStatusClasses} bg-green-100/80 text-green-800`;
+            }
+
+
+            // --- Drawing ---
+            
+            // Ground
+            const groundY = height * 0.75;
+            ctx.strokeStyle = '#4A5568';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(0, groundY);
+            ctx.lineTo(width, groundY);
+            ctx.stroke();
+
+            // Block
+            const blockX = width / 2 - blockWidth / 2;
+            const blockY = groundY - blockHeight;
+            ctx.fillStyle = '#A0AEC0';
+            ctx.strokeStyle = '#2D3748';
+            ctx.lineWidth = 3;
+
+            if (toppling) {
+                ctx.save();
+                const pivotX = blockX + blockWidth;
+                const pivotY = groundY;
+                const angle = 5 * Math.PI / 180; // 5 degrees tilt
+                ctx.translate(pivotX, pivotY);
+                ctx.rotate(angle);
+                ctx.fillRect(-blockWidth, -blockHeight, blockWidth, blockHeight);
+                ctx.strokeRect(-blockWidth, -blockHeight, blockWidth, blockHeight);
+                ctx.restore();
+            } else {
+                ctx.fillRect(blockX, blockY, blockWidth, blockHeight);
+                ctx.strokeRect(blockX, blockY, blockWidth, blockHeight);
+            }
+
+            // Center of Mass
+            const cmX = blockX + blockWidth / 2;
+            const cmY = blockY + blockHeight / 2;
+            ctx.fillStyle = '#E53E3E';
+            ctx.beginPath();
+            ctx.arc(cmX, cmY, 5, 0, 2 * Math.PI);
+            ctx.fill();
+
+            // --- Draw Forces ---
+            const arrowScale = 0.4;
+            
+            // Weight (W)
+            drawArrow(cmX, cmY, cmX, cmY + weight * arrowScale, '#DC2626', 'W', weight);
+            
+            // Normal Force (N)
+            const normalForceX = cmX + normalForceOffset;
+            drawArrow(normalForceX, groundY, normalForceX, groundY - normalForce * arrowScale, '#16A34A', 'N', normalForce);
+
+            // Pulling Force (F)
+            const forceY = groundY - forceHeightPixels;
+            const forceStartX = blockX + blockWidth;
+            drawArrow(forceStartX, forceY, forceStartX + state.pullForce * arrowScale, forceY, '#2563EB', 'F', state.pullForce);
+            
+            // Friction Force (f)
+            if (frictionForce > 1) { // Only draw if there's friction
+                drawArrow(cmX, groundY, cmX - frictionForce * arrowScale, groundY, '#D97706', 'f', frictionForce);
+            }
+        }
+
+
+        // --- Event Listeners ---
+        function handleInputChange(e) {
+            const { id, value } = e.target;
+            switch(id) {
+                case 'mass':
+                    state.mass = parseFloat(value);
+                    massValue.textContent = `${value} kg`;
+                    break;
+                case 'pullForce':
+                    state.pullForce = parseFloat(value);
+                    pullForceValue.textContent = `${value} N`;
+                    break;
+                case 'frictionCoeff':
+                    state.mu = parseFloat(value);
+                    frictionCoeffValue.textContent = `${parseFloat(value).toFixed(2)}`;
+                    break;
+                case 'forceHeight':
+                    state.forceHeightPercent = parseFloat(value) / 100;
+                    forceHeightValue.textContent = `${value}%`;
+                    break;
+            }
+            requestAnimationFrame(draw);
+        }
+
+        massSlider.addEventListener('input', handleInputChange);
+        pullForceSlider.addEventListener('input', handleInputChange);
+        frictionCoeffSlider.addEventListener('input', handleInputChange);
+        forceHeightSlider.addEventListener('input', handleInputChange);
+        
+        window.addEventListener('resize', resizeCanvas);
+
+        // --- Initial Setup ---
+        // We wait for the custom font to be loaded before the initial draw to prevent a font flash.
+        document.fonts.ready.then(() => {
+            resizeCanvas();
+        });
+    </script>
+<script src="../../../assets/sim.js" data-root="../../../#force-and-motion"></script>
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+
+

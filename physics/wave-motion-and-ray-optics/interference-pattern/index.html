@@ -1,0 +1,1077 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="../../../assets/sim-early.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interference Pattern · PhySim</title>
+    <link rel="stylesheet" href="../../../assets/vendor/tailwind.css">
+    <script>
+        // Configure MathJax to process LaTeX within the page
+        MathJax = {
+            tex: {
+                inlineMath: [['$', '$'], ['\\(', '\\)']]
+            },
+            svg: {
+                fontCache: 'global'
+            }
+        };
+    </script>
+    <script type="text/javascript" id="MathJax-script" async
+            src="../../../assets/vendor/mathjax/tex-mml-chtml.js">
+    </script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif; /* Using a common sans-serif font as a fallback */
+        }
+        /* Custom styling for range input thumb */
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            background: #4f46e5; /* indigo-600 */
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.3); /* Add a subtle glow */
+            transition: background 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+        }
+        input[type="range"]::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            background: #4f46e5; /* indigo-600 */
+            border-radius: 50%;
+            cursor: pointer;
+            border: none;
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.3); /* Add a subtle glow */
+            transition: background 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+        }
+        input[type="range"]:hover::-webkit-slider-thumb,
+        input[type="range"]:focus::-webkit-slider-thumb {
+            background: #4338ca; /* indigo-700 */
+            box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.5);
+        }
+        input[type="range"]:hover::-moz-range-thumb,
+        input[type="range"]:focus::-moz-range-thumb {
+            background: #4338ca; /* indigo-700 */
+            box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.5);
+        }
+
+        /* Custom styling for select dropdown arrow */
+        select {
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+            background-position: right 0.75rem center; /* Adjusted for better spacing */
+            background-repeat: no-repeat;
+            background-size: 1.5em 1.5em;
+            padding-right: 3rem; /* Adjusted for arrow */
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+        }
+        /* Canvas styling */
+        #interferenceCanvas {
+            border: 1px solid #d1d5db; /* gray-300 */
+            cursor: crosshair;
+            background-color: white; /* Ensure white background */
+            display: block; /* Remove extra space below canvas */
+        }
+        /* Container for canvas to allow flexible sizing */
+        .canvas-container {
+            position: relative;
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center; 
+        }
+        /* ---- Phone / narrow-screen layout ---- */
+        @media (max-width: 900px) {
+            #mainRow { flex-direction: column; gap: 14px; }
+            #mainRow > div { width: 100%; }
+            #mainRow > .canvas-container { order: -1; }
+            #mainRow .control-panel { padding: 16px; }
+        }
+    </style>
+<link rel="icon" href="../../../favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../../../assets/sim.css">
+</head>
+<body class="bg-gray-50 text-gray-800 min-h-screen flex flex-col">
+
+    <div class="container mx-auto p-4 sm:p-6 lg:p-8 flex-grow">
+        <header class="mb-6 flex flex-col sm:flex-row justify-between items-center">
+            <div class="text-center sm:text-left mb-4 sm:mb-0">
+                <h1 class="text-3xl font-extrabold text-indigo-700">Interference Pattern</h1>
+                <p class="text-gray-600 mt-1">Visualize wavefronts, amplitude map, or nodal/antinodal lines.</p>
+            </div>
+            
+            <div class="flex flex-col sm:flex-row items-center gap-4">
+                <div id="legend" class="text-xs text-gray-500"></div>
+
+                <div class="flex-shrink-0">
+                    <label for="visualizationModeSelect" class="block text-sm font-medium text-gray-700 mb-1">Visualization Mode:</label>
+                    <select id="visualizationModeSelect" class="w-full sm:w-56 p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-sm">
+                        <option value="wavefronts" selected>Wavefronts (Crests/Troughs)</option>
+                        <option value="amplitudeMap">Amplitude Map</option>
+                        <option value="nodalAntinodalLines">Nodal/Antinodal Lines</option>
+                    </select>
+                </div>
+            </div>
+        </header>
+
+        <div id="mainRow" class="flex flex-col md:flex-row gap-6 md:items-start">
+            <div class="md:w-1/3 xl:w-1/4 p-6 bg-white rounded-xl shadow-lg control-panel flex-shrink-0">
+                <div class="mb-3"> <label for="wavelength" class="block text-sm font-medium text-gray-700">Wavelength ($\lambda$): <span id="wavelengthValue" class="font-semibold text-indigo-600">50</span> cm</label>
+                    <input type="range" id="wavelength" min="10" max="100" value="50" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-indigo-600 mt-1">
+                </div>
+
+                <div class="mb-3"> <label for="separation" class="block text-sm font-medium text-gray-700">Source Separation ($d$): <span id="separationValue" class="font-semibold text-indigo-600">100</span> cm <span id="separationWavelengthsValue" class="font-semibold text-red-600"></span></label>
+                    <input type="range" id="separation" min="20" max="200" value="100" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-indigo-600 mt-1">
+                </div>
+
+                <div class="mb-3"> <label for="phaseDifference" class="block text-sm font-medium text-gray-700">Phase Difference ($\Phi_{S2-S1}$): <span id="phaseDifferenceValueDisplay" class="font-semibold text-indigo-600">0</span>°</label>
+                    <input type="range" id="phaseDifference" min="0" max="360" value="0" step="1" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-indigo-600 mt-1">
+                    <button id="togglePhaseButton" class="mt-3 w-full bg-indigo-500 hover:bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg text-sm transition duration-150 ease-in-out shadow-md hover:shadow-lg">
+                        Toggle Phase (0°/180°)
+                    </button>
+                </div>
+
+                <div id="animationControls" class="mt-4 py-2 px-4 bg-gray-50 rounded-lg shadow-inner" style="display: none;">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="text-sm font-bold text-indigo-600">Animation</h3>
+                        <div class="flex items-center gap-2">
+                            <button id="playPauseButton" class="flex-shrink-0 bg-indigo-500 hover:bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg text-sm transition duration-150 ease-in-out shadow-md hover:shadow-lg">
+                                Play
+                            </button>
+                            <button id="resetAnimationButton" class="flex-shrink-0 bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold py-2 px-4 rounded-lg text-sm transition duration-150 ease-in-out shadow-md hover:shadow-lg">
+                                Reset
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+
+                <div id="dynamicInfoAndGraphPanel">
+                    <div id="infoAboutClickedPoint" class="mt-3"> 
+                        <h3 class="text-sm font-bold mb-2 text-indigo-600">Information about the clicked point</h3>
+                        <div class="text-sm text-gray-700"> 
+                            <p>Path Difference = <span id="simplifiedPathDiffDisplay" class="font-semibold"></span></p>
+                        </div>
+                    </div>
+
+                    <div id="graphPanel" class="mt-3"> 
+                        <div id="amplitudeProfileInstructions" class="text-sm text-gray-600 mb-2" style="display: none;">
+                            Click two points to see the amplitude profile along the line segment in between.
+                        </div>
+                        <div class="text-sm font-medium text-gray-700 mb-2" id="graphTitle">Displacement-Time Graph</div>
+                        <canvas id="displacementGraphCanvas" class="rounded-lg border border-gray-300 bg-white"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="md:w-2/3 xl:w-3/4 flex-grow flex justify-center items-center bg-gray-100 rounded-xl shadow-lg canvas-container">
+                <canvas id="interferenceCanvas" class="rounded-lg"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const canvas = document.getElementById('interferenceCanvas');
+            const ctx = canvas.getContext('2d');
+            const canvasContainer = canvas.parentElement;
+            const controlPanelDiv = document.querySelector('.control-panel'); 
+
+            // Get references to the new graph canvas and its container
+            const graphCanvas = document.getElementById('displacementGraphCanvas');
+            const graphCtx = graphCanvas.getContext('2d');
+            const dynamicInfoAndGraphPanel = document.getElementById('dynamicInfoAndGraphPanel');
+            const infoAboutClickedPoint = document.getElementById('infoAboutClickedPoint');
+            const graphTitle = document.getElementById('graphTitle');
+            const amplitudeProfileInstructions = document.getElementById('amplitudeProfileInstructions');
+
+            // Animation controls
+            const animationControls = document.getElementById('animationControls');
+            const playPauseButton = document.getElementById('playPauseButton');
+            const resetAnimationButton = document.getElementById('resetAnimationButton');
+
+
+            if (!controlPanelDiv) {
+                console.error("Control panel element '.control-panel' not found. Height synchronization may fail.");
+            }
+
+            // Sliders and controls
+            const wavelengthSlider = document.getElementById('wavelength');
+            const separationSlider = document.getElementById('separation');
+            const phaseDifferenceSlider = document.getElementById('phaseDifference');
+            const visualizationModeSelect = document.getElementById('visualizationModeSelect');
+            const togglePhaseButton = document.getElementById('togglePhaseButton');
+
+            // Value displays
+            const wavelengthValueSpan = document.getElementById('wavelengthValue');
+            const separationValueSpan = document.getElementById('separationValue');
+            const separationWavelengthsValueSpan = document.getElementById('separationWavelengthsValue'); // New span for separation in wavelengths
+            const phaseDifferenceValueDisplaySpan = document.getElementById('phaseDifferenceValueDisplay');
+
+            // Path difference display
+            const simplifiedPathDiffDisplaySpan = document.getElementById('simplifiedPathDiffDisplay');
+            const legendDiv = document.getElementById('legend');
+
+            // Constant for amplitude attenuation - This will be a scaling factor for distance.
+            // A larger value means slower attenuation.
+            // It's dynamically set in resizeCanvas to ensure amplitude is roughly half at the canvas edge.
+            let attenuationFactor = 1; 
+
+            let s1 = { x: 0, y: 0 }; // Source 1 position
+            let s2 = { x: 0, y: 0 }; // Source 2 position
+            let clickedPoint = null; // For displacement graph mode
+            let linePoint1 = null;   // For amplitude profile mode
+            let linePoint2 = null;   // For amplitude profile mode
+            let currentVisualizationMode = visualizationModeSelect.value; // Initialize with default value
+
+            // Animation variables
+            let animationTime = 0;
+            let animationFrameId = null;
+            const animationSpeed = 5; // Set default animation speed to 5x
+            let lastFrameTime = 0;
+
+            /**
+             * Updates the positions of the two sources based on the given separation.
+             * Sources are centered vertically on the canvas.
+             * @param {number} separation - The distance between the two sources.
+             */
+            function updateSourcePositions(separation) {
+                s1 = { x: canvas.width / 2, y: canvas.height / 2 - separation / 2 };
+                s2 = { x: canvas.width / 2, y: canvas.height / 2 + separation / 2 };
+            }
+
+            /**
+             * Updates the legend content and visibility based on the current visualization mode.
+             * @param {string} mode - The current visualization mode ('wavefronts', 'amplitudeMap', 'nodalAntinodalLines').
+             */
+            function updateLegend(mode) {
+                let html = '';
+                if (mode === 'wavefronts') {
+                    html = `
+                        <p><span class="font-semibold text-gray-800">Bright areas:</span> Crests</p>
+                        <p><span class="font-semibold text-gray-500">Dark areas:</span> Troughs</p>`;
+                } else if (mode === 'nodalAntinodalLines') {
+                    html = `
+                        <p><span class="font-semibold text-green-600">Green lines:</span> Antinodal (constructive)</p>
+                        <p><span class="font-semibold text-red-600">Red lines:</span> Nodal (destructive)</p>`;
+                }
+                legendDiv.innerHTML = html;
+
+                // Adjust styling of the legend container based on whether it has content
+                if (html.trim() === '') {
+                    legendDiv.style.display = 'none'; // Hide if no content
+                } else {
+                    legendDiv.style.display = 'block'; // Show if content
+                }
+            }
+
+            /**
+             * The main animation loop for the wavefronts.
+             * @param {DOMHighResTimeStamp} currentTime - The timestamp of the current frame.
+             */
+            function animateWavefronts(currentTime) {
+                if (!lastFrameTime) lastFrameTime = currentTime;
+                const deltaTime = (currentTime - lastFrameTime) / 1000; // Convert to seconds
+                lastFrameTime = currentTime;
+
+                animationTime += deltaTime * animationSpeed;
+                drawPattern();
+                drawDisplacementGraph(); // Redraw graph to update time line
+
+                animationFrameId = requestAnimationFrame(animateWavefronts);
+            }
+
+            /**
+             * Starts the animation loop.
+             */
+            function startAnimation() {
+                console.log('startAnimation called.'); // Log to debug animation start
+                if (!animationFrameId) {
+                    playPauseButton.textContent = 'Pause';
+                    lastFrameTime = performance.now(); // Reset lastFrameTime to current for smooth start
+                    animationFrameId = requestAnimationFrame(animateWavefronts);
+                    console.log('Animation started. animationFrameId:', animationFrameId); // Log animation ID
+                } else {
+                    console.log('Animation already running.');
+                }
+            }
+
+            /**
+             * Stops the animation loop.
+             */
+            function stopAnimation() {
+                if (animationFrameId) {
+                    playPauseButton.textContent = 'Play';
+                    cancelAnimationFrame(animationFrameId);
+                    animationFrameId = null;
+                }
+            }
+
+            /**
+             * Helper function to draw fixed-width nodal and antinodal lines using hyperbola equations.
+             */
+            function drawFixedLines(wavelength, separation, initialPhaseRadians) {
+                // Fill background
+                ctx.fillStyle = '#f3f4f6'; // Light gray (gray-100)
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                const cx = canvas.width / 2;
+                const cy = canvas.height / 2;
+                const maxOrder = Math.ceil(separation / wavelength) + 1;
+                const c = separation / 2; // Distance from center to focus (half separation)
+
+                const drawSingleHyperbola = (m, isAntinode) => {
+                    let pathDiff;
+                    // Condition for Antinode: delta = (m + Phi/2pi) * lambda
+                    // Condition for Node: delta = (m + 0.5 + Phi/2pi) * lambda
+                    // Note: signedPathDifference in pixel logic was dist1 - dist2.
+                    // Here we calculate target difference.
+                    if (isAntinode) {
+                        pathDiff = (m + initialPhaseRadians / (2 * Math.PI)) * wavelength;
+                    } else {
+                        pathDiff = (m + 0.5 + initialPhaseRadians / (2 * Math.PI)) * wavelength;
+                    }
+
+                    // Physical limit: Path difference cannot exceed distance between sources
+                    if (Math.abs(pathDiff) >= separation) return;
+
+                    const a = Math.abs(pathDiff) / 2;
+                    const b = Math.sqrt(c * c - a * a);
+                    
+                    // If pathDiff > 0, dist1 > dist2. In canvas coordinates (y down),
+                    // S1 is top, S2 is bottom.
+                    // If dist1 > dist2, point is further from top, closer to bottom.
+                    // y-coord relative to center should be positive.
+                    const sign = pathDiff > 0 ? 1 : -1;
+
+                    ctx.beginPath();
+                    if (isAntinode) {
+                        ctx.strokeStyle = 'rgba(22, 163, 74, 1)'; // Green-600
+                        ctx.lineWidth = 2;
+                        ctx.setLineDash([]);
+                    } else {
+                        ctx.strokeStyle = 'rgba(220, 38, 38, 1)'; // Red-600
+                        ctx.lineWidth = 2;
+                        ctx.setLineDash([5, 5]); // Dashed for nodes
+                    }
+
+                    // Draw the hyperbola branch
+                    // Equation: y = sign * a * sqrt(1 + x^2/b^2)
+                    let first = true;
+                    // Scan x across the canvas relative to center
+                    for (let x = -canvas.width/2; x <= canvas.width/2; x += 2) {
+                        const val = Math.sqrt(1 + (x * x) / (b * b));
+                        const y = sign * a * val;
+                        
+                        // Stop drawing if we go way off canvas vertically to avoid performance issues
+                        if (Math.abs(y) > canvas.height) continue;
+
+                        const px = cx + x;
+                        const py = cy + y;
+
+                        if (first) {
+                            ctx.moveTo(px, py);
+                            first = false;
+                        } else {
+                            ctx.lineTo(px, py);
+                        }
+                    }
+                    ctx.stroke();
+                };
+
+                // Iterate through orders
+                for (let m = -maxOrder; m <= maxOrder; m++) {
+                    drawSingleHyperbola(m, true);  // Antinode
+                    drawSingleHyperbola(m, false); // Node
+                }
+                
+                // Reset line dash for other drawings
+                ctx.setLineDash([]);
+            }
+
+            /**
+             * Draws the interference pattern on the main canvas based on current parameters.
+             * This includes wavefronts, amplitude maps, or nodal/antinodal lines.
+             */
+            function drawPattern() {
+                // Return early if canvas dimensions are not valid
+                if (canvas.width === 0 || canvas.height === 0) {
+                    console.warn("Canvas dimensions are zero, skipping drawPattern.");
+                    return;
+                }
+
+                const wavelength = parseFloat(wavelengthSlider.value);
+                const separation = parseFloat(separationSlider.value);
+                const initialPhaseDegrees = parseFloat(phaseDifferenceSlider.value);
+                const initialPhaseRadians = initialPhaseDegrees * Math.PI / 180;
+                const currentMode = visualizationModeSelect.value;
+                
+                wavelengthValueSpan.textContent = wavelength;
+                separationValueSpan.textContent = separation;
+                phaseDifferenceValueDisplaySpan.textContent = initialPhaseDegrees;
+
+                // Calculate and display separation in terms of wavelengths
+                const separationInWavelengths = separation / wavelength;
+                separationWavelengthsValueSpan.innerHTML = `= ${separationInWavelengths.toFixed(2)} $\\lambda$`;
+                if (window.MathJax && MathJax.typesetPromise) {
+                    MathJax.typesetPromise([separationWavelengthsValueSpan]).catch((err) => console.error('MathJax typesetPromise failed for separationWavelengthsValueSpan:', err));
+                }
+
+                updateSourcePositions(separation); 
+                updateLegend(currentMode); // Call to update legend content and visibility
+
+                // --- Drawing Logic Branching ---
+
+                if (currentMode === 'nodalAntinodalLines') {
+                    // Optimized Vector Drawing for Lines
+                    drawFixedLines(wavelength, separation, initialPhaseRadians);
+                    
+                    // Note: We skip the pixel manipulation loop entirely for this mode!
+                } else {
+                    // Pixel-based Drawing for Wavefronts and Amplitude Map
+                    
+                    ctx.fillStyle = 'white';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                    const imageData = ctx.createImageData(canvas.width, canvas.height);
+                    const data = imageData.data;
+
+                    // Calculate maximum possible amplitude for normalization based on attenuationFactor
+                    // When distance is very small (e.g., 1), the amplitude is 1 / (1/attenuationFactor + 1)
+                    const maxSingleWaveAmplitude = 1 / (1 + 1 / attenuationFactor); // Amplitude at distance 1
+                    const maxPossibleCombinedAmplitude = 2 * maxSingleWaveAmplitude; // Max sum of two waves
+
+                    for (let py = 0; py < canvas.height; py++) {
+                        for (let px = 0; px < canvas.width; px++) {
+                            const dist1 = Math.hypot(px - s1.x, py - s1.y);
+                            const dist2 = Math.hypot(px - s2.x, py - s2.y);
+                            
+                            // Ensure distances are not zero for division, use a small epsilon
+                            const effectiveDist1 = Math.max(dist1, 1); 
+                            const effectiveDist2 = Math.max(dist2, 1); 
+
+                            // Calculate individual wave amplitudes with attenuation
+                            // Amplitude decreases as 1 / (1 + distance / attenuationFactor)
+                            const A1_attenuated = 1 / (1 + effectiveDist1 / attenuationFactor);
+                            const A2_attenuated = 1 / (1 + effectiveDist2 / attenuationFactor);
+
+                            const phase1 = (2 * Math.PI * dist1 / wavelength);
+                            const phase2 = (2 * Math.PI * dist2 / wavelength) + initialPhaseRadians;
+                            
+                            // Define signedPathDifference here so it's accessible to all modes
+                            const signedPathDifference = dist1 - dist2;
+                            const totalPhaseDifferenceAtPoint = (2 * Math.PI * signedPathDifference / wavelength) - initialPhaseRadians;
+
+                            let val;
+                            const i = (py * canvas.width + px) * 4;
+
+                            if (currentMode === 'wavefronts') {
+                                // Sum of attenuated cosine waves (instantaneous displacement)
+                                // Incorporate animationTime for propagation
+                                const instantaneousDisplacement = A1_attenuated * Math.cos(phase1 - (2 * Math.PI * animationTime / wavelength)) + A2_attenuated * Math.cos(phase2 - (2 * Math.PI * animationTime / wavelength));
+                                
+                                // Normalize instantaneous displacement from [-maxPossibleCombinedAmplitude, maxPossibleCombinedAmplitude] to [0, 1]
+                                const normalizedValue = (instantaneousDisplacement + maxPossibleCombinedAmplitude) / (2 * maxPossibleCombinedAmplitude);
+                                val = normalizedValue * 255;
+                            } else if (currentMode === 'amplitudeMap') {
+                                // Calculate resultant amplitude (intensity)
+                                // Intensity is proportional to the square of the resultant amplitude
+                                // A_resultant^2 = A1^2 + A2^2 + 2*A1*A2*cos(delta_phi)
+                                const intensity = A1_attenuated * A1_attenuated + A2_attenuated * A2_attenuated + 2 * A1_attenuated * A2_attenuated * Math.cos(totalPhaseDifferenceAtPoint);
+                                
+                                // Normalize intensity. Max intensity is (maxPossibleCombinedAmplitude)^2
+                                // The intensity will range from 0 (perfect destructive) to maxPossibleCombinedAmplitude^2 (perfect constructive)
+                                const maxIntensity = Math.pow(maxPossibleCombinedAmplitude, 2);
+                                const normalizedValue = intensity / maxIntensity; // Intensity is always >= 0
+                                val = normalizedValue * 255;
+                            }
+
+                            // Clamp val to 0-255 range
+                            val = Math.max(0, Math.min(255, val));
+
+                            data[i] = val; data[i+1] = val; data[i+2] = val; data[i+3] = 255; // R, G, B, Alpha
+                        }
+                    }
+                    ctx.putImageData(imageData, 0, 0);
+                }
+
+                // --- Common Overlays (Sources & Markers) ---
+
+                // Draw sources with corresponding colors
+                const source1Color = '#8b5cf6'; // Purple-500 for S1
+                const source2Color = '#f97316'; // Orange-500 for S2
+                const sourceRadius = 5;
+
+                ctx.fillStyle = source1Color;
+                ctx.beginPath(); ctx.arc(s1.x, s1.y, sourceRadius, 0, 2 * Math.PI); ctx.fill();
+                
+                ctx.fillStyle = source2Color;
+                ctx.beginPath(); ctx.arc(s2.x, s2.y, sourceRadius, 0, 2 * Math.PI); ctx.fill();
+
+                // Draw clicked point marker if it exists (green circle)
+                if (currentMode !== 'amplitudeMap' && clickedPoint) {
+                    ctx.fillStyle = 'rgba(0, 180, 0, 1)'; 
+                    const markerRadius = 4;
+                    ctx.beginPath(); ctx.arc(clickedPoint.x, clickedPoint.y, markerRadius, 0, 2 * Math.PI); ctx.fill();
+                }
+
+                // Draw line points and connecting line for amplitudeMap mode
+                if (currentMode === 'amplitudeMap') {
+                    const pointColor = '#4f46e5'; // Indigo for line points
+                    const lineColor = '#4f46e5'; // Indigo for line
+
+                    if (linePoint1) {
+                        ctx.fillStyle = pointColor;
+                        ctx.beginPath(); ctx.arc(linePoint1.x, linePoint1.y, 5, 0, 2 * Math.PI); ctx.fill();
+                    }
+                    if (linePoint2) {
+                        ctx.fillStyle = pointColor;
+                        ctx.beginPath(); ctx.arc(linePoint2.x, linePoint2.y, 5, 0, 2 * Math.PI); ctx.fill();
+
+                        // Draw the line connecting the two points
+                        ctx.strokeStyle = lineColor;
+                        ctx.lineWidth = 2;
+                        ctx.beginPath();
+                        ctx.moveTo(linePoint1.x, linePoint1.y);
+                        ctx.lineTo(linePoint2.x, linePoint2.y);
+                        ctx.stroke();
+                    }
+                }
+            }
+
+            /**
+             * Handles click events on the main canvas to set the clicked point
+             * and update related information and graphs.
+             * @param {MouseEvent} event - The click event object.
+             */
+            function handleCanvasClick(event) {
+                const rect = canvas.getBoundingClientRect();
+                const clickX = event.clientX - rect.left;
+                const clickY = event.clientY - rect.top;
+
+                if (clickX < 0 || clickX > canvas.width || clickY < 0 || clickY > canvas.height) return;
+
+                if (currentVisualizationMode === 'amplitudeMap') {
+                    if (!linePoint1) {
+                        linePoint1 = { x: clickX, y: clickY };
+                        linePoint2 = null; // Reset second point
+                        drawPattern(); // Redraw to show first point
+                        drawAmplitudeProfile(); // Clear graph
+                    } else if (!linePoint2) {
+                        linePoint2 = { x: clickX, y: clickY };
+                        drawPattern(); // Draw the line on the main canvas
+                        drawAmplitudeProfile(); // Draw the profile on the graph canvas
+                    } else { // Both points are set, reset for new line
+                        linePoint1 = null;
+                        linePoint2 = null;
+                        drawPattern(); // Clear the line from main canvas
+                        drawAmplitudeProfile(); // Clear the profile graph
+                    }
+                } else { // Not amplitudeMap mode, use original clickedPoint logic
+                    clickedPoint = { x: clickX, y: clickY };
+                    updateClickedPointInfo(); // This will call drawDisplacementGraph
+                    drawPattern(); // Redraw main pattern to show clicked point
+                }
+            }
+
+            /**
+             * Handles touch events on the main canvas to set the clicked point
+             * and update related information and graphs, replicating mouse click behavior.
+             * @param {TouchEvent} event - The touch event object.
+             */
+            function handleCanvasTouch(event) {
+                // Prevent default touch behavior (like scrolling)
+                event.preventDefault(); 
+                
+                const rect = canvas.getBoundingClientRect();
+                // Use the first touch point for simplicity
+                const touchX = event.touches[0].clientX - rect.left;
+                const touchY = event.touches[0].clientY - rect.top;
+
+                if (touchX < 0 || touchX > canvas.width || touchY < 0 || touchY > canvas.height) return;
+
+                if (currentVisualizationMode === 'amplitudeMap') {
+                    if (!linePoint1) {
+                        linePoint1 = { x: touchX, y: touchY };
+                        linePoint2 = null; // Reset second point
+                        drawPattern(); // Redraw to show first point
+                        drawAmplitudeProfile(); // Clear graph
+                    } else if (!linePoint2) {
+                        linePoint2 = { x: touchX, y: touchY };
+                        drawPattern(); // Draw the line on the main canvas
+                        drawAmplitudeProfile(); // Draw the profile on the graph canvas
+                    } else { // Both points are set, reset for new line
+                        linePoint1 = null;
+                        linePoint2 = null;
+                        drawPattern(); // Clear the line from main canvas
+                        drawAmplitudeProfile(); // Clear the profile graph
+                    }
+                } else { // Not amplitudeMap mode, use original clickedPoint logic
+                    clickedPoint = { x: touchX, y: touchY };
+                    updateClickedPointInfo(); // This will call drawDisplacementGraph
+                    drawPattern(); // Redraw main pattern to show clicked point
+                }
+            }
+
+            /**
+             * Updates the path difference information for the clicked point
+             * and triggers the drawing of the displacement-time graph.
+             */
+            function updateClickedPointInfo() {
+                if (currentVisualizationMode === 'amplitudeMap') {
+                    infoAboutClickedPoint.style.display = 'none';
+                    amplitudeProfileInstructions.style.display = 'block'; // Show instructions for amplitude profile
+                    graphTitle.textContent = 'Amplitude Profile along Line';
+                    simplifiedPathDiffDisplaySpan.innerHTML = ''; // Clear path diff
+                    simplifiedPathDiffDisplaySpan.classList.remove('text-red-600');
+                    drawAmplitudeProfile(); // Ensure graph is updated
+                } else {
+                    infoAboutClickedPoint.style.display = 'block';
+                    amplitudeProfileInstructions.style.display = 'none'; // Hide instructions for amplitude profile
+                    graphTitle.textContent = 'Displacement-Time Graph';
+                    if (clickedPoint) {
+                        const wavelength = parseFloat(wavelengthSlider.value);
+                        const dist1 = Math.hypot(clickedPoint.x - s1.x, clickedPoint.y - s1.y);
+                        const dist2 = Math.hypot(clickedPoint.x - s2.x, clickedPoint.y - s2.y);
+                        const absPathDifference = Math.abs(dist1 - dist2);
+                        const pathDiffWavelengths = absPathDifference / wavelength;
+
+                        simplifiedPathDiffDisplaySpan.innerHTML = `${absPathDifference.toFixed(2)} cm = ${pathDiffWavelengths.toFixed(2)} $\\lambda$`;
+                        simplifiedPathDiffDisplaySpan.classList.add('text-red-600');
+                    } else {
+                        simplifiedPathDiffDisplaySpan.innerHTML = '';
+                        simplifiedPathDiffDisplaySpan.classList.remove('text-red-600');
+                    }
+                    if (window.MathJax && MathJax.typesetPromise) {
+                        MathJax.typesetPromise([simplifiedPathDiffDisplaySpan]).catch((err) => console.error('MathJax typesetPromise failed for simplifiedPathDiffDisplaySpan:', err));
+                    }
+                    drawDisplacementGraph(); // Call specific displacement graph function
+                }
+            }
+
+            /**
+             * Draws the displacement-time graph for the clicked point.
+             * Shows individual waves from S1 and S2, and their resultant.
+             */
+            function drawDisplacementGraph() {
+                // Return early if canvas dimensions are not valid
+                if (graphCanvas.width === 0 || graphCanvas.height === 0) {
+                    console.warn("Graph canvas dimensions are zero, skipping drawDisplacementGraph.");
+                    return;
+                }
+
+                graphCtx.clearRect(0, 0, graphCanvas.width, graphCanvas.height);
+
+                // Only draw graph lines if a point is clicked and not in amplitudeMap mode
+                if (!clickedPoint || currentVisualizationMode === 'amplitudeMap') {
+                    return;
+                }
+
+                const wavelength = parseFloat(wavelengthSlider.value);
+                const initialPhaseRadians = parseFloat(phaseDifferenceSlider.value) * Math.PI / 180;
+
+                // Graph dimensions and margins
+                const margin = 15; // Reduced margin for more space
+                const graphWidth = graphCanvas.width - 2 * margin;
+                const graphHeight = graphCanvas.height - 2 * margin;
+
+                // Calculate max amplitude for graph scaling based on attenuationFactor
+                const maxWaveAmplitudeAtSource = 1 / (1 + 1 / attenuationFactor); // When dist is very small, e.g., 1
+                const maxGraphAmplitude = 2 * maxWaveAmplitudeAtSource; // Max possible resultant amplitude at source
+
+                const displacementRange = 2 * maxGraphAmplitude; 
+                const yScale = graphHeight / displacementRange; 
+                const yOrigin = margin + graphHeight / 2; // Center of the graph (y=0)
+
+                // X-axis scaling: time from 0 to 2 * wavelength (representing 2 periods)
+                // We assume wave speed v=1, so period T = wavelength (lambda)
+                const timeRange = 2 * wavelength; // Total time duration to display on X-axis
+                const xScale = graphWidth / timeRange;
+
+                // Draw axes
+                graphCtx.strokeStyle = '#ccc';
+                graphCtx.lineWidth = 1;
+
+                // X-axis (Time)
+                graphCtx.beginPath();
+                graphCtx.moveTo(margin, yOrigin);
+                graphCtx.lineTo(margin + graphWidth, yOrigin);
+                graphCtx.stroke();
+
+                // Y-axis (Displacement)
+                graphCtx.beginPath();
+                graphCtx.moveTo(margin, margin);
+                graphCtx.lineTo(margin, graphHeight + margin);
+                graphCtx.stroke();
+
+                // Labels for axes
+                graphCtx.fillStyle = '#555';
+                graphCtx.font = '10px Inter, system-ui, sans-serif'; // Lowered font size
+                graphCtx.textAlign = 'right'; // Aligned to the right
+                graphCtx.fillText('Time', margin + graphWidth, graphCanvas.height - 5); // Moved to the right
+                graphCtx.save(); // Save context state before rotation
+                graphCtx.translate(8, yOrigin); // Adjusted translation for smaller font
+                graphCtx.rotate(-Math.PI / 2); // Rotate 90 degrees counter-clockwise
+                graphCtx.fillText('Displacement', 0, 0);
+                graphCtx.restore(); // Restore context state
+
+                const dist1 = Math.hypot(clickedPoint.x - s1.x, clickedPoint.y - s1.y);
+                const dist2 = Math.hypot(clickedPoint.x - s2.x, clickedPoint.y - s2.y);
+
+                // Data points for the graphs
+                const pointsS1 = [];
+                const pointsS2 = [];
+                const pointsResultant = [];
+
+                const numSamples = 500; // Number of points to draw the smooth curve
+                for (let i = 0; i <= numSamples; i++) {
+                    const t = (i / numSamples) * timeRange; // Current time value
+
+                    // Phase calculations at the clicked point and time t
+                    // Assuming wave speed v=1, so period T = wavelength (lambda)
+                    const phase_S1_at_P_at_t = (2 * Math.PI * dist1 / wavelength) - (2 * Math.PI * t / wavelength);
+                    const phase_S2_at_P_at_t = (2 * Math.PI * dist2 / wavelength) - (2 * Math.PI * t / wavelength) + initialPhaseRadians;
+
+                    // Apply attenuation to individual displacements for the graph
+                    const graphEffectiveDist1 = Math.max(dist1, 1);
+                    const graphEffectiveDist2 = Math.max(dist2, 1);
+                    const displacement_S1 = Math.cos(phase_S1_at_P_at_t) / (1 + graphEffectiveDist1 / attenuationFactor);
+                    const displacement_S2 = Math.cos(phase_S2_at_P_at_t) / (1 + graphEffectiveDist2 / attenuationFactor);
+                    const resultant_displacement = displacement_S1 + displacement_S2;
+
+                    // Convert to canvas coordinates
+                    const x = margin + t * xScale;
+                    const y1 = yOrigin - displacement_S1 * yScale; // Invert y for canvas coordinates (y-axis increases downwards)
+                    const y2 = yOrigin - displacement_S2 * yScale;
+                    const yR = yOrigin - resultant_displacement * yScale;
+
+                    pointsS1.push({ x, y: y1 });
+                    pointsS2.push({ x, y: y2 });
+                    pointsResultant.push({ x, y: yR });
+                }
+
+                // Draw S1 displacement (Purple)
+                graphCtx.strokeStyle = '#8b5cf6'; // Purple-500
+                graphCtx.lineWidth = 2;
+                graphCtx.beginPath();
+                graphCtx.moveTo(pointsS1[0].x, pointsS1[0].y);
+                for (let i = 1; i < pointsS1.length; i++) {
+                    graphCtx.lineTo(pointsS1[i].x, pointsS1[i].y);
+                }
+                graphCtx.stroke();
+
+                // Draw S2 displacement (Orange)
+                graphCtx.strokeStyle = '#f97316'; // Orange-500
+                graphCtx.lineWidth = 2;
+                graphCtx.beginPath();
+                graphCtx.moveTo(pointsS2[0].x, pointsS2[0].y);
+                for (let i = 1; i < pointsS2.length; i++) {
+                    graphCtx.lineTo(pointsS2[i].x, pointsS2[i].y);
+                }
+                graphCtx.stroke();
+
+                // Draw Resultant displacement (Teal)
+                graphCtx.strokeStyle = '#14b8a6'; // Teal-500
+                graphCtx.lineWidth = 3;
+                graphCtx.beginPath();
+                graphCtx.moveTo(pointsResultant[0].x, pointsResultant[0].y);
+                for (let i = 1; i < pointsResultant.length; i++) {
+                    graphCtx.lineTo(pointsResultant[i].x, pointsResultant[i].y);
+                }
+                graphCtx.stroke();
+
+                // Add legend for the graph (horizontal layout at the bottom)
+                graphCtx.fillStyle = '#555';
+                graphCtx.textAlign = 'left';
+                graphCtx.font = '8px Inter, system-ui, sans-serif'; // Lowered font size
+
+                const legendStartX = margin + 5; // Starting X for legend items
+                const legendY = margin + graphHeight + 10; // Y position below the graph
+                const legendSpacing = 60; // Horizontal spacing between legend items
+
+                // S1 Wave legend
+                graphCtx.fillStyle = '#8b5cf6'; // Purple-500
+                graphCtx.fillRect(legendStartX, legendY - 2, 10, 2); 
+                graphCtx.fillStyle = '#555';
+                graphCtx.fillText('S1 Wave', legendStartX + 15, legendY);
+                
+                // S2 Wave legend
+                graphCtx.fillStyle = '#f97316'; // Orange-500
+                graphCtx.fillRect(legendStartX + legendSpacing, legendY - 2, 10, 2); 
+                graphCtx.fillStyle = '#555';
+                graphCtx.fillText('S2 Wave', legendStartX + legendSpacing + 15, legendY); 
+
+                // Resultant legend
+                graphCtx.fillStyle = '#14b8a6'; // Teal-500
+                graphCtx.fillRect(legendStartX + 2 * legendSpacing, legendY - 2, 10, 3); 
+                graphCtx.fillStyle = '#555';
+                graphCtx.fillText('Resultant', legendStartX + 2 * legendSpacing + 15, legendY); 
+
+                // Draw vertical dotted line for current animation time
+                const currentTimeX = margin + (animationTime % timeRange) * xScale;
+                graphCtx.strokeStyle = '#ef4444'; // Red color
+                graphCtx.lineWidth = 1;
+                graphCtx.setLineDash([2, 2]); // Dotted line
+                graphCtx.beginPath();
+                graphCtx.moveTo(currentTimeX, margin);
+                graphCtx.lineTo(currentTimeX, graphHeight + margin);
+                graphCtx.stroke();
+                graphCtx.setLineDash([]); // Reset line dash
+            }
+
+            /**
+             * Draws the amplitude profile graph for the line defined by linePoint1 and linePoint2.
+             */
+            function drawAmplitudeProfile() {
+                graphCtx.clearRect(0, 0, graphCanvas.width, graphCanvas.height);
+
+                if (!linePoint1 || !linePoint2) {
+                    return; // No line defined, clear graph
+                }
+
+                const wavelength = parseFloat(wavelengthSlider.value);
+                const initialPhaseRadians = parseFloat(phaseDifferenceSlider.value) * Math.PI / 180;
+
+                const margin = 15;
+                const graphWidth = graphCanvas.width - 2 * margin;
+                const graphHeight = graphCanvas.height - 2 * margin;
+
+                // Draw axes for amplitude profile
+                graphCtx.strokeStyle = '#ccc';
+                graphCtx.lineWidth = 1;
+                graphCtx.beginPath();
+                graphCtx.moveTo(margin, graphHeight + margin); // X-axis (distance along line)
+                graphCtx.lineTo(margin + graphWidth, graphHeight + margin);
+                graphCtx.stroke();
+
+                graphCtx.beginPath();
+                graphCtx.moveTo(margin, margin); // Y-axis (amplitude)
+                graphCtx.lineTo(margin, graphHeight + margin);
+                graphCtx.stroke();
+
+                // Labels for axes
+                graphCtx.fillStyle = '#555';
+                graphCtx.font = '10px Inter, system-ui, sans-serif';
+                graphCtx.textAlign = 'right';
+                graphCtx.fillText('Distance along line (cm)', margin + graphWidth, graphCanvas.height - 5);
+                graphCtx.save();
+                graphCtx.translate(8, graphHeight / 2 + margin);
+                graphCtx.rotate(-Math.PI / 2);
+                graphCtx.fillText('Amplitude', 0, 0);
+                graphCtx.restore();
+
+                // Calculate points for the amplitude profile
+                const profilePoints = [];
+                const lineLength = Math.hypot(linePoint2.x - linePoint1.x, linePoint2.y - linePoint1.y);
+                const numSamples = 500;
+                const maxAmplitudeAtSource = 1 / (1 + 1 / attenuationFactor); // Max amplitude of a single attenuated wave near source
+
+                for (let i = 0; i <= numSamples; i++) {
+                    const t = i / numSamples; // Parameter from 0 to 1 along the line
+                    const px = linePoint1.x + t * (linePoint2.x - linePoint1.x);
+                    const py = linePoint1.y + t * (linePoint2.y - linePoint1.y);
+
+                    const dist1 = Math.hypot(px - s1.x, py - s1.y);
+                    const dist2 = Math.hypot(px - s2.x, py - s2.y);
+
+                    const effectiveDist1 = Math.max(dist1, 1);
+                    const effectiveDist2 = Math.max(dist2, 1);
+
+                    const A1_attenuated = 1 / (1 + effectiveDist1 / attenuationFactor);
+                    const A2_attenuated = 1 / (1 + effectiveDist2 / attenuationFactor);
+
+                    const signedPathDifference = dist1 - dist2;
+                    const totalPhaseDifferenceAtPoint = (2 * Math.PI * signedPathDifference / wavelength) - initialPhaseRadians;
+
+                    // Resultant amplitude
+                    const resultantAmplitude = Math.sqrt(A1_attenuated * A1_attenuated + A2_attenuated * A2_attenuated + 2 * A1_attenuated * A2_attenuated * Math.cos(totalPhaseDifferenceAtPoint));
+
+                    // Normalize resultantAmplitude for graph scaling
+                    // Max possible resultant amplitude is 2 * maxAmplitudeAtSource (when A1 and A2 are in phase and max)
+                    const normalizedAmplitude = resultantAmplitude / (2 * maxAmplitudeAtSource);
+
+                    const xGraph = margin + (t * lineLength / (lineLength > 0 ? lineLength : 1)) * graphWidth; // Scale x based on percentage along the line
+                    const yGraph = graphHeight + margin - (normalizedAmplitude * graphHeight); // Invert y for canvas coordinates
+
+                    profilePoints.push({ x: xGraph, y: yGraph });
+                }
+
+                // Draw the amplitude profile curve
+                graphCtx.strokeStyle = '#14b8a6'; // Teal for resultant
+                graphCtx.lineWidth = 2;
+                graphCtx.beginPath();
+                if (profilePoints.length > 0) {
+                    graphCtx.moveTo(profilePoints[0].x, profilePoints[0].y);
+                    for (let i = 1; i < profilePoints.length; i++) {
+                        graphCtx.lineTo(profilePoints[i].x, profilePoints[i].y);
+                    }
+                }
+                graphCtx.stroke();
+            }
+
+            /**
+             * Resizes both the main interference canvas and the displacement graph canvas
+             * to fit their respective containers and maintain a responsive layout.
+             */
+            function resizeCanvas() {
+                requestAnimationFrame(() => {
+                    const containerWidth = canvasContainer.clientWidth;
+                    let targetCanvasHeight = canvasContainer.clientHeight; 
+
+                    // Phones / narrow screens (panels stacked): use a square canvas
+                    if (window.innerWidth <= 900) {
+                        targetCanvasHeight = Math.min(containerWidth, 560);
+                        canvasContainer.style.height = `${targetCanvasHeight}px`;
+                    } else
+                    // Synchronize main canvas container height with control panel height
+                    if (controlPanelDiv && controlPanelDiv.clientHeight > 0) {
+                        const cpHeight = controlPanelDiv.clientHeight;
+                        canvasContainer.style.height = `${cpHeight}px`;
+                        targetCanvasHeight = cpHeight; 
+                    } else {
+                        // Fallback for canvas height if control panel is not ready or has no height
+                        targetCanvasHeight = Math.max(400, window.innerHeight * 0.6); // Ensure a reasonable minimum height
+                        canvasContainer.style.height = `${targetCanvasHeight}px`;
+                    }
+
+                    // Set main canvas dimensions
+                    canvas.width = containerWidth;
+                    canvas.height = targetCanvasHeight;
+
+                    // Set attenuationFactor based on canvas size to achieve ~30% amplitude at the edge
+                    // Target: 1 / (1 + D_max / attenuationFactor) = 0.3
+                    // Rearranging: attenuationFactor = D_max / (1/0.3 - 1) = D_max / (10/3 - 1) = D_max / (7/3) = D_max * (3/7)
+                    // D_max is now the distance from the center to the furthest corner
+                    const D_max = Math.hypot(canvas.width / 2, canvas.height / 2); 
+                    attenuationFactor = D_max * (3 / 7);
+
+
+                    // Set graph canvas dimensions to match control panel width
+                    if (controlPanelDiv) {
+                        graphCanvas.width = controlPanelDiv.clientWidth * 0.9; 
+                    } else {
+                        graphCanvas.width = containerWidth * 0.9; // Fallback
+                    }
+                    graphCanvas.height = Math.min(300, graphCanvas.width * 0.6); // Increased height multiplier
+
+                    // Call drawing functions AFTER dimensions are set
+                    drawPattern(); 
+                    updateClickedPointInfo(); // This will now call the correct graph draw function
+                });
+            }
+
+            // Event Listeners for controls
+            wavelengthSlider.addEventListener('input', () => { drawPattern(); updateClickedPointInfo(); });
+            separationSlider.addEventListener('input', () => { drawPattern(); updateClickedPointInfo(); });
+            phaseDifferenceSlider.addEventListener('input', () => { drawPattern(); updateClickedPointInfo(); });
+            
+            visualizationModeSelect.addEventListener('change', () => {
+                currentVisualizationMode = visualizationModeSelect.value;
+                // Reset clicked points and line points when mode changes
+                clickedPoint = null;
+                linePoint1 = null;
+                linePoint2 = null;
+
+                if (currentVisualizationMode === 'wavefronts') {
+                    animationControls.style.display = 'block';
+                    // Do not start animation automatically, just show controls
+                    playPauseButton.textContent = 'Play'; 
+                    stopAnimation(); // Ensure it's stopped if it was running from a previous state
+                } else {
+                    animationControls.style.display = 'none';
+                    stopAnimation();
+                    animationTime = 0; // Reset animation time when not in wavefronts mode
+                }
+
+                updateClickedPointInfo(); // This will handle showing/hiding panels and calling the correct graph draw function
+                drawPattern(); // Redraw main canvas
+            });
+
+            // Add touch event listeners for canvas interaction
+            canvas.addEventListener('click', handleCanvasClick); // Existing mouse click
+            canvas.addEventListener('touchstart', handleCanvasTouch, { passive: false }); // For touch devices
+            canvas.addEventListener('touchmove', (event) => { event.preventDefault(); }, { passive: false }); // Prevent scrolling on touch
+            canvas.addEventListener('touchend', (event) => { /* No specific action needed on touchend for this logic */ }, { passive: false });
+
+
+            // Toggle phase button functionality
+            togglePhaseButton.addEventListener('click', () => {
+                const currentPhase = parseFloat(phaseDifferenceSlider.value);
+                // Toggle between 0 and 180 degrees
+                phaseDifferenceSlider.value = (Math.abs(currentPhase - 180) < 0.1) ? 0 : 180;
+                // Manually dispatch 'input' event to trigger listeners
+                phaseDifferenceSlider.dispatchEvent(new Event('input'));
+            });
+
+            // Animation control event listeners
+            const toggleAnimation = (event) => {
+                event.preventDefault(); // Prevent potential double-firing with click/touchend
+                if (animationFrameId) {
+                    stopAnimation();
+                } else {
+                    startAnimation();
+                }
+            };
+            playPauseButton.addEventListener('click', toggleAnimation);
+            playPauseButton.addEventListener('touchend', toggleAnimation); // Added touchend listener
+
+            const resetAnimation = (event) => {
+                event.preventDefault(); // Prevent potential double-firing with click/touchend
+                animationTime = 0;
+                drawPattern();
+                drawDisplacementGraph(); // Update graph with reset time
+            };
+            resetAnimationButton.addEventListener('click', resetAnimation);
+            resetAnimationButton.addEventListener('touchend', resetAnimation); // Added touchend listener
+
+
+            // Resize Observer to handle dynamic resizing of the window/container
+            const resizeObserver = new ResizeObserver(entries => {
+                for (let entry of entries) {
+                    // Observe changes to the canvas container or its parent
+                    if (entry.target === canvasContainer || entry.target === canvasContainer.parentElement || entry.target === controlPanelDiv) {
+                        resizeCanvas();
+                    }
+                }
+            });
+
+            // Start observing the canvas container, its parent, and the control panel for resize events
+            if (canvasContainer) {
+                resizeObserver.observe(canvasContainer);
+                if (canvasContainer.parentElement){
+                    resizeObserver.observe(canvasContainer.parentElement);
+                }
+            }
+            if (controlPanelDiv) {
+                resizeObserver.observe(controlPanelDiv);
+            }
+            
+            // Initial setup function called once DOM is ready
+            const initialSetup = () => {
+                console.log('initialSetup called. currentVisualizationMode:', currentVisualizationMode);
+                resizeCanvas(); // Perform initial sizing and drawing
+                // If wavefronts mode is initially selected, show controls but do NOT start animation
+                if (currentVisualizationMode === 'wavefronts') {
+                    animationControls.style.display = 'block';
+                    playPauseButton.textContent = 'Play'; // Ensure button text is "Play"
+                    stopAnimation(); // Ensure animation is stopped by default
+                } else {
+                    playPauseButton.textContent = 'Play'; // Ensure button text is correct if not animating
+                }
+            };
+
+            // Ensure fonts are loaded before initial setup to prevent layout shifts
+            if (document.fonts && document.fonts.ready) { 
+                document.fonts.ready.then(initialSetup);
+            } else {
+                setTimeout(initialSetup, 100); // Fallback for older browsers
+            }
+        });
+    </script>
+
+<script src="../../../assets/sim.js" data-root="../../../#wave-motion-and-ray-optics"></script>
+</body>
+</html>

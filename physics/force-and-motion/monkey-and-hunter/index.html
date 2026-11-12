@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="../../../assets/sim-early.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monkey and Hunter · PhySim</title>
+    <link rel="stylesheet" href="../../../assets/vendor/tailwind.css">
+    <link rel="stylesheet" href="../../../assets/vendor/fontawesome/css/all.min.css">
+    <style>
+        /* Ensures the canvas doesn't blur on high-DPI displays */
+        canvas {
+            image-rendering: -moz-crisp-edges;
+            image-rendering: -webkit-optimize-contrast;
+            image-rendering: crisp-edges;
+            image-rendering: pixelated;
+        }
+        /* ---- Phone / narrow-screen layout ---- */
+        @media (max-width: 900px) {
+            body { height: auto !important; width: auto !important; display: block !important; overflow: auto !important; }
+            #appBox { max-width: none; max-height: none; aspect-ratio: auto; display: block; }
+            /* canvas joins the normal flow; crop the strip that sat under the old bottom overlay */
+            #simCanvas { position: relative; inset: auto; height: auto; aspect-ratio: 1920 / 900; object-fit: cover; object-position: top; }
+            #appBox > div:nth-of-type(1) { padding: 10px 12px; background: #fff; }
+            #appBox > div:nth-of-type(2) { padding: 16px 14px 70px; box-shadow: none; }
+            #appBox > div:nth-of-type(2) .grid { gap: 18px; }
+            #appBox input[type=range] { height: 10px; }
+            #resetBtn, #fireBtn { flex: 1; justify-content: center; }
+        }
+    </style>
+<link rel="icon" href="../../../favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../../../assets/sim.css">
+</head>
+<body class="bg-slate-900 text-slate-800 font-sans h-screen w-screen flex items-center justify-center overflow-hidden m-0 p-0">
+
+    <!-- 16:9 App Container that scales perfectly to screen limits -->
+    <div id="appBox" class="relative bg-sky-100 shadow-2xl overflow-hidden w-full max-w-[calc(100vh*16/9)] max-h-screen aspect-video flex flex-col justify-between md:border-4 border-slate-700">
+        
+        <!-- Absolute Canvas (Sits behind the UI overlays) -->
+        <canvas id="simCanvas" class="absolute inset-0 w-full h-full block z-0"></canvas>
+        
+        <!-- Top Header Overlay -->
+        <div class="relative z-10 w-full bg-white/80 backdrop-blur-md px-4 sm:px-8 py-3 flex justify-between items-center border-b border-white/50 shadow-sm">
+            <div class="flex flex-col">
+                <h1 class="text-xl md:text-3xl font-extrabold text-blue-900 leading-tight">Monkey & Hunter</h1>
+                <p class="text-xs md:text-sm text-slate-600 hidden sm:block">A classic kinematics demonstration.</p>
+            </div>
+            <div class="bg-white/90 px-4 py-2 rounded-lg shadow-sm font-mono text-sm font-bold border border-slate-200 whitespace-nowrap">
+                <span id="statusText"><span class='text-slate-600'>Status:</span> <span class='text-blue-600'>Ready</span></span>
+            </div>
+        </div>
+
+        <!-- Bottom Controls Overlay -->
+        <div class="relative z-10 w-full bg-white/90 backdrop-blur-md border-t border-slate-200 p-4 sm:p-6 shadow-[0_-10px_30px_rgba(0,0,0,0.1)]">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 items-center w-full max-w-6xl mx-auto">
+                
+                <!-- Height Control -->
+                <div>
+                    <label for="heightSlider" class="flex justify-between font-bold text-slate-700 mb-2">
+                        <span>Monkey Height (<i>H</i>)</span>
+                        <span id="heightValue" class="text-blue-600">60 m</span>
+                    </label>
+                    <input type="range" id="heightSlider" min="20" max="80" value="60" step="1" 
+                           class="w-full h-2 bg-slate-300 rounded-lg appearance-none cursor-pointer accent-blue-600">
+                </div>
+
+                <!-- Velocity Control -->
+                <div>
+                    <label for="velocitySlider" class="flex justify-between font-bold text-slate-700 mb-2">
+                        <span>Bullet Speed (<i>V</i><sub>0</sub>)</span>
+                        <span id="velocityValue" class="text-blue-600">60 m/s</span>
+                    </label>
+                    <input type="range" id="velocitySlider" min="25" max="150" value="60" step="1" 
+                           class="w-full h-2 bg-slate-300 rounded-lg appearance-none cursor-pointer accent-blue-600">
+                </div>
+
+                <div class="flex justify-center md:justify-end gap-3">
+                    <button id="resetBtn" class="px-5 py-3 bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold rounded-lg transition-colors flex items-center gap-2">
+                        <i class="fas fa-undo"></i> Reset
+                    </button>
+                    <button id="fireBtn" class="px-8 py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg transition-colors shadow-lg shadow-red-200 flex items-center gap-2 text-lg">
+                        <i class="fas fa-fire"></i> FIRE!
+                    </button>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('simCanvas');
+        const ctx = canvas.getContext('2d');
+        const statusText = document.getElementById('statusText');
+        
+        // Physics Environment Setup
+        // We use a fixed physics coordinate system (meters)
+        // Ratio is 16:9. Let's make width 160m, height 90m.
+        const physW = 160;
+        const physH = 90;
+        const g = 9.81; // m/s^2
+
+        // Canvas internal resolution to keep things sharp
+        const internalW = 1920;
+        const internalH = 1080;
+        canvas.width = internalW;
+        canvas.height = internalH;
+
+        // Coordinate mapping to ensure physics simulation stays within the visible area between overlays
+        const scale = 9.5; // Optimized scale to fit internal 1080p
+        const originX = (internalW - (physW * scale)) / 2; // Centers horizontally
+        const originY = internalH - 220; // Lifts ground above the bottom controls overlay
+
+        // State variables
+        let state = {
+            active: false,
+            time: 0,
+            lastHistoryTime: 0,
+            simSpeed: 0.5, // Run at half speed for better observation
+            
+            // Cannon position (fixed)
+            cx: 15,
+            cy: 10,
+            
+            // Monkey initial position
+            mx: 135,
+            my: 60, // Controlled by slider
+            
+            // Initial velocity
+            v0: 60, // Controlled by slider
+            theta: 0, // Calculated
+            
+            // Current positions
+            bullet: { x: 0, y: 0, history: [] },
+            monkey: { x: 0, y: 0, history: [] },
+            
+            result: null // 'hit', 'ground', or null
+        };
+
+        // DOM Elements
+        const heightSlider = document.getElementById('heightSlider');
+        const heightValue = document.getElementById('heightValue');
+        const velocitySlider = document.getElementById('velocitySlider');
+        const velocityValue = document.getElementById('velocityValue');
+        const fireBtn = document.getElementById('fireBtn');
+        const resetBtn = document.getElementById('resetBtn');
+
+        // Coordinate transformation: Physics (origin bottom-left) to Canvas (origin top-left)
+        function toCanvas(px, py) {
+            return {
+                x: originX + (px * scale),
+                y: originY - (py * scale)
+            };
+        }
+
+        // Initialize / Reset simulation
+        function reset() {
+            state.active = false;
+            state.time = 0;
+            state.lastHistoryTime = 0;
+            state.result = null;
+            
+            // Read UI
+            state.my = parseFloat(heightSlider.value);
+            state.v0 = parseFloat(velocitySlider.value);
+            
+            // Calculate aim angle
+            const dx = state.mx - state.cx;
+            const dy = state.my - state.cy;
+            state.theta = Math.atan2(dy, dx);
+            
+            // Set initial positions
+            state.bullet.x = state.cx;
+            state.bullet.y = state.cy;
+            state.bullet.history = [];
+            
+            state.monkey.x = state.mx;
+            state.monkey.y = state.my;
+            state.monkey.history = [];
+            
+            statusText.innerHTML = "<span class='text-slate-600'>Status:</span> <span class='text-blue-600'>Ready to Fire</span>";
+            
+            fireBtn.disabled = false;
+            fireBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+            
+            draw();
+        }
+
+        // Event Listeners
+        heightSlider.addEventListener('input', (e) => {
+            heightValue.innerText = e.target.value + " m";
+            if (!state.active) reset();
+        });
+
+        velocitySlider.addEventListener('input', (e) => {
+            velocityValue.innerText = e.target.value + " m/s";
+            if (!state.active) reset();
+        });
+
+        resetBtn.addEventListener('click', reset);
+
+        fireBtn.addEventListener('click', () => {
+            if (!state.active && state.result === null) {
+                state.active = true;
+                state.time = 0;
+                fireBtn.disabled = true;
+                fireBtn.classList.add('opacity-50', 'cursor-not-allowed');
+                statusText.innerHTML = "<span class='text-slate-600'>Status:</span> <span class='text-red-600 animate-pulse'>Projectile in Motion!</span>";
+                lastTime = performance.now();
+                requestAnimationFrame(loop);
+            }
+        });
+
+        // Drawing functions
+        function drawBackground() {
+            // Sky
+            const grad = ctx.createLinearGradient(0, 0, 0, internalH);
+            grad.addColorStop(0, '#e0f2fe'); // sky-100
+            grad.addColorStop(1, '#bae6fd'); // sky-200
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, internalW, internalH);
+
+            // Ground
+            ctx.fillStyle = '#4ade80'; // green-400
+            ctx.fillRect(0, originY, internalW, internalH - originY);
+            
+            // Grass line
+            ctx.strokeStyle = '#22c55e'; // green-500
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.moveTo(0, originY);
+            ctx.lineTo(internalW, originY);
+            ctx.stroke();
+
+            // Tree trunk
+            const treeRootX = originX + ((state.mx + 2) * scale);
+            const trunkWidth = 40;
+            ctx.fillStyle = '#78350f'; // amber-900
+            ctx.fillRect(treeRootX - (trunkWidth/2), originY - (state.my * scale), trunkWidth, state.my * scale);
+            
+            // Leaves (simple circles)
+            ctx.fillStyle = '#166534'; // green-800
+            const canopy = toCanvas(state.mx + 2, state.my + 5);
+            ctx.beginPath();
+            ctx.arc(canopy.x, canopy.y, 120, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(canopy.x - 80, canopy.y + 40, 100, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(canopy.x + 80, canopy.y + 40, 100, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        function drawCannon() {
+            const pos = toCanvas(state.cx, state.cy);
+            
+            // Cannon Base
+            ctx.fillStyle = '#475569'; // slate-600
+            ctx.beginPath();
+            ctx.arc(pos.x, pos.y + 15, 30, Math.PI, 0);
+            ctx.fill();
+
+            // Cannon Barrel
+            ctx.save();
+            ctx.translate(pos.x, pos.y);
+            // In canvas, y goes down, so angle is inverted
+            ctx.rotate(-state.theta);
+            
+            ctx.fillStyle = '#1e293b'; // slate-800
+            ctx.fillRect(0, -15, 80, 30); // Barrel
+            
+            ctx.restore();
+            
+            // Wheel
+            ctx.fillStyle = '#0f172a'; // slate-900
+            ctx.beginPath();
+            ctx.arc(pos.x, pos.y + 20, 25, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#cbd5e1';
+            ctx.beginPath();
+            ctx.arc(pos.x, pos.y + 20, 10, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        function drawEducationalLines() {
+            const start = toCanvas(state.cx, state.cy);
+            const target = toCanvas(state.mx, state.my);
+
+            // 1. Line of Sight (Zero Gravity Path)
+            ctx.save();
+            ctx.strokeStyle = 'rgba(100, 116, 139, 0.4)'; // slate-500 with opacity
+            ctx.lineWidth = 4;
+            ctx.setLineDash([15, 15]);
+            ctx.beginPath();
+            ctx.moveTo(start.x, start.y);
+            // Extend the line past the monkey
+            const extendX = state.mx + 30;
+            const extendY = state.cy + Math.tan(state.theta) * (extendX - state.cx);
+            const extCanvas = toCanvas(extendX, extendY);
+            ctx.lineTo(extCanvas.x, extCanvas.y);
+            ctx.stroke();
+            ctx.restore();
+
+            if (state.active || state.result) {
+                // Calculate where they WOULD be without gravity
+                const ghostBx = state.cx + state.v0 * Math.cos(state.theta) * state.time;
+                const ghostBy = state.cy + state.v0 * Math.sin(state.theta) * state.time;
+                
+                const ghostBPix = toCanvas(ghostBx, ghostBy);
+                const realBPix = toCanvas(state.bullet.x, state.bullet.y);
+                const initMPix = toCanvas(state.mx, state.my);
+                const realMPix = toCanvas(state.monkey.x, state.monkey.y);
+
+                // Draw vertical fall lines (1/2 gt^2)
+                ctx.lineWidth = 4;
+                ctx.setLineDash([8, 8]);
+                
+                // Bullet fall line
+                if (ghostBx <= physW + 10) {
+                    ctx.strokeStyle = '#f87171'; // red-400
+                    ctx.beginPath();
+                    ctx.moveTo(ghostBPix.x, ghostBPix.y);
+                    ctx.lineTo(realBPix.x, realBPix.y);
+                    ctx.stroke();
+                    
+                    // Ghost bullet
+                    ctx.fillStyle = 'rgba(248, 113, 113, 0.5)';
+                    ctx.beginPath();
+                    ctx.arc(ghostBPix.x, ghostBPix.y, 10, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+
+                // Monkey fall line
+                ctx.strokeStyle = '#d97706'; // amber-600
+                ctx.beginPath();
+                ctx.moveTo(initMPix.x, initMPix.y);
+                ctx.lineTo(realMPix.x, realMPix.y);
+                ctx.stroke();
+                
+                // Ghost Monkey
+                ctx.globalAlpha = 0.3;
+                ctx.font = '60px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('🐒', initMPix.x, initMPix.y);
+                ctx.globalAlpha = 1.0;
+                ctx.setLineDash([]);
+            }
+        }
+
+        function drawEntities() {
+            // Draw Trajectories
+            ctx.fillStyle = '#ef4444'; // red-500
+            state.bullet.history.forEach(pt => {
+                const pix = toCanvas(pt.x, pt.y);
+                ctx.beginPath();
+                ctx.arc(pix.x, pix.y, 4, 0, Math.PI * 2);
+                ctx.fill();
+            });
+
+            ctx.fillStyle = '#ea580c'; // orange-600
+            state.monkey.history.forEach(pt => {
+                const pix = toCanvas(pt.x, pt.y);
+                ctx.beginPath();
+                ctx.arc(pix.x, pix.y, 4, 0, Math.PI * 2);
+                ctx.fill();
+            });
+
+            // Draw Bullet
+            const bPix = toCanvas(state.bullet.x, state.bullet.y);
+            ctx.fillStyle = '#ef4444'; // red-500
+            ctx.shadowColor = '#fca5a5';
+            ctx.shadowBlur = 10;
+            ctx.beginPath();
+            ctx.arc(bPix.x, bPix.y, 12, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.shadowBlur = 0; // reset
+
+            // Draw Monkey (Emoji)
+            const mPix = toCanvas(state.monkey.x, state.monkey.y);
+            ctx.font = '70px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            
+            // Rotate monkey if falling
+            ctx.save();
+            ctx.translate(mPix.x, mPix.y);
+            if (state.active) {
+                // simple tumble effect
+                ctx.rotate(state.time * 2);
+            }
+            if (state.result === 'hit') {
+                ctx.fillText('💥', 0, 0); // Explosion if hit
+            } else {
+                ctx.fillText('🐒', 0, 0);
+            }
+            ctx.restore();
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, internalW, internalH);
+            drawBackground();
+            drawEducationalLines();
+            drawCannon();
+            drawEntities();
+        }
+
+        // Physics Update
+        function update(dt) {
+            if (!state.active) return;
+
+            // Increment simulation time
+            const simDt = dt * state.simSpeed;
+            state.time += simDt;
+            const t = state.time;
+
+            // Save history at fixed time intervals for uniform dots
+            if (t - state.lastHistoryTime >= 0.05) {
+                state.bullet.history.push({x: state.bullet.x, y: state.bullet.y});
+                state.monkey.history.push({x: state.monkey.x, y: state.monkey.y});
+                state.lastHistoryTime = t;
+            }
+
+            // Kinematics Equations
+            // 1. Bullet
+            state.bullet.x = state.cx + (state.v0 * Math.cos(state.theta) * t);
+            state.bullet.y = state.cy + (state.v0 * Math.sin(state.theta) * t) - (0.5 * g * t * t);
+
+            // 2. Monkey (drops from rest)
+            state.monkey.x = state.mx;
+            state.monkey.y = state.my - (0.5 * g * t * t);
+
+            // Collision Detection & End Conditions
+            
+            // A. Distance between bullet and monkey
+            const dist = Math.sqrt(
+                Math.pow(state.bullet.x - state.monkey.x, 2) + 
+                Math.pow(state.bullet.y - state.monkey.y, 2)
+            );
+            
+            // Let's say collision radius is 2.5 meters
+            if (dist < 2.5) {
+                state.result = 'hit';
+                state.active = false;
+                
+                // Calculate EXACT time of crossing the monkey's X coordinate to keep math/lines perfect
+                const exactTime = (state.mx - state.cx) / (state.v0 * Math.cos(state.theta));
+                state.time = exactTime;
+                
+                // Snap to exact mathematical intersection
+                state.bullet.x = state.mx;
+                state.monkey.y = state.my - (0.5 * g * exactTime * exactTime);
+                state.bullet.y = state.monkey.y;
+                
+                statusText.innerHTML = "<span class='text-slate-600'>Result:</span> <span class='text-green-600 font-extrabold animate-bounce inline-block'>Direct Hit!</span>";
+                return;
+            }
+
+            // B. Hit ground
+            if (state.bullet.y < 0) {
+                state.bullet.y = 0; // stop on ground
+                state.result = 'ground';
+                state.active = false;
+                statusText.innerHTML = "<span class='text-slate-600'>Result:</span> <span class='text-amber-600 font-extrabold'>Hit the ground!</span>";
+            }
+            
+            // C. Monkey hits ground
+            if (state.monkey.y < 0) {
+                 state.monkey.y = 0;
+            }
+            
+            // D. Bullet flies way off screen (missed somehow due to extremely high settings, shouldn't happen with perfect aim, but just in case)
+            if (state.bullet.x > physW + 20) {
+                state.active = false;
+                state.result = 'miss';
+            }
+        }
+
+        let lastTime = 0;
+        function loop(timestamp) {
+            if (!lastTime) lastTime = timestamp;
+            const dt = (timestamp - lastTime) / 1000; // convert ms to seconds
+            lastTime = timestamp;
+
+            if (state.active) {
+                update(dt);
+            }
+            draw();
+
+            if (state.active) {
+                requestAnimationFrame(loop);
+            }
+        }
+
+        // Initialize
+        reset();
+        
+        // Handle window resize conceptually (though CSS aspect-ratio does most of the work)
+        window.addEventListener('resize', () => {
+            draw();
+        });
+
+    </script>
+<script src="../../../assets/sim.js" data-root="../../../#force-and-motion"></script>
+</body>
+</html>

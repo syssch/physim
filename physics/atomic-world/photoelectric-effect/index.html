@@ -1,0 +1,1029 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="../../../assets/sim-early.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Photoelectric Effect · PhySim</title>
+    <link rel="stylesheet" href="../../../assets/vendor/tailwind.css">
+    <script src="../../../assets/vendor/chart.umd.js"></script>
+    <script src="../../../assets/vendor/chartjs-plugin-annotation.min.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #2d3748;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #4a5568;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #718096;
+        }
+        .slider-track {
+            background: #4a5568;
+        }
+        .slider-thumb {
+            background: #63b3ed;
+        }
+        * {
+          scrollbar-width: thin;
+          scrollbar-color: #4a5568 #2d3748;
+        }
+        .app-main-container {
+            aspect-ratio: 16 / 9;
+            width: auto;
+            height: auto;
+            max-width: 98vw;
+            max-height: 98vh;
+            overflow: auto;
+            flex-grow: 0;
+            flex-shrink: 1;
+        }
+        /* ---- Phone / narrow-screen layout ---- */
+        @media (max-width: 900px) {
+            body { display: block; padding: 6px; }
+            .app-main-container { aspect-ratio: auto; max-width: none; max-height: none; overflow: visible; padding: 10px; }
+            .app-main-container > header { margin-bottom: 12px; }
+            .app-main-container > header h1 { font-size: 1.5rem; }
+            #controls-section { padding: 14px; margin-bottom: 12px; }
+            #controls-section .grid { grid-template-columns: 1fr; gap: 16px; }
+            .app-main-container > main { gap: 12px; }
+            #schematic-panel, #results-panel, #graph-panel { padding: 12px; }
+            #schematic-svg { height: auto; aspect-ratio: 400 / 390; }
+            #results-panel .space-y-1\.5 { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+            #results-panel .space-y-1\.5 > * { margin-top: 0 !important; }
+            #graph-panel .flex-grow { min-height: 280px; }
+        }
+    </style>
+<link rel="icon" href="../../../favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../../../assets/sim.css">
+</head>
+<body class="bg-gray-900 text-white">
+
+    <div class="app-main-container container mx-auto max-w-7xl flex flex-col bg-gray-900 p-4 md:p-6 rounded-lg shadow-2xl">
+        <header class="text-center mb-6 flex-shrink-0">
+            <h1 class="text-3xl md:text-4xl font-bold text-cyan-400">Photoelectric Effect Simulator</h1>
+        </header>
+
+        <section id="controls-section" class="bg-gray-800 p-4 md:p-6 rounded-lg shadow-xl mb-6 flex-shrink-0">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+                <div>
+                    <label for="metal-select" class="block text-base font-medium text-purple-300 mb-1">Cathode Metal (<span id="work-function-display">Φ: 2.14 eV</span>)</label>
+                    <select id="metal-select" class="w-full bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-purple-500 focus:border-purple-500 p-2.5">
+                    </select>
+                </div>
+
+                <div>
+                    <label for="frequency-slider" class="block text-base font-medium text-blue-300 mb-1">Light Frequency (<span id="frequency-value">750</span> THz)</label>
+                    <input type="range" id="frequency-slider" min="100" max="2000" value="750" class="w-full h-2 rounded-lg appearance-none cursor-pointer slider-track slider-thumb">
+                    <div class="mt-2 text-sm text-gray-400">
+                        Photon: <span id="photon-info-display" class="font-semibold text-blue-200">N/A</span>
+                    </div>
+                </div>
+
+                <div>
+                    <label for="intensity-slider" class="block text-base font-medium text-green-300 mb-1">Light Power (<span id="intensity-value-abs">5.0</span> µW)</label>
+                    <input type="range" id="intensity-slider" min="1" max="100" value="50" class="w-full h-2 rounded-lg appearance-none cursor-pointer slider-track slider-thumb">
+                    <div class="mt-2 text-sm text-gray-400">Photon Rate: <span id="photon-rate-display" class="font-semibold text-green-200">N/A</span> photons/s</div>
+                </div>
+
+                <div>
+                    <label for="voltage-slider" class="block text-base font-medium text-yellow-300 mb-1">Applied Voltage (<span id="voltage-value">0.0</span> V)</label>
+                    <input type="range" id="voltage-slider" min="-5" max="5" value="0" step="0.1" class="w-full h-2 rounded-lg appearance-none cursor-pointer slider-track slider-thumb">
+                </div>
+            </div>
+        </section>
+
+        <main class="flex flex-col md:flex-row gap-6 flex-grow min-h-0">
+            <section id="schematic-panel" class="md:w-[30%] bg-gray-800 p-4 md:p-6 rounded-lg shadow-xl flex flex-col items-center">
+                <h2 class="text-xl font-semibold mb-4 text-teal-400">Experimental Setup</h2>
+                <svg id="schematic-svg" width="100%" height="380" viewBox="0 0 400 380" class="bg-gray-700 rounded-md mb-4">
+                    <rect x="50" y="40" width="300" height="180" rx="15" ry="15" stroke="#4A5568" stroke-width="2" fill="rgba(74, 85, 104, 0.2)" />
+                    
+                    <rect x="80" y="90" width="20" height="100" fill="#718096" id="cathode" />
+                    <text id="cathode-label-svg" x="90" y="80" font-size="20" fill="white" text-anchor="middle">Cathode</text>
+                    <rect x="300" y="90" width="20" height="100" fill="#718096" id="anode" />
+                    <text id="anode-label-svg" x="310" y="80" font-size="20" fill="white" text-anchor="middle">Anode</text>
+
+                    <g id="electron-animation-layer"></g> 
+
+                    <g id="light-source-group">
+                        <rect x="290" y="5" width="40" height="30" fill="rgba(250, 204, 21, 0.7)" rx="5" transform="rotate(63 310 20)"/>
+                        <line x1="300" y1="35" x2="100" y2="110" stroke="rgba(250, 204, 21, 0.7)" stroke-width="2" id="light-beam-1" />
+                        <line x1="310" y1="35" x2="100" y2="140" stroke="rgba(250, 204, 21, 0.7)" stroke-width="3" id="light-beam-2" />
+                        <line x1="320" y1="35" x2="100" y2="170" stroke="rgba(250, 204, 21, 0.7)" stroke-width="2" id="light-beam-3" />
+                    </g>
+
+                    <path d="M 90 190 Q 90 310, 130 330" stroke="#A0AEC0" stroke-width="2" fill="none"/>
+                    <path d="M 310 190 Q 310 310, 278 330" stroke="#A0AEC0" stroke-width="2" fill="none"/>
+
+                    <circle cx="250" cy="330" r="22" fill="#2A4365" stroke="#A0AEC0" stroke-width="2.5"/>
+                    <text x="250" y="341" font-size="30" fill="white" text-anchor="middle">A</text>
+
+                    <line x1="170" y1="330" x2="228" y2="330" stroke="#A0AEC0" stroke-width="2"/>
+
+                    <g transform="translate(150, 330)">
+                        <circle cx="0" cy="0" r="15" stroke="#A0AEC0" stroke-width="2.5" fill="#4A5568"/>
+                        <line x1="-7" y1="0" x2="7" y2="0" stroke="white" stroke-width="2"/>
+                        <text x="0" y="-22" font-size="24" fill="white" text-anchor="middle">-</text>
+                        <line x1="0" y1="-7" x2="0" y2="7" stroke="white" stroke-width="2"/>
+                        <text x="0" y="30" font-size="24" fill="white" text-anchor="middle">+</text>
+                        <line x1="-10" y1="10" x2="10" y2="-10" stroke="white" stroke-width="2"/>
+                    </g>
+                    <text x="150" y="380" font-size="24" fill="white" text-anchor="middle" id="voltage-text-svg">0.0V</text>
+                </svg>
+            </section>
+
+            <section id="results-panel" class="md:w-[20%] bg-gray-800 p-4 md:p-6 rounded-lg shadow-xl flex flex-col">
+                <h2 class="text-xl font-semibold mb-4 text-teal-400 text-center">Data</h2>
+                <div class="space-y-1.5 text-sm">
+                    <div class="bg-gray-700 p-2 rounded-md">
+                        <div>Photocurrent:</div>
+                        <div><span id="photocurrent-value-panel" class="font-bold text-yellow-400">0.00</span> mA</div>
+                    </div>
+                    <div class="bg-gray-700 p-2 rounded-md">
+                        <div>Stopping Potential:</div>
+                        <div><span id="stopping-potential-value-panel" class="font-bold text-orange-400">N/A</span> V</div>
+                    </div>
+                    <div class="bg-gray-700 p-2 rounded-md">
+                        <div>Threshold Freq.:</div>
+                        <div><span id="threshold-frequency-value-panel" class="font-bold text-cyan-400">N/A</span> THz</div>
+                    </div>
+                    <div class="bg-gray-700 p-2 rounded-md">
+                        <div>Max KE (Cathode):</div>
+                        <div><span id="ke-cathode-value" class="font-bold text-lime-400">0.00</span> eV</div>
+                    </div>
+                    <div class="bg-gray-700 p-2 rounded-md">
+                        <div>Max KE (Anode):</div>
+                        <div><span id="ke-anode-value" class="font-bold text-emerald-400">0.00</span> eV</div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="graph-panel" class="md:w-[50%] bg-gray-800 p-4 md:p-6 rounded-lg shadow-xl flex flex-col">
+                <div class="mb-2 flex flex-col sm:flex-row justify-between items-center gap-2">
+                    <div class="flex items-center space-x-2">
+                        <label for="graph-type-select" class="text-sm font-medium text-gray-300 whitespace-nowrap">Graph Type:</label>
+                        <select id="graph-type-select" class="bg-gray-700 border border-gray-600 text-white text-xs rounded p-1">
+                            <option value="IV" selected>Photocurrent vs. Voltage</option>
+                            <option value="KE_FREQ">Max KE vs. Frequency</option>
+                        </select>
+                    </div>
+                    <div id="ke-freq-options" class="flex items-center space-x-2 hidden">
+                        <input type="checkbox" id="show-extrapolation-checkbox" class="w-3 h-3 md:w-4 md:h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500">
+                        <label for="show-extrapolation-checkbox" class="text-xs font-medium text-gray-300 whitespace-nowrap">Show Extrapolation</label>
+                        <button id="clear-ke-points-button" class="text-xs bg-red-600 hover:bg-red-700 text-white py-1 px-2 rounded">Clear Points</button>
+                    </div>
+                </div>
+                <h2 id="graph-title" class="text-xl font-semibold mb-2 text-teal-400 text-center">Photocurrent vs. Applied Voltage</h2>
+                <div class="flex-grow min-h-[200px] md:min-h-0">
+                       <canvas id="main-graph-canvas"></canvas>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script>
+        'use strict';
+        const H_PLANCK = 6.62607015e-34; 
+        const E_CHARGE = 1.602176634e-19; 
+        const EV_TO_JOULES = E_CHARGE;
+        const JOULES_TO_EV = 1 / E_CHARGE;
+        const TERAHERTZ_TO_HERTZ = 1e12;
+        const H_EV_PER_THZ = (H_PLANCK * TERAHERTZ_TO_HERTZ) * JOULES_TO_EV;
+
+        const MASS_ELECTRON = 9.1093837e-31; 
+        const SVG_CATHODE_SURFACE_X = 100; 
+        const SVG_ANODE_SURFACE_X = 300;   
+        const SVG_ELECTRON_RADIUS = 2.0; 
+        const SVG_VACUUM_TUBE_Y_MIN = 90;  
+        const SVG_VACUUM_TUBE_Y_MAX = 190; 
+        const SVG_ACTUAL_TUBE_TOP_Y = 40;    
+        const SVG_ACTUAL_TUBE_BOTTOM_Y = 220; 
+
+        const ACTUAL_PLATE_GAP_METERS = 0.02; 
+        const SVG_PLATE_GAP_PIXELS = SVG_ANODE_SURFACE_X - SVG_CATHODE_SURFACE_X;
+        const SVG_PIXELS_PER_METER = SVG_PLATE_GAP_PIXELS / ACTUAL_PLATE_GAP_METERS;
+        const SIM_TIME_STRETCH_FACTOR = 6e7; 
+        const MAX_ELECTRONS_ON_SCREEN = 30;
+
+
+        const GRAPH_Y_AXIS_MAX_IV = 0.4;
+        const REFERENCE_MAX_SATURATION_CURRENT_UNITS = 20.0;
+        const QUANTUM_EFFICIENCY = 0.1; 
+
+        const GRAPH_MIN_VOLTAGE_IV = -5;
+        const GRAPH_MAX_VOLTAGE_IV = 5;
+        const GRAPH_POINTS_IV = 200;
+        const CURRENT_AT_ZERO_VOLTAGE_RATIO = 0.8;
+        const EPSILON_CURRENT_AT_V0 = 0.01;
+
+        const KEMAX_THRESHOLD_JOULES = 1e-22; 
+        const SATURATION_CURRENT_THRESHOLD_DISPLAY = 1e-9;
+
+        const MAX_LIGHT_POWER = 1.0e-5; 
+
+        const KE_FREQ_GRAPH_Y_MIN = -6;
+        const KE_FREQ_GRAPH_Y_MAX = 8;
+        const KE_FREQ_GRAPH_X_MIN = 0;
+
+        let MIN_SLIDER_FREQUENCY_HZ;
+
+        const METALS = {
+            "Sodium (Na)": 2.28, "Cesium (Cs)": 2.14, "Potassium (K)": 2.30,
+            "Calcium (Ca)": 2.87, "Copper (Cu)": 4.70, "Silver (Ag)": 4.26,
+            "Zinc (Zn)": 4.33, "Gold (Au)": 5.10, "Platinum (Pt)": 5.65,
+            "Aluminum (Al)": 4.08,
+        };
+
+        const frequencySlider = document.getElementById('frequency-slider');
+        const intensitySlider = document.getElementById('intensity-slider');
+        const voltageSlider = document.getElementById('voltage-slider');
+        const metalSelect = document.getElementById('metal-select');
+        const graphTypeSelect = document.getElementById('graph-type-select');
+        const keFreqOptionsDiv = document.getElementById('ke-freq-options');
+        const showExtrapolationCheckbox = document.getElementById('show-extrapolation-checkbox');
+        const clearKePointsButton = document.getElementById('clear-ke-points-button');
+        const graphTitleElement = document.getElementById('graph-title');
+
+        const frequencyValueDisplay = document.getElementById('frequency-value');
+        const intensityValueAbsDisplay = document.getElementById('intensity-value-abs');
+        const photonRateDisplay = document.getElementById('photon-rate-display');
+        const voltageValueDisplay = document.getElementById('voltage-value');
+        const workFunctionDisplay = document.getElementById('work-function-display');
+        const photonInfoDisplay = document.getElementById('photon-info-display');
+
+        const voltageTextSvg = document.getElementById('voltage-text-svg');
+
+        const photocurrentValuePanelDisplay = document.getElementById('photocurrent-value-panel');
+        const stoppingPotentialValuePanelDisplay = document.getElementById('stopping-potential-value-panel');
+        const thresholdFrequencyValuePanelDisplay = document.getElementById('threshold-frequency-value-panel');
+        const keCathodeValueDisplay = document.getElementById('ke-cathode-value');
+        const keAnodeValueDisplay = document.getElementById('ke-anode-value');
+
+        const lightBeams = [
+            document.getElementById('light-beam-1'),
+            document.getElementById('light-beam-2'),
+            document.getElementById('light-beam-3'),
+        ];
+        const lightSourceRect = document.querySelector('#light-source-group rect');
+        const electronAnimationLayer = document.getElementById('electron-animation-layer');
+
+
+        let mainChart;
+        let currentGraphType = 'IV';
+        let keVsFreqDataPoints = [];
+        let lastAddedFrequencyForKEGraph = -1;
+
+        let animatedElectrons = [];
+        let electronAnimationRequestID;
+        let lastElectronSpawnTime = 0;
+        let lastFrameTime = performance.now();
+
+        let KEMaxJoules_for_animation = 0; 
+        let appliedVoltage_for_animation = 0;
+        let photonEnergyJoules_for_animation = 0;
+        let workFunctionJoules_for_animation = 0;
+        let intensitySlider_val_for_animation = 0;
+        let electricField_V_per_m_for_animation = 0;
+        let emWaveType_for_animation = "";
+        let effectiveSaturationVoltage_for_animation = GRAPH_MAX_VOLTAGE_IV;
+
+
+        function calculateEffectiveSaturationVoltage(V0_mag, satCurrent) {
+            if (V0_mag <= 0 || satCurrent < SATURATION_CURRENT_THRESHOLD_DISPLAY * 5) { 
+                return GRAPH_MAX_VOLTAGE_IV; 
+            }
+            const targetCurrent = 0.98 * satCurrent;
+            for (let v = 0.01; v <= GRAPH_MAX_VOLTAGE_IV; v += 0.05) { // Start v from a small positive to avoid issues at 0
+                const currentAtV = calculatePhotocurrentAtVoltage(v, V0_mag, satCurrent);
+                if (currentAtV >= targetCurrent) {
+                    return Math.max(0.1, v); // Ensure it's at least a small positive voltage
+                }
+            }
+            return GRAPH_MAX_VOLTAGE_IV; 
+        }
+
+
+        function spawnElectron() {
+            if (animatedElectrons.length >= MAX_ELECTRONS_ON_SCREEN) return;
+            if (photonEnergyJoules_for_animation <= workFunctionJoules_for_animation || KEMaxJoules_for_animation <= KEMAX_THRESHOLD_JOULES) return;
+
+            const actual_KE_joules = Math.random() * KEMaxJoules_for_animation;
+            if (actual_KE_joules < KEMAX_THRESHOLD_JOULES / 10) return; 
+
+            const v_total_m_s = Math.sqrt(2 * actual_KE_joules / MASS_ELECTRON);
+            
+            const WIDE_SPREAD_START = 0.9;
+            const TARGET_SPREAD_AT_SATURATION = 0.20; 
+            const MIN_SPREAD_HIGH_VOLTAGE = 0.01;
+            let max_angle_spread_factor = WIDE_SPREAD_START;
+
+            if (appliedVoltage_for_animation > 0 && KEMaxJoules_for_animation > KEMAX_THRESHOLD_JOULES / 5) { // Only apply narrowing if photoemission is significant
+                const V_sat_eff = effectiveSaturationVoltage_for_animation;
+                if (V_sat_eff > 0.05 && V_sat_eff < GRAPH_MAX_VOLTAGE_IV) { // V_sat_eff is meaningful and not at the extreme
+                    if (appliedVoltage_for_animation < V_sat_eff) {
+                        const ratio = appliedVoltage_for_animation / V_sat_eff;
+                        max_angle_spread_factor = WIDE_SPREAD_START - ratio * (WIDE_SPREAD_START - TARGET_SPREAD_AT_SATURATION);
+                        max_angle_spread_factor = Math.max(TARGET_SPREAD_AT_SATURATION, max_angle_spread_factor);
+                    } else { // appliedVoltage_for_animation >= V_sat_eff
+                        const voltage_range_past_saturation = GRAPH_MAX_VOLTAGE_IV - V_sat_eff;
+                        if (voltage_range_past_saturation < 0.1) { 
+                            max_angle_spread_factor = MIN_SPREAD_HIGH_VOLTAGE;
+                        } else {
+                            const excess_voltage_ratio = Math.min(1.0, (appliedVoltage_for_animation - V_sat_eff) / voltage_range_past_saturation);
+                            max_angle_spread_factor = TARGET_SPREAD_AT_SATURATION - excess_voltage_ratio * (TARGET_SPREAD_AT_SATURATION - MIN_SPREAD_HIGH_VOLTAGE);
+                            max_angle_spread_factor = Math.max(MIN_SPREAD_HIGH_VOLTAGE, max_angle_spread_factor);
+                        }
+                    }
+                } else if (V_sat_eff >= GRAPH_MAX_VOLTAGE_IV) { // Saturation is at or beyond max voltage slider
+                     max_angle_spread_factor = TARGET_SPREAD_AT_SATURATION - (appliedVoltage_for_animation / GRAPH_MAX_VOLTAGE_IV) * (TARGET_SPREAD_AT_SATURATION - MIN_SPREAD_HIGH_VOLTAGE);
+                     max_angle_spread_factor = Math.max(MIN_SPREAD_HIGH_VOLTAGE, max_angle_spread_factor);
+                } else { // Fallback if V_sat_eff is very low or not well defined, but voltage is positive
+                    max_angle_spread_factor = Math.max(MIN_SPREAD_HIGH_VOLTAGE, WIDE_SPREAD_START * (1.0 - (appliedVoltage_for_animation / GRAPH_MAX_VOLTAGE_IV)));
+                }
+            }
+            // If appliedVoltage_for_animation <= 0, max_angle_spread_factor remains WIDE_SPREAD_START
+
+            const ejectionAngle = (Math.random() - 0.5) * Math.PI * max_angle_spread_factor; 
+
+            const v0x_m_s = v_total_m_s * Math.cos(ejectionAngle);
+            const v0y_m_s = v_total_m_s * Math.sin(ejectionAngle);
+
+            if (v0x_m_s <= 1e-3) return; 
+
+            const cathode_height_svg = SVG_VACUUM_TUBE_Y_MAX - SVG_VACUUM_TUBE_Y_MIN;
+            const desired_spawn_region_height_svg = cathode_height_svg / 2;
+            const svg_cathode_center_y = SVG_VACUUM_TUBE_Y_MIN + cathode_height_svg / 2;
+            const spawn_region_top_svg = svg_cathode_center_y - desired_spawn_region_height_svg / 2;
+            const startY_svg = spawn_region_top_svg + Math.random() * desired_spawn_region_height_svg;
+
+            const svg_y_midpoint_of_gap_plates = SVG_VACUUM_TUBE_Y_MIN + (SVG_VACUUM_TUBE_Y_MAX - SVG_VACUUM_TUBE_Y_MIN) / 2;
+
+            const electronSVG = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+            electronSVG.setAttribute("cx", SVG_CATHODE_SURFACE_X);
+            electronSVG.setAttribute("cy", startY_svg);
+            electronSVG.setAttribute("r", SVG_ELECTRON_RADIUS);
+            electronSVG.setAttribute("fill", "cyan");
+            electronAnimationLayer.appendChild(electronSVG);
+
+            animatedElectrons.push({
+                svgElement: electronSVG,
+                x_m: 0, 
+                y_m: (startY_svg - svg_y_midpoint_of_gap_plates) / SVG_PIXELS_PER_METER, 
+                vx_m_s: v0x_m_s,
+                vy_m_s: v0y_m_s,
+                spawnTime: performance.now()
+            });
+        }
+
+        function animateElectrons(currentTime) {
+            const dt_ms = currentTime - lastFrameTime;
+            lastFrameTime = currentTime;
+
+            if (dt_ms <= 0) { 
+                electronAnimationRequestID = requestAnimationFrame(animateElectrons);
+                return;
+            }
+            const wall_dt_s = dt_ms / 1000.0; 
+            const physics_dt_s = wall_dt_s / SIM_TIME_STRETCH_FACTOR; 
+
+
+            const spawnIntervalBase = 200; 
+            const spawnIntensityFactor = Math.max(1, intensitySlider_val_for_animation / 10); 
+            const currentSpawnInterval = spawnIntervalBase / spawnIntensityFactor;
+
+            if (currentTime - lastElectronSpawnTime > currentSpawnInterval && 
+                photonEnergyJoules_for_animation > workFunctionJoules_for_animation &&
+                KEMaxJoules_for_animation > KEMAX_THRESHOLD_JOULES) {
+                spawnElectron();
+                lastElectronSpawnTime = currentTime;
+            }
+            
+            const ax_m_s2 = (E_CHARGE * electricField_V_per_m_for_animation) / MASS_ELECTRON;
+            const svg_y_midpoint_of_gap_plates = SVG_VACUUM_TUBE_Y_MIN + (SVG_VACUUM_TUBE_Y_MAX - SVG_VACUUM_TUBE_Y_MIN) / 2;
+
+            for (let i = animatedElectrons.length - 1; i >= 0; i--) {
+                const e = animatedElectrons[i];
+
+                e.vx_m_s += ax_m_s2 * physics_dt_s;
+                e.x_m += e.vx_m_s * physics_dt_s;
+                e.y_m += e.vy_m_s * physics_dt_s;
+
+                const svg_x = SVG_CATHODE_SURFACE_X + (e.x_m * SVG_PIXELS_PER_METER);
+                const svg_y = svg_y_midpoint_of_gap_plates + (e.y_m * SVG_PIXELS_PER_METER);
+
+                e.svgElement.setAttribute("cx", svg_x.toFixed(2));
+                e.svgElement.setAttribute("cy", svg_y.toFixed(2));
+
+                let removeElectron = false;
+                if (svg_x >= SVG_ANODE_SURFACE_X) { 
+                    removeElectron = true;
+                } else if (svg_x <= SVG_CATHODE_SURFACE_X && e.vx_m_s < 0 && e.x_m < -1e-9 ) { 
+                     removeElectron = true;
+                } else if (svg_y < SVG_ACTUAL_TUBE_TOP_Y || svg_y > SVG_ACTUAL_TUBE_BOTTOM_Y) { 
+                    removeElectron = true;
+                }
+                if (currentTime - e.spawnTime > 5000) { 
+                    removeElectron = true;
+                }
+
+                if (removeElectron) {
+                    if(e.svgElement.parentNode === electronAnimationLayer) {
+                         electronAnimationLayer.removeChild(e.svgElement);
+                    }
+                    animatedElectrons.splice(i, 1);
+                }
+            }
+            electronAnimationRequestID = requestAnimationFrame(animateElectrons);
+        }
+
+        function clearAllAnimatedElectrons() {
+            animatedElectrons.forEach(e => {
+                if (e.svgElement && e.svgElement.parentNode === electronAnimationLayer) {
+                    electronAnimationLayer.removeChild(e.svgElement);
+                }
+            });
+            animatedElectrons = [];
+        }
+
+
+        function init() {
+            MIN_SLIDER_FREQUENCY_HZ = parseFloat(frequencySlider.min) * TERAHERTZ_TO_HERTZ;
+            if (window.ChartAnnotation) {
+                Chart.register(window.ChartAnnotation);
+            }
+            populateMetalSelect();
+            setupEventListeners();
+            updateSimulation(true);
+            
+            if (electronAnimationRequestID) cancelAnimationFrame(electronAnimationRequestID);
+            lastFrameTime = performance.now();
+            electronAnimationRequestID = requestAnimationFrame(animateElectrons);
+        }
+
+        function populateMetalSelect() {
+            const sortedMetals = Object.entries(METALS)
+                .map(([name, workFunction]) => ({ name, workFunction }))
+                .sort((a, b) => a.workFunction - b.workFunction);
+
+            metalSelect.innerHTML = '';
+
+            for (const metal of sortedMetals) {
+                const option = document.createElement('option');
+                option.value = metal.name;
+                option.textContent = `${metal.name} (Φ: ${metal.workFunction.toFixed(2)} eV)`;
+                metalSelect.appendChild(option);
+            }
+            if (sortedMetals.length > 0) {
+                metalSelect.value = sortedMetals[0].name;
+            }
+        }
+
+        function setupEventListeners() {
+            frequencySlider.addEventListener('input', () => {
+                frequencyValueDisplay.textContent = frequencySlider.value;
+                updateSimulation(false, 'frequency');
+            });
+            intensitySlider.addEventListener('input', () => {
+                updateSimulation();
+            });
+            voltageSlider.addEventListener('input', () => {
+                voltageValueDisplay.textContent = parseFloat(voltageSlider.value).toFixed(1);
+                updateSimulation();
+            });
+            metalSelect.addEventListener('change', () => {
+                lastAddedFrequencyForKEGraph = -1;
+                updateSimulation(true);
+            });
+            graphTypeSelect.addEventListener('change', (event) => {
+                currentGraphType = event.target.value;
+                keFreqOptionsDiv.classList.toggle('hidden', currentGraphType !== 'KE_FREQ');
+                voltageSlider.disabled = (currentGraphType === 'KE_FREQ');
+                updateSimulation(true);
+            });
+            showExtrapolationCheckbox.addEventListener('change', () => {
+                updateSimulation(true);
+            });
+            clearKePointsButton.addEventListener('click', () => {
+                keVsFreqDataPoints = [];
+                lastAddedFrequencyForKEGraph = -1;
+                updateSimulation(true);
+            });
+        }
+
+        function getEMWaveType(frequencyTHz) {
+            if (frequencyTHz < 400) return "Infrared";
+            if (frequencyTHz < 480) return "Visible (Red)";
+            if (frequencyTHz < 520) return "Visible (Orange)";
+            if (frequencyTHz < 600) return "Visible (Yellow)";
+            if (frequencyTHz < 680) return "Visible (Green)";
+            if (frequencyTHz < 750) return "Visible (Blue)";
+            if (frequencyTHz < 790) return "Visible (Violet)";
+            return "Ultraviolet";
+        }
+
+        function calculateLogisticTerm(ratio) {
+            const minRatio = 1e-7;
+            const maxRatio = 1.0 - minRatio;
+            const clampedRatio = Math.max(minRatio, Math.min(maxRatio, ratio));
+            return Math.log(1.0 / clampedRatio - 1.0);
+        }
+
+        function calculatePhotocurrentAtVoltage(voltagePoint, V0_magnitude, saturationCurrent) {
+            const term_epsilon = calculateLogisticTerm(EPSILON_CURRENT_AT_V0);
+            const term_C0 = calculateLogisticTerm(CURRENT_AT_ZERO_VOLTAGE_RATIO);
+
+            let k_steepness = (term_epsilon - term_C0) / V0_magnitude;
+
+            if (!isFinite(k_steepness) || Math.abs(k_steepness) < 1e-9) {
+                let sign_val = Math.sign(k_steepness || (term_epsilon - term_C0) || 1);
+                if (sign_val === 0) sign_val = 1; 
+                k_steepness = 1e-9 * sign_val;
+            }
+
+            const V_inflection = term_C0 / k_steepness;
+
+            const exponent = -k_steepness * (voltagePoint - V_inflection);
+            const clampedExponent = Math.max(-700, Math.min(700, exponent));
+
+            const current = saturationCurrent / (1 + Math.exp(clampedExponent));
+            return Math.min(Math.max(0, current), GRAPH_Y_AXIS_MAX_IV);
+        }
+
+        function updateSimulation(forceChartUpdate = false, updateSource = null) {
+            const frequencyTHz_val = parseFloat(frequencySlider.value);
+            const intensitySlider_val = parseFloat(intensitySlider.value);
+            const appliedVoltage_val = parseFloat(voltageSlider.value);
+            const selectedMetalName_val = metalSelect.value;
+
+            const frequencyHz_op = frequencyTHz_val * TERAHERTZ_TO_HERTZ;
+            const currentPower_op = (intensitySlider_val / 100.0) * MAX_LIGHT_POWER;
+
+            const workFunctionEv_op = METALS[selectedMetalName_val];
+            const workFunctionJoules_op = workFunctionEv_op * EV_TO_JOULES;
+
+            intensityValueAbsDisplay.textContent = (currentPower_op * 1e6).toFixed(1);
+            workFunctionDisplay.textContent = `Φ: ${workFunctionEv_op.toFixed(2)} eV`;
+            voltageTextSvg.textContent = `${appliedVoltage_val.toFixed(1)}V`;
+
+            if (workFunctionJoules_op > 0 && H_PLANCK > 0) {
+                const thresholdFrequencyHz_calc = workFunctionJoules_op / H_PLANCK;
+                const thresholdFrequencyTHz_calc = thresholdFrequencyHz_calc / TERAHERTZ_TO_HERTZ;
+                thresholdFrequencyValuePanelDisplay.textContent = thresholdFrequencyTHz_calc.toFixed(1);
+            } else {
+                thresholdFrequencyValuePanelDisplay.textContent = "N/A";
+            }
+
+            const photonEnergyJoules_op = H_PLANCK * frequencyHz_op;
+            const photonEnergyEv_op = photonEnergyJoules_op * JOULES_TO_EV;
+            const emWaveType_val = getEMWaveType(frequencyTHz_val);
+
+            if (photonEnergyEv_op > 0) {
+                photonInfoDisplay.textContent = `${photonEnergyEv_op.toFixed(2)} eV, ${emWaveType_val}`;
+            } else {
+                photonInfoDisplay.textContent = `N/A, ${emWaveType_val}`;
+            }
+
+            let numPhotonsIncident_op = 0;
+            if (frequencyHz_op > 0 && photonEnergyJoules_op > 1e-25) {
+                numPhotonsIncident_op = currentPower_op / photonEnergyJoules_op;
+            }
+            photonRateDisplay.textContent = numPhotonsIncident_op.toExponential(2);
+
+            let KEMaxJoules_op = 0;
+            let V0_mag_op = 0;
+
+            if (photonEnergyJoules_op > workFunctionJoules_op) {
+                KEMaxJoules_op = photonEnergyJoules_op - workFunctionJoules_op;
+                if (KEMaxJoules_op > KEMAX_THRESHOLD_JOULES) {
+                    V0_mag_op = KEMaxJoules_op / E_CHARGE;
+                } else {
+                    KEMaxJoules_op = 0;
+                }
+            }
+            const KEMaxEv_op = KEMaxJoules_op * JOULES_TO_EV;
+
+            let saturationCurrent_op = 0;
+            if (KEMaxJoules_op > 0 && frequencyHz_op > 0 && MAX_LIGHT_POWER > 0 && MIN_SLIDER_FREQUENCY_HZ > 0) {
+                saturationCurrent_op = QUANTUM_EFFICIENCY *
+                                     (currentPower_op / MAX_LIGHT_POWER) *
+                                     (MIN_SLIDER_FREQUENCY_HZ / frequencyHz_op) *
+                                     REFERENCE_MAX_SATURATION_CURRENT_UNITS;
+                saturationCurrent_op = Math.max(0, saturationCurrent_op);
+                saturationCurrent_op = Math.min(saturationCurrent_op, REFERENCE_MAX_SATURATION_CURRENT_UNITS);
+            }
+
+            let actualPhotocurrent;
+            if (KEMaxJoules_op <= 0 || V0_mag_op <= 0 || saturationCurrent_op < SATURATION_CURRENT_THRESHOLD_DISPLAY) {
+                 actualPhotocurrent = 0;
+            } else {
+                 actualPhotocurrent = calculatePhotocurrentAtVoltage(appliedVoltage_val, V0_mag_op, saturationCurrent_op);
+                 actualPhotocurrent = Math.max(0, actualPhotocurrent);
+                 actualPhotocurrent = Math.min(actualPhotocurrent, saturationCurrent_op);
+            }
+
+            photocurrentValuePanelDisplay.textContent = actualPhotocurrent.toFixed(2);
+            effectiveSaturationVoltage_for_animation = calculateEffectiveSaturationVoltage(V0_mag_op, saturationCurrent_op);
+
+
+            if (V0_mag_op > 0) {
+                stoppingPotentialValuePanelDisplay.textContent = `${(-V0_mag_op).toFixed(2)}`;
+                keCathodeValueDisplay.textContent = KEMaxEv_op.toFixed(2);
+
+                const stoppingPotentialActual = -V0_mag_op;
+                if (appliedVoltage_val < stoppingPotentialActual) {
+                    keAnodeValueDisplay.textContent = "N/A";
+                } else {
+                    const keAnodeJoules = KEMaxJoules_op + (E_CHARGE * appliedVoltage_val);
+                    const keAnodeEv = Math.max(0, keAnodeJoules * JOULES_TO_EV);
+                    keAnodeValueDisplay.textContent = keAnodeEv.toFixed(2);
+                }
+            } else {
+                stoppingPotentialValuePanelDisplay.textContent = "N/A";
+                keCathodeValueDisplay.textContent = "N/A";
+                keAnodeValueDisplay.textContent = "N/A";
+            }
+
+            KEMaxJoules_for_animation = KEMaxJoules_op;
+            appliedVoltage_for_animation = appliedVoltage_val;
+            photonEnergyJoules_for_animation = photonEnergyJoules_op;
+            workFunctionJoules_for_animation = workFunctionJoules_op;
+            intensitySlider_val_for_animation = intensitySlider_val;
+            electricField_V_per_m_for_animation = appliedVoltage_val / ACTUAL_PLATE_GAP_METERS;
+            emWaveType_for_animation = emWaveType_val;
+            
+            if (forceChartUpdate) {
+                clearAllAnimatedElectrons();
+            }
+
+            updateSchematicVisuals(actualPhotocurrent, intensitySlider_val / 100.0, frequencyHz_op, emWaveType_for_animation, appliedVoltage_val);
+
+            if (currentGraphType === 'KE_FREQ' && updateSource === 'frequency' && frequencyTHz_val !== lastAddedFrequencyForKEGraph) {
+                 if (KEMaxEv_op > 0) {
+                    keVsFreqDataPoints.push({ x: frequencyTHz_val, y: KEMaxEv_op });
+                    lastAddedFrequencyForKEGraph = frequencyTHz_val;
+                    keVsFreqDataPoints.sort((a, b) => a.x - b.x);
+                 }
+            }
+
+            initOrUpdateChart(
+                V0_mag_op,
+                saturationCurrent_op,
+                KEMaxEv_op,
+                appliedVoltage_val,
+                workFunctionEv_op,
+                frequencyTHz_val,
+                forceChartUpdate
+            );
+        }
+
+        function updateSchematicVisuals(photocurrent, normalizedIntensity, frequencyHz, emWaveType, appliedVoltage) {
+            const lightOpacity = normalizedIntensity * 0.7 + 0.3;
+            let lightColorRgbBase = "250, 204, 21";
+            if (frequencyHz < 4.8e14) lightColorRgbBase = `239, 68, 68`;
+            else if (frequencyHz < 5.2e14) lightColorRgbBase = `249, 115, 22`;
+            else if (frequencyHz < 6.0e14) lightColorRgbBase = `234, 179, 8`;
+            else if (frequencyHz < 6.8e14) lightColorRgbBase = `34, 197, 94`;
+            else if (frequencyHz < 7.5e14) lightColorRgbBase = `59, 130, 246`;
+            else lightColorRgbBase = `139, 92, 246`;
+
+            lightBeams.forEach(beam => {
+                beam.style.stroke = `rgba(${lightColorRgbBase}, ${lightOpacity})`;
+                beam.setAttribute('stroke-width', (normalizedIntensity * 2 + 1).toString());
+                beam.style.display = 'block';
+                if (emWaveType === "Infrared" || emWaveType === "Ultraviolet") {
+                    beam.setAttribute('stroke-dasharray', '4, 4');
+                } else {
+                    beam.removeAttribute('stroke-dasharray');
+                }
+            });
+
+            if (lightSourceRect) {
+                lightSourceRect.style.fill = `rgba(${lightColorRgbBase}, ${normalizedIntensity * 0.5 + 0.2})`;
+            }
+
+            const cathodeLabelSvg = document.getElementById('cathode-label-svg');
+            const anodeLabelSvg = document.getElementById('anode-label-svg');
+
+            if (cathodeLabelSvg && anodeLabelSvg) {
+                if (appliedVoltage > 0) {
+                    cathodeLabelSvg.textContent = "Cathode (-)";
+                    anodeLabelSvg.textContent = "Anode (+)";
+                } else if (appliedVoltage < 0) {
+                    cathodeLabelSvg.textContent = "Cathode (+)";
+                    anodeLabelSvg.textContent = "Anode (-)";
+                } else { // appliedVoltage === 0
+                    cathodeLabelSvg.textContent = "Cathode";
+                    anodeLabelSvg.textContent = "Anode";
+                }
+            }
+        }
+
+        function initOrUpdateChart(V0_mag_sim, saturationCurrent_sim, KEMaxEv_sim, currentAppliedVoltage_sim, workFunctionEv_sim, currentFrequencyTHz_sim, forceRecreate = false) {
+            const ctx = document.getElementById('main-graph-canvas').getContext('2d');
+            const chartTypeChanged = mainChart && mainChart.config.type !== (currentGraphType === 'IV' ? 'line' : 'scatter');
+
+            if (mainChart && (forceRecreate || chartTypeChanged)) {
+                mainChart.destroy();
+                mainChart = null;
+            }
+
+            if (!mainChart) {
+                let chartConfig;
+                if (currentGraphType === 'IV') {
+                    graphTitleElement.textContent = 'Photocurrent vs. Applied Voltage';
+                    const labels_iv = [];
+                    const photocurrentData_iv = [];
+                    const voltageStep_iv = (GRAPH_MAX_VOLTAGE_IV - GRAPH_MIN_VOLTAGE_IV) / GRAPH_POINTS_IV;
+
+                    for (let i = 0; i <= GRAPH_POINTS_IV; i++) {
+                        const voltagePoint = GRAPH_MIN_VOLTAGE_IV + (i * voltageStep_iv);
+                        labels_iv.push(voltagePoint.toFixed(2));
+                        let currentAtThisVoltage;
+                        if (KEMaxEv_sim <= 0 || V0_mag_sim <= 0 || saturationCurrent_sim < SATURATION_CURRENT_THRESHOLD_DISPLAY) {
+                            currentAtThisVoltage = 0;
+                        } else {
+                            currentAtThisVoltage = calculatePhotocurrentAtVoltage(voltagePoint, V0_mag_sim, saturationCurrent_sim);
+                        }
+                        photocurrentData_iv.push(currentAtThisVoltage);
+                    }
+                    
+                    const initial_V0_stopping_val = -V0_mag_sim;
+                    const initial_V0_stopping_visible = (V0_mag_sim > 0 && initial_V0_stopping_val >= GRAPH_MIN_VOLTAGE_IV && initial_V0_stopping_val <= GRAPH_MAX_VOLTAGE_IV);
+
+                    chartConfig = {
+                        type: 'line',
+                        data: {
+                            labels: labels_iv,
+                            datasets: [
+                                { label: 'Photocurrent', data: photocurrentData_iv, borderColor: 'rgb(56, 189, 248)', backgroundColor: 'rgba(56, 189, 248, 0.2)', tension: 0.1, fill: true, pointRadius: 0, borderWidth: 2 },
+                                { label: 'Current Applied Voltage', data: [{ x: currentAppliedVoltage_sim, y: 0 }, { x: currentAppliedVoltage_sim, y: GRAPH_Y_AXIS_MAX_IV }], borderColor: 'rgb(250, 204, 21)', borderWidth: 2, pointRadius: 0, borderDash: [5, 5], type: 'line', fill: false }
+                            ]
+                        },
+                        options: {
+                            responsive: true, maintainAspectRatio: false,
+                            scales: {
+                                x: { type: 'linear', title: { display: true, text: 'Applied Voltage (V)', color: '#9CA3AF' }, min: GRAPH_MIN_VOLTAGE_IV, max: GRAPH_MAX_VOLTAGE_IV, ticks: { color: '#9CA3AF' } },
+                                y: { title: { display: true, text: 'Photocurrent (mA)', color: '#9CA3AF' }, min: 0, max: GRAPH_Y_AXIS_MAX_IV, ticks: { color: '#9CA3AF' } }
+                            },
+                            plugins: {
+                                legend: { labels: { color: '#D1D5DB' } }, tooltip: { enabled: false },
+                                annotation: { 
+                                    annotations: {
+                                        stoppingPotentialArrow: { 
+                                            type: 'line', 
+                                            display: initial_V0_stopping_visible, 
+                                            xMin: initial_V0_stopping_val, 
+                                            xMax: initial_V0_stopping_val, 
+                                            yMin: GRAPH_Y_AXIS_MAX_IV * 0.3, 
+                                            yMax: 0, 
+                                            borderColor: 'rgb(255, 99, 132)', 
+                                            borderWidth: 1.5, 
+                                            arrowHeads: { end: { display: true, length: 8, width: 6, borderColor: 'rgb(255, 99, 132)', fill: true, backgroundColor: 'rgb(255, 99, 132)'}}
+                                        },
+                                        stoppingPotentialLabel: { 
+                                            type: 'label', 
+                                            display: initial_V0_stopping_visible, 
+                                            xValue: initial_V0_stopping_val, 
+                                            yValue: GRAPH_Y_AXIS_MAX_IV * 0.3, 
+                                            content: 'Stopping Potential', 
+                                            color: 'rgb(255, 99, 132)', 
+                                            font: { size: 10, weight: 'bold' }, 
+                                            position: 'center', 
+                                            yAdjust: -12, 
+                                            xAdjust: 0, 
+                                            padding: 3, 
+                                            backgroundColor: 'rgba(45, 55, 72, 0.75)'
+                                        }
+                                    }
+                                }
+                            },
+                            animation: { duration: 0 }
+                        }
+                    };
+                } else { 
+                    graphTitleElement.textContent = 'Max KE (Cathode) vs. Frequency';
+                    const datasets_ke_freq = [{ label: 'Experimental KE Max', data: keVsFreqDataPoints, backgroundColor: 'rgb(75, 192, 192)', borderColor: 'rgb(75, 192, 192)', pointRadius: 5, showLine: false, type: 'scatter' }];
+                    const annotations_ke_freq = {
+                         workFunctionArrow: { display: false },
+                         workFunctionLabel: { display: false },
+                         thresholdFrequencyArrow: { display: false },
+                         thresholdFrequencyLabel: { display: false }
+                    };
+
+                    if (showExtrapolationCheckbox.checked) {
+                        const linePoints = [
+                            { x: KE_FREQ_GRAPH_X_MIN, y: H_EV_PER_THZ * KE_FREQ_GRAPH_X_MIN - workFunctionEv_sim },
+                            { x: parseFloat(frequencySlider.max), y: H_EV_PER_THZ * parseFloat(frequencySlider.max) - workFunctionEv_sim }
+                        ];
+                        datasets_ke_freq.push({ label: 'Theoretical (h*f - Φ)', data: linePoints, borderColor: 'rgb(255, 99, 132)', borderWidth: 2, borderDash: [5, 5], fill: false, pointRadius: 0, type: 'line', tension: 0 });
+
+                        const workFunctionYIntercept = -workFunctionEv_sim;
+                        if (workFunctionYIntercept >= KE_FREQ_GRAPH_Y_MIN && workFunctionYIntercept <= KE_FREQ_GRAPH_Y_MAX) {
+                             annotations_ke_freq.workFunctionArrow = {
+                                type: 'line', display: true,
+                                xMin: KE_FREQ_GRAPH_X_MIN + (parseFloat(frequencySlider.max) - KE_FREQ_GRAPH_X_MIN) * 0.15,
+                                xMax: KE_FREQ_GRAPH_X_MIN,
+                                yMin: workFunctionYIntercept, yMax: workFunctionYIntercept,
+                                borderColor: 'rgb(255, 159, 64)', borderWidth: 1.5,
+                                arrowHeads: { end: { display: true, length: 8, width: 6, borderColor: 'rgb(255, 159, 64)', fill: true, backgroundColor: 'rgb(255, 159, 64)' }}
+                            };
+                            annotations_ke_freq.workFunctionLabel = {
+                                type: 'label', display: true,
+                                xValue: KE_FREQ_GRAPH_X_MIN + (parseFloat(frequencySlider.max) - KE_FREQ_GRAPH_X_MIN) * 0.15,
+                                yValue: workFunctionYIntercept,
+                                content: `(negative of) Work Function (-Φ = ${workFunctionYIntercept.toFixed(2)}eV)`,
+                                color: 'rgb(255, 159, 64)', font: { size: 10, weight: 'bold' },
+                                position: 'center', xAdjust: 70, yAdjust: -10,
+                                padding: 3, backgroundColor: 'rgba(45, 55, 72, 0.75)'
+                            };
+                        }
+
+                        const thresholdFrequencyHz_calc = (workFunctionEv_sim * EV_TO_JOULES) / H_PLANCK;
+                        const thresholdFrequencyTHz_calc = thresholdFrequencyHz_calc / TERAHERTZ_TO_HERTZ;
+                        const arrowTailYPos = 0.75;
+                        const arrowHeadYPos = 0;
+                        const graphXRange = parseFloat(frequencySlider.max) - KE_FREQ_GRAPH_X_MIN;
+
+                        if (thresholdFrequencyTHz_calc >= KE_FREQ_GRAPH_X_MIN && thresholdFrequencyTHz_calc <= parseFloat(frequencySlider.max)) {
+                            annotations_ke_freq.thresholdFrequencyArrow = {
+                                type: 'line', display: true,
+                                xMin: thresholdFrequencyTHz_calc, xMax: thresholdFrequencyTHz_calc,
+                                yMin: arrowHeadYPos, yMax: arrowTailYPos,
+                                borderColor: 'rgb(147, 51, 234)', borderWidth: 1.5,
+                                arrowHeads: { start: { display: true, length: 8, width: 6, borderColor: 'rgb(147, 51, 234)', fill: true, backgroundColor: 'rgb(147, 51, 234)' } }
+                            };
+                            let labelXAdjust = 0;
+                             if (graphXRange > 0) {
+                                if (thresholdFrequencyTHz_calc < KE_FREQ_GRAPH_X_MIN + graphXRange * 0.25) labelXAdjust = 60;
+                                else if (thresholdFrequencyTHz_calc > KE_FREQ_GRAPH_X_MIN + graphXRange * 0.75) labelXAdjust = -60;
+                            }
+
+                            annotations_ke_freq.thresholdFrequencyLabel = {
+                                type: 'label', display: true,
+                                xValue: thresholdFrequencyTHz_calc, yValue: arrowTailYPos,
+                                content: `Threshold Frequency (f₀ = ${thresholdFrequencyTHz_calc.toFixed(1)} THz)`,
+                                color: 'rgb(147, 51, 234)', font: { size: 10, weight: 'bold' },
+                                position: 'center', yAdjust: -12, xAdjust: labelXAdjust,
+                                padding: 3, backgroundColor: 'rgba(45, 55, 72, 0.75)'
+                            };
+                        }
+                    }
+
+                    chartConfig = {
+                        type: 'scatter',
+                        data: { datasets: datasets_ke_freq },
+                        options: {
+                            responsive: true, maintainAspectRatio: false,
+                            scales: {
+                                x: { type: 'linear', title: { display: true, text: 'Frequency (THz)', color: '#9CA3AF' }, min: KE_FREQ_GRAPH_X_MIN, max: parseFloat(frequencySlider.max), ticks: { color: '#9CA3AF' } },
+                                y: { title: { display: true, text: 'Max Kinetic Energy (eV)', color: '#9CA3AF' }, min: KE_FREQ_GRAPH_Y_MIN, max: KE_FREQ_GRAPH_Y_MAX, ticks: { color: '#9CA3AF' } }
+                            },
+                            plugins: {
+                                legend: { labels: { color: '#D1D5DB' } },
+                                tooltip: { enabled: false },
+                                annotation: { annotations: annotations_ke_freq }
+                            },
+                            animation: { duration: 0 }
+                        }
+                    };
+                }
+                mainChart = new Chart(ctx, chartConfig);
+            } else { 
+                if (currentGraphType === 'IV') {
+                    const labels_iv = [];
+                    const photocurrentData_iv = [];
+                    const voltageStep_iv = (GRAPH_MAX_VOLTAGE_IV - GRAPH_MIN_VOLTAGE_IV) / GRAPH_POINTS_IV;
+                    for (let i = 0; i <= GRAPH_POINTS_IV; i++) {
+                        const voltagePoint = GRAPH_MIN_VOLTAGE_IV + (i * voltageStep_iv);
+                        labels_iv.push(voltagePoint.toFixed(2));
+                        let currentAtThisVoltage;
+                         if (KEMaxEv_sim <= 0 || V0_mag_sim <= 0 || saturationCurrent_sim < SATURATION_CURRENT_THRESHOLD_DISPLAY) {
+                            currentAtThisVoltage = 0;
+                        } else {
+                            currentAtThisVoltage = calculatePhotocurrentAtVoltage(voltagePoint, V0_mag_sim, saturationCurrent_sim);
+                        }
+                        photocurrentData_iv.push(currentAtThisVoltage);
+                    }
+                    mainChart.data.labels = labels_iv;
+                    mainChart.data.datasets[0].data = photocurrentData_iv;
+                    mainChart.data.datasets[1].data = [{ x: currentAppliedVoltage_sim, y: 0 }, { x: currentAppliedVoltage_sim, y: GRAPH_Y_AXIS_MAX_IV }];
+
+                    const V0_stopping = -V0_mag_sim;
+                    const annotations = mainChart.options.plugins.annotation.annotations;
+                    const arrow = annotations.stoppingPotentialArrow;
+                    const label = annotations.stoppingPotentialLabel;
+                    if (V0_mag_sim > 0 && V0_stopping >= GRAPH_MIN_VOLTAGE_IV && V0_stopping <= GRAPH_MAX_VOLTAGE_IV) {
+                        arrow.display = true; arrow.xMin = V0_stopping; arrow.xMax = V0_stopping;
+                        arrow.yMin = mainChart.scales.y.max * 0.30; arrow.yMax = 0;
+                        label.display = true; label.xValue = V0_stopping; label.yValue = arrow.yMin;
+                        const chartArea = mainChart.chartArea;
+                        if (chartArea) {
+                            const xPixel = mainChart.scales.x.getPixelForValue(V0_stopping);
+                            const labelWidthApproximation = label.content.length * 5.5;
+                            if (xPixel < chartArea.left + labelWidthApproximation / 2 + 5) label.xAdjust = (labelWidthApproximation / 2) - (xPixel - chartArea.left) + 5 ;
+                            else if (xPixel > chartArea.right - labelWidthApproximation / 2 - 5) label.xAdjust = -(labelWidthApproximation / 2) + (chartArea.right - xPixel) - 5;
+                            else label.xAdjust = 0;
+                        } else label.xAdjust = 0;
+                    } else {
+                        arrow.display = false; label.display = false;
+                    }
+
+                } else { 
+                    mainChart.data.datasets[0].data = keVsFreqDataPoints;
+
+                    const annotations_ke_freq = mainChart.options.plugins.annotation.annotations;
+                    if (mainChart.data.datasets.length > 1 && mainChart.data.datasets[1].label.includes('Theoretical')) {
+                        mainChart.data.datasets.pop();
+                    }
+
+                    if (annotations_ke_freq.workFunctionArrow) annotations_ke_freq.workFunctionArrow.display = false;
+                    if (annotations_ke_freq.workFunctionLabel) annotations_ke_freq.workFunctionLabel.display = false;
+                    if (annotations_ke_freq.thresholdFrequencyArrow) annotations_ke_freq.thresholdFrequencyArrow.display = false;
+                    if (annotations_ke_freq.thresholdFrequencyLabel) annotations_ke_freq.thresholdFrequencyLabel.display = false;
+
+
+                    if (showExtrapolationCheckbox.checked) {
+                        const linePoints = [
+                            { x: KE_FREQ_GRAPH_X_MIN, y: H_EV_PER_THZ * KE_FREQ_GRAPH_X_MIN - workFunctionEv_sim },
+                            { x: parseFloat(frequencySlider.max), y: H_EV_PER_THZ * parseFloat(frequencySlider.max) - workFunctionEv_sim }
+                        ];
+                         mainChart.data.datasets.push({
+                            label: 'Theoretical (h*f - Φ)', data: linePoints, borderColor: 'rgb(255, 99, 132)',
+                            borderWidth: 2, borderDash: [5, 5], fill: false, pointRadius: 0, type: 'line', tension: 0
+                        });
+
+                        const workFunctionYIntercept = -workFunctionEv_sim;
+                        if (workFunctionYIntercept >= KE_FREQ_GRAPH_Y_MIN && workFunctionYIntercept <= KE_FREQ_GRAPH_Y_MAX) {
+                            annotations_ke_freq.workFunctionArrow = {
+                                ...annotations_ke_freq.workFunctionArrow,
+                                type: 'line', display: true,
+                                xMin: KE_FREQ_GRAPH_X_MIN + (parseFloat(frequencySlider.max) - KE_FREQ_GRAPH_X_MIN) * 0.15,
+                                xMax: KE_FREQ_GRAPH_X_MIN,
+                                yMin: workFunctionYIntercept, yMax: workFunctionYIntercept,
+                                borderColor: 'rgb(255, 159, 64)', borderWidth: 1.5,
+                                arrowHeads: { end: { display: true, length: 8, width: 6, borderColor: 'rgb(255, 159, 64)', fill: true, backgroundColor: 'rgb(255, 159, 64)' }}
+                            };
+                            annotations_ke_freq.workFunctionLabel = {
+                                ...annotations_ke_freq.workFunctionLabel,
+                                type: 'label', display: true,
+                                xValue: KE_FREQ_GRAPH_X_MIN + (parseFloat(frequencySlider.max) - KE_FREQ_GRAPH_X_MIN) * 0.15,
+                                yValue: workFunctionYIntercept,
+                                content: `(negative of) Work Function (-Φ = ${workFunctionYIntercept.toFixed(2)}eV)`,
+                                color: 'rgb(255, 159, 64)', font: { size: 10, weight: 'bold' },
+                                position: 'center', xAdjust: 70, yAdjust: -10,
+                                padding: 3, backgroundColor: 'rgba(45, 55, 72, 0.75)'
+                            };
+                        }
+
+                        const thresholdFrequencyHz_calc = (workFunctionEv_sim * EV_TO_JOULES) / H_PLANCK;
+                        const thresholdFrequencyTHz_calc = thresholdFrequencyHz_calc / TERAHERTZ_TO_HERTZ;
+                        const arrowTailYPos = 0.75;
+                        const arrowHeadYPos = 0;
+                        const graphXRange = parseFloat(frequencySlider.max) - KE_FREQ_GRAPH_X_MIN;
+
+                        if (thresholdFrequencyTHz_calc >= KE_FREQ_GRAPH_X_MIN && thresholdFrequencyTHz_calc <= parseFloat(frequencySlider.max)) {
+                            annotations_ke_freq.thresholdFrequencyArrow = {
+                                ...(annotations_ke_freq.thresholdFrequencyArrow || {}), type: 'line', display: true,
+                                xMin: thresholdFrequencyTHz_calc, xMax: thresholdFrequencyTHz_calc,
+                                yMin: arrowHeadYPos, yMax: arrowTailYPos,
+                                borderColor: 'rgb(147, 51, 234)', borderWidth: 1.5,
+                                arrowHeads: { start: { display: true, length: 8, width: 6, borderColor: 'rgb(147, 51, 234)', fill: true, backgroundColor: 'rgb(147, 51, 234)' } }
+                            };
+                            let labelXAdjust = 0;
+                            if (graphXRange > 0) {
+                                if (thresholdFrequencyTHz_calc < KE_FREQ_GRAPH_X_MIN + graphXRange * 0.25) labelXAdjust = 60;
+                                else if (thresholdFrequencyTHz_calc > KE_FREQ_GRAPH_X_MIN + graphXRange * 0.75) labelXAdjust = -60;
+                            }
+                            annotations_ke_freq.thresholdFrequencyLabel = {
+                                ...(annotations_ke_freq.thresholdFrequencyLabel || {}), type: 'label', display: true,
+                                xValue: thresholdFrequencyTHz_calc, yValue: arrowTailYPos,
+                                content: `Threshold Frequency (f₀ = ${thresholdFrequencyTHz_calc.toFixed(1)} THz)`,
+                                color: 'rgb(147, 51, 234)', font: { size: 10, weight: 'bold' },
+                                position: 'center', yAdjust: -12, xAdjust: labelXAdjust,
+                                padding: 3, backgroundColor: 'rgba(45, 55, 72, 0.75)'
+                            };
+                        }
+                    }
+                }
+                mainChart.update('none');
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+<script src="../../../assets/sim.js" data-root="../../../#atomic-world"></script>
+</body>
+</html>

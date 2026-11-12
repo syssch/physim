@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="../../../assets/sim-early.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reflections by a Periscope · PhySim</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            color: #fff;
+            background-color: #111;
+        }
+        canvas {
+            display: block;
+        }
+        #info-panel {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            padding: 10px;
+            background: rgba(0, 0, 0, 0.6);
+            border-radius: 8px;
+            max-width: 300px;
+        }
+        #observer-view {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            width: 200px;
+            height: 200px;
+            background: rgba(0, 0, 0, 0.7);
+            border: 2px solid #555;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        #observer-view-label {
+            position: absolute;
+            bottom: 230px;
+            right: 20px;
+            color: #ccc;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        #main-canvas-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        #controls {
+            margin-top: 15px;
+            display: flex;
+            gap: 10px;
+        }
+        #controls button {
+            padding: 8px 12px;
+            border: 1px solid #555;
+            background-color: #333;
+            color: #fff;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        #controls button:hover {
+            background-color: #444;
+        }
+        #controls button.active {
+            background-color: #007bff;
+            border-color: #007bff;
+        }
+        /* ---- Phone / narrow-screen layout ---- */
+        @media (max-width: 900px) {
+            #info-panel { background: rgba(0, 0, 0, 0.78); padding: 12px 14px; font-size: 14px; }
+            #info-panel h3 { margin: 0 0 4px; }
+            #info-panel p { margin: 6px 0; }
+            #controls { margin-top: 8px; }
+            #controls button { flex: 1; padding: 11px 8px; font-size: 14px; }
+            #observer-view { top: 84px; bottom: auto; right: 10px; width: 140px; height: 140px; }
+            #observer-view-label { top: 54px; bottom: auto; right: 10px; font-size: 12px; padding: 4px 8px; }
+        }
+    </style>
+<link rel="icon" href="../../../favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../../../assets/sim.css">
+</head>
+<body>
+    <div id="main-canvas-container"></div>
+    <div id="info-panel" data-physim-panel="Info">
+        <h3>3D Ray Optics</h3>
+        <p>A letter "P" is reflected by two plane mirrors. Use the buttons below to switch between configurations.</p>
+        <div id="controls">
+            <button id="btn-parallel" class="active">Parallel</button>
+            <button id="btn-perpendicular">Perpendicular</button>
+        </div>
+        <p><b>Click (tap) on the 2D panel</b> to trace the light ray for that point.</p>
+    </div>
+    <div id="observer-view-label">Image Seen by Observer</div>
+    <div id="observer-view"></div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "../../../assets/vendor/three-0.160/three.module.js",
+                "three/addons/": "../../../assets/vendor/three-0.160/addons/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { Line2 } from 'three/addons/lines/Line2.js';
+        import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
+        import { LineGeometry } from 'three/addons/lines/LineGeometry.js';
+
+        let scene, camera, renderer, controls;
+        let observerScene, observerCamera, observerRenderer;
+        let interactiveRayGroup;
+        let sceneObjects; // Group to hold switchable objects
+        let currentMode = 'parallel';
+
+        // --- Core Functions ---
+        function init() {
+            // Main 3D Scene Setup
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x1a1a2a);
+
+            camera = new THREE.PerspectiveCamera(75, 16 / 9, 0.1, 1000);
+            camera.position.set(0, 0, 75); // Adjusted for new orientation
+            camera.lookAt(0, 0, 0);
+            // Phones / portrait screens: use the whole screen and pull the camera back so the
+            // same horizontal extent stays in view.
+            if (window.innerWidth <= 900 && window.innerWidth / window.innerHeight < 16 / 9) {
+                camera.position.z = 75 * Math.min(2.6, (16 / 9) / (window.innerWidth / window.innerHeight));
+            }
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            document.getElementById('main-canvas-container').appendChild(renderer.domElement);
+
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+
+            // Lights
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+            scene.add(ambientLight);
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 1.5);
+            directionalLight.position.set(-30, 40, 50);
+            scene.add(directionalLight);
+            
+            // Observer 2D View Setup
+            const viewContainer = document.getElementById('observer-view');
+            observerScene = new THREE.Scene();
+            observerScene.background = new THREE.Color(0x222233);
+
+            const aspect = viewContainer.clientWidth / viewContainer.clientHeight;
+            observerCamera = new THREE.OrthographicCamera(-5 * aspect, 5 * aspect, 5, -5, 1, 100);
+            
+            observerRenderer = new THREE.WebGLRenderer({ antialias: true });
+            observerRenderer.setSize(viewContainer.clientWidth, viewContainer.clientHeight);
+            viewContainer.appendChild(observerRenderer.domElement);
+            
+            // Add lights to the observer scene so the material is visible
+            const observerAmbientLight = new THREE.AmbientLight(0xffffff, 0.8);
+            observerScene.add(observerAmbientLight);
+            const observerDirectionalLight = new THREE.DirectionalLight(0xffffff, 1.5);
+            observerDirectionalLight.position.set(0, 5, 10); // Pointing from front-top
+            observerScene.add(observerDirectionalLight);
+            
+            // --- Build Scene Content ---
+            sceneObjects = new THREE.Group();
+            scene.add(sceneObjects);
+            interactiveRayGroup = new THREE.Group();
+            sceneObjects.add(interactiveRayGroup);
+            
+            setupScene(currentMode);
+            
+            // Add click listener for interactive rays
+            viewContainer.addEventListener('click', onObserverViewClick);
+
+            // Add listeners for mode switching
+            document.getElementById('btn-parallel').addEventListener('click', () => switchMode('parallel'));
+            document.getElementById('btn-perpendicular').addEventListener('click', () => switchMode('perpendicular'));
+
+            // Handle window resize
+            window.addEventListener('resize', onWindowResize, false);
+            
+            // Set initial size
+            onWindowResize();
+
+            animate();
+        }
+
+        // --- Scene Object Creation ---
+        function createLetterP(color = 0x000000, paperColor = 0xffffff, isVirtual = false) {
+            const canvas = document.createElement('canvas');
+            const size = 128;
+            canvas.width = size;
+            canvas.height = size;
+            const context = canvas.getContext('2d');
+
+            // Draw paper
+            context.fillStyle = `rgb(${paperColor >> 16 & 255}, ${paperColor >> 8 & 255}, ${paperColor & 255})`;
+            context.fillRect(0, 0, size, size);
+
+            // Draw letter P
+            context.fillStyle = `rgb(${color >> 16 & 255}, ${color >> 8 & 255}, ${color & 255})`;
+            context.font = 'bold 100px Arial';
+            context.textAlign = 'center';
+            context.textBaseline = 'middle';
+            context.fillText('P', size / 2, size / 2 + 5);
+
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.needsUpdate = true;
+
+            const material = isVirtual 
+                ? new THREE.MeshBasicMaterial({ map: texture, transparent: true, opacity: 0.6, side: THREE.DoubleSide })
+                : new THREE.MeshStandardMaterial({ map: texture, roughness: 0.8, side: THREE.DoubleSide });
+
+            const pGeo = new THREE.PlaneGeometry(6, 6);
+            const pMesh = new THREE.Mesh(pGeo, material);
+            
+            const pGroup = new THREE.Group();
+            pGroup.add(pMesh);
+            return pGroup;
+        }
+        
+        function setupScene(mode) {
+            currentMode = mode;
+            sceneObjects.clear(); // Clear previous setup
+            interactiveRayGroup = new THREE.Group(); // Re-create for the new setup
+            sceneObjects.add(interactiveRayGroup);
+            observerScene.clear(); // Clear the 2D panel
+
+            // Re-add lights to observer scene
+            const observerAmbientLight = new THREE.AmbientLight(0xffffff, 0.8);
+            observerScene.add(observerAmbientLight);
+            const observerDirectionalLight = new THREE.DirectionalLight(0xffffff, 1.5);
+            observerDirectionalLight.position.set(0, 5, 10);
+            observerScene.add(observerDirectionalLight);
+
+            // 1. Original Object "P" - Common to both modes
+            const originalP = createLetterP(0x111111, 0xffffff);
+            originalP.position.set(-20, 10, 0);
+            originalP.rotation.y = Math.PI / 2;
+            sceneObjects.add(originalP);
+
+            // 2. Observer - Common to both modes
+            const observerGeo = new THREE.SphereGeometry(1, 32, 16);
+            const observerMat = new THREE.MeshStandardMaterial({ color: 0x00aaff });
+            const observer = new THREE.Mesh(observerGeo, observerMat);
+            
+            // This will be set per-mode now
+            // observer.position.set(20, -10, 0); 
+            sceneObjects.add(observer);
+
+            // Materials
+            const mirrorMaterial = new THREE.MeshStandardMaterial({
+                color: 0xeeeeff,
+                metalness: 0.9,
+                roughness: 0.1,
+                transparent: true,
+                opacity: 0.7
+            });
+            const mirrorGeo = new THREE.BoxGeometry(25, 0.5, 25);
+            const rayLineMaterial = new LineMaterial({ color: 0xffd700, linewidth: 3, dashed: true, dashSize: 1, gapSize: 0.5, resolution: new THREE.Vector2(window.innerWidth, window.innerHeight) });
+            const apparentRayMaterial = new LineMaterial({ color: 0x00aaff, linewidth: 2, dashed: true, dashSize: 1, gapSize: 1, resolution: new THREE.Vector2(window.innerWidth, window.innerHeight) });
+
+            // --- Configuration Specific Setup ---
+            if (mode === 'parallel') {
+                observer.position.set(20, -10, 0);
+                // Mirror 1 (Top)
+                const mirror1 = new THREE.Mesh(mirrorGeo, mirrorMaterial);
+                mirror1.position.set(0, 10, 0);
+                mirror1.rotation.z = -Math.PI / 4;
+                sceneObjects.add(mirror1);
+
+                // Mirror 2 (Bottom)
+                const mirror2 = new THREE.Mesh(mirrorGeo, mirrorMaterial);
+                mirror2.position.set(0, -10, 0);
+                mirror2.rotation.z = -Math.PI / 4;
+                sceneObjects.add(mirror2);
+
+                // Virtual Image 1
+                const virtualImage1 = createLetterP(0x111111, 0xffffff, true);
+                virtualImage1.position.set(0, 30, 0);
+                virtualImage1.up.set(-1, 0, 0);
+                virtualImage1.lookAt(0, 29, 0);
+                virtualImage1.scale.x = -1;
+                sceneObjects.add(virtualImage1);
+
+                // Final Virtual Image
+                const finalImageGhost = createLetterP(0x111111, 0xffffff, true);
+                finalImageGhost.position.set(-40, -10, 0);
+                finalImageGhost.rotation.copy(originalP.rotation);
+                sceneObjects.add(finalImageGhost);
+
+                // Final Image for observer's 2D view
+                const finalImageP = createLetterP(0x111111, 0xffffff, false);
+                observerScene.add(finalImageP);
+                observerCamera.position.set(0, 0, 10);
+                observerCamera.lookAt(0, 0, 0);
+                
+                // Ray Tracing
+                const p_obj = new THREE.Vector3(-20, 10, 0), m1_hit = new THREE.Vector3(0, 10, 0), m2_hit = new THREE.Vector3(0, -10, 0), obs = new THREE.Vector3(20, -10, 0);
+                const v1 = new THREE.Vector3(0, 30, 0), v_final = new THREE.Vector3(-40, -10, 0);
+                drawSchematicRays(p_obj, m1_hit, m2_hit, obs, v1, v_final, rayLineMaterial, apparentRayMaterial);
+
+            } else if (mode === 'perpendicular') {
+                observer.position.set(-20, -10, 0); // Corrected Position
+                // Mirror 1 (Top)
+                const mirror1 = new THREE.Mesh(mirrorGeo, mirrorMaterial);
+                mirror1.position.set(0, 10, 0);
+                mirror1.rotation.z = -Math.PI / 4;
+                sceneObjects.add(mirror1);
+
+                // Mirror 2 (Bottom) - Rotated 90 degrees
+                const mirror2 = new THREE.Mesh(mirrorGeo, mirrorMaterial);
+                mirror2.position.set(0, -10, 0);
+                mirror2.rotation.z = Math.PI / 4; // Rotated +45 deg
+                sceneObjects.add(mirror2);
+
+                // Virtual Image 1 - same as parallel
+                const virtualImage1 = createLetterP(0x111111, 0xffffff, true);
+                virtualImage1.position.set(0, 30, 0);
+                virtualImage1.up.set(-1, 0, 0);
+                virtualImage1.lookAt(0, 29, 0);
+                virtualImage1.scale.x = -1;
+                sceneObjects.add(virtualImage1);
+
+                // Final Virtual Image
+                const finalImageGhost = createLetterP(0x111111, 0xffffff, true);
+                finalImageGhost.position.set(40, -10, 0); // New position
+                finalImageGhost.rotation.y = Math.PI / 2; // Same as object
+                finalImageGhost.rotation.z = Math.PI; // Flipped upside down
+                finalImageGhost.scale.x = -1; // RESTORED: This is the correct representation for the virtual image.
+                sceneObjects.add(finalImageGhost);
+                
+                // Final Image for observer's 2D view - is now inverted
+                const finalImageP = createLetterP(0x111111, 0xffffff, false);
+                finalImageP.rotation.z = Math.PI; // upside down
+                // finalImageP.scale.x = -1; // REMOVED: Observer sees a rotated, not inverted, image.
+                observerScene.add(finalImageP);
+                observerCamera.position.set(0, 0, 10);
+                observerCamera.lookAt(0, 0, 0);
+                
+                // Ray Tracing
+                const p_obj = new THREE.Vector3(-20, 10, 0), m1_hit = new THREE.Vector3(0, 10, 0), m2_hit = new THREE.Vector3(0, -10, 0), obs = new THREE.Vector3(-20, -10, 0); // Corrected Position
+                const v1 = new THREE.Vector3(0, 30, 0), v_final = new THREE.Vector3(40, -10, 0);
+                drawSchematicRays(p_obj, m1_hit, m2_hit, obs, v1, v_final, rayLineMaterial, apparentRayMaterial);
+            }
+        }
+
+        function drawSchematicRays(p_obj_center, m1_hit_center, m2_hit_center, observer_center, v1_center, final_center, lineMaterial, apparentRayMaterial) {
+            // Ray Path
+            const rayPoints = [...p_obj_center.toArray(), ...m1_hit_center.toArray(), ...m2_hit_center.toArray(), ...observer_center.toArray()];
+            const lineGeometry = new LineGeometry().setPositions(rayPoints);
+            sceneObjects.add(new Line2(lineGeometry, lineMaterial));
+            
+            // Arrows
+            const arrowColor = 0xffd700, arrowLength = 3, headLength = 1.2, headWidth = 0.6;
+            const dir1 = new THREE.Vector3().subVectors(m1_hit_center, p_obj_center).normalize();
+            const origin1 = new THREE.Vector3().addVectors(p_obj_center, m1_hit_center).multiplyScalar(0.5);
+            sceneObjects.add(new THREE.ArrowHelper(dir1, origin1, arrowLength, arrowColor, headLength, headWidth));
+            const dir2 = new THREE.Vector3().subVectors(m2_hit_center, m1_hit_center).normalize();
+            const origin2 = new THREE.Vector3().addVectors(m1_hit_center, m2_hit_center).multiplyScalar(0.5);
+            sceneObjects.add(new THREE.ArrowHelper(dir2, origin2, arrowLength, arrowColor, headLength, headWidth));
+            const dir3 = new THREE.Vector3().subVectors(observer_center, m2_hit_center).normalize();
+            const origin3 = new THREE.Vector3().addVectors(m2_hit_center, observer_center).multiplyScalar(0.5);
+            sceneObjects.add(new THREE.ArrowHelper(dir3, origin3, arrowLength, arrowColor, headLength, headWidth));
+            
+            // Apparent Paths
+            const points1 = [...v1_center.toArray(), ...m1_hit_center.toArray()];
+            const geometry1 = new LineGeometry().setPositions(points1);
+            sceneObjects.add(new Line2(geometry1, apparentRayMaterial));
+            const points2 = [...final_center.toArray(), ...m2_hit_center.toArray()];
+            const geometry2 = new LineGeometry().setPositions(points2);
+            sceneObjects.add(new Line2(geometry2, apparentRayMaterial));
+        }
+
+        function switchMode(mode) {
+            if (mode === currentMode) return;
+            currentMode = mode;
+            document.getElementById('btn-parallel').classList.toggle('active', mode === 'parallel');
+            document.getElementById('btn-perpendicular').classList.toggle('active', mode === 'perpendicular');
+            setupScene(mode);
+        }
+        
+        // --- Interactivity Functions ---
+        function onObserverViewClick(event) {
+            const viewContainer = document.getElementById('observer-view');
+            const rect = viewContainer.getBoundingClientRect();
+            const mouse = new THREE.Vector2();
+            mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+            mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+            const aspect = viewContainer.clientWidth / viewContainer.clientHeight;
+            const x_local = mouse.x * 5 * aspect;
+            const y_local = mouse.y * 5;
+
+            if (Math.abs(x_local) > 3 || Math.abs(y_local) > 3) {
+                interactiveRayGroup.clear();
+                return;
+            }
+            
+            drawInteractiveRays(x_local, y_local);
+        }
+
+        function drawInteractiveRays(x_local, y_local) {
+            interactiveRayGroup.clear();
+            
+            const z_displace = x_local;
+            let p_object_clicked, m1_hit, m2_hit, observer_plane_hit, p_virtual1_clicked, p_final_clicked;
+
+            if (currentMode === 'parallel') {
+                 // NOTE: Reverting to previous logic for this case as per user feedback.
+                const y_obj_displacement = y_local;
+                const z_displace_mapped = -z_displace;
+
+                p_object_clicked = new THREE.Vector3(-20, 10 + y_obj_displacement, z_displace_mapped);
+                m1_hit = new THREE.Vector3(-y_obj_displacement, 10 + y_obj_displacement, z_displace_mapped);
+                m2_hit = new THREE.Vector3(-y_obj_displacement, -10 + y_obj_displacement, z_displace_mapped);
+                observer_plane_hit = new THREE.Vector3(20, -10 + y_obj_displacement, z_displace_mapped);
+                p_virtual1_clicked = new THREE.Vector3(-y_obj_displacement, 30, z_displace_mapped);
+                p_final_clicked = new THREE.Vector3(-40, -10 + y_obj_displacement, z_displace_mapped);
+            } else { // perpendicular case
+                // The image seen by the observer is upside down.
+                // A click at the top of the panel (positive y_local) should correspond to the bottom of the object (negative y displacement).
+                // Therefore, we must invert the mapping from the click's y-coordinate.
+                const y_obj_displacement = -y_local; 
+
+                p_object_clicked = new THREE.Vector3(-20, 10 + y_obj_displacement, z_displace);
+                m1_hit = new THREE.Vector3(-y_obj_displacement, 10 + y_obj_displacement, z_displace);
+                m2_hit = new THREE.Vector3(-y_obj_displacement, -10 - y_obj_displacement, z_displace);
+                observer_plane_hit = new THREE.Vector3(-20, -10 - y_obj_displacement, z_displace);
+                p_virtual1_clicked = new THREE.Vector3(-y_obj_displacement, 30, z_displace);
+                p_final_clicked = new THREE.Vector3(40, -10 - y_obj_displacement, z_displace);
+            }
+            
+            // Create materials
+            const actualRayMaterial = new LineMaterial({ color: 0x00ff00, linewidth: 2.5, resolution: new THREE.Vector2(window.innerWidth, window.innerHeight) });
+            const apparentRayMaterial = new LineMaterial({ color: 0x00ffff, linewidth: 2, dashed: true, dashSize: 0.5, gapSize: 0.5, resolution: new THREE.Vector2(window.innerWidth, window.innerHeight) });
+
+            // 3. Draw actual ray path (solid green)
+            const actualPoints = [...p_object_clicked.toArray(), ...m1_hit.toArray(), ...m2_hit.toArray(), ...observer_plane_hit.toArray()];
+            const actualGeom = new LineGeometry().setPositions(actualPoints);
+            interactiveRayGroup.add(new Line2(actualGeom, actualRayMaterial));
+
+            // 4. Draw apparent ray paths (dotted cyan)
+            const apparentPoints1 = [...p_virtual1_clicked.toArray(), ...m1_hit.toArray()];
+            const apparentGeom1 = new LineGeometry().setPositions(apparentPoints1);
+            interactiveRayGroup.add(new Line2(apparentGeom1, apparentRayMaterial));
+            const apparentPoints2 = [...p_final_clicked.toArray(), ...m2_hit.toArray()];
+            const apparentGeom2 = new LineGeometry().setPositions(apparentPoints2);
+            interactiveRayGroup.add(new Line2(apparentGeom2, apparentRayMaterial));
+            
+            // 5. Add arrows for the actual ray path
+            const arrowColor = 0x00ff00;
+            const arrowLength = 2.5;
+            const headLength = 1.0;
+            const headWidth = 0.5;
+            const dir1 = new THREE.Vector3().subVectors(m1_hit, p_object_clicked).normalize();
+            const origin1 = new THREE.Vector3().addVectors(p_object_clicked, m1_hit).multiplyScalar(0.5);
+            interactiveRayGroup.add(new THREE.ArrowHelper(dir1, origin1, arrowLength, arrowColor, headLength, headWidth));
+            const dir2 = new THREE.Vector3().subVectors(m2_hit, m1_hit).normalize();
+            const origin2 = new THREE.Vector3().addVectors(m1_hit, m2_hit).multiplyScalar(0.5);
+            interactiveRayGroup.add(new THREE.ArrowHelper(dir2, origin2, arrowLength, arrowColor, headLength, headWidth));
+            const dir3 = new THREE.Vector3().subVectors(observer_plane_hit, m2_hit).normalize();
+            const origin3 = new THREE.Vector3().addVectors(m2_hit, observer_plane_hit).multiplyScalar(0.5);
+            interactiveRayGroup.add(new THREE.ArrowHelper(dir3, origin3, arrowLength, arrowColor, headLength, headWidth));
+        }
+        
+        // --- Animation & Resize ---
+        function onWindowResize() {
+            const targetAspect = 16 / 9;
+            let newWidth = window.innerWidth;
+            let newHeight = window.innerHeight;
+            const windowAspect = newWidth / newHeight;
+
+            const fullScreen = window.innerWidth <= 900; // phones: no letterboxing
+            if (fullScreen) {
+                // keep the full window
+            } else if (windowAspect > targetAspect) {
+                newWidth = newHeight * targetAspect;
+            } else {
+                newHeight = newWidth / targetAspect;
+            }
+
+            camera.aspect = fullScreen ? newWidth / newHeight : targetAspect;
+            camera.updateProjectionMatrix();
+            renderer.setSize(newWidth, newHeight);
+            
+            const viewContainer = document.getElementById('observer-view');
+            const aspect = viewContainer.clientWidth / viewContainer.clientHeight;
+            observerCamera.left = -5 * aspect;
+            observerCamera.right = 5 * aspect;
+            observerCamera.updateProjectionMatrix();
+            observerRenderer.setSize(viewContainer.clientWidth, viewContainer.clientHeight);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+            observerRenderer.render(observerScene, observerCamera);
+        }
+
+        // --- Start ---
+        init();
+    </script>
+<script src="../../../assets/sim.js" data-root="../../../#wave-motion-and-ray-optics"></script>
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

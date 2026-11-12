@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="../../../assets/sim-early.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Young's Double Slit Experiment · PhySim</title>
+    <link rel="stylesheet" href="../../../assets/vendor/tailwind.css">
+    <script src="../../../assets/vendor/three.min.js"></script>
+    <script src="../../../assets/vendor/OrbitControls.js"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; margin: 0; overflow: hidden; }
+        .slider-label { display: flex; justify-content: space-between; align-items: center; }
+        /* Custom styling for slider thumb */
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            background: #4A90E2; /* Blue thumb */
+            cursor: pointer;
+            border-radius: 50%;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+        }
+        input[type="range"]::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            background: #4A90E2;
+            cursor: pointer;
+            border-radius: 50%;
+            border: none;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+        }
+        /* Ensure canvas takes up space and is responsive */
+        #schematicContainer canvas { 
+            display: block; 
+            width: 100%; 
+            height: 100%; 
+            border-radius: 0.75rem; /* rounded-xl */
+        }
+        #patternCanvas {
+            width: 100%; /* Make pattern canvas responsive */
+            max-width: 200px; /* Limit max width for better aspect ratio */
+            height: auto; /* Maintain aspect ratio */
+            aspect-ratio: 1 / 1; 
+        }
+
+        /* Styles for the HTML arrow (now absolutely positioned) */
+        .fringe-arrow-container {
+            position: absolute; 
+            display: flex; 
+            align-items: center;
+            justify-content: flex-start; 
+            height: 20px; 
+            pointer-events: none; 
+        }
+
+        .fringe-arrow-line {
+            position: relative; 
+            height: 2px;
+            background-color: #FFFFFF; 
+            width: 100%; 
+        }
+
+        .fringe-arrow-line::before,
+        .fringe-arrow-line::after {
+            content: '';
+            position: absolute;
+            width: 0;
+            height: 0;
+            border-style: solid;
+            top: 50%;
+            transform: translateY(-50%); 
+        }
+
+        .fringe-arrow-line::before { /* Left arrowhead, pointing right (inward) */
+            border-width: 6px 0 6px 8px; 
+            border-color: transparent transparent transparent #FFFFFF;
+            left: 0; 
+        }
+
+        .fringe-arrow-line::after { /* Right arrowhead, pointing left (inward) */
+            border-width: 6px 8px 6px 0; 
+            border-color: transparent #FFFFFF transparent transparent;
+            right: 0; 
+        }
+
+        .fringe-arrow-label {
+            position: absolute;
+            color: #FFFFFF;
+            font-size: 0.875rem; /* text-sm */
+            font-weight: 600; /* font-semibold */
+            top: 15px; /* Position below the arrow line */
+            white-space: nowrap; 
+            left: 0; /* Changed from 50% */
+            transform: translateX(0); /* Changed from translateX(-50%) */
+        }
+        /* ---- Phone / narrow-screen layout ---- */
+        @media (max-width: 900px) {
+            body { overflow: auto; padding: 8px !important; display: block !important; }
+            #wrapOuter { padding-bottom: 0 !important; }
+            #wrapInner { position: static; flex-direction: column; gap: 12px; }
+            #wrapInner > * { margin: 0 !important; width: 100%; }
+            #wrapInner h2 { font-size: 1.25rem; margin-bottom: .75rem; }
+            #panelPattern { order: 1; padding: 14px 14px 52px; }
+            #panelControls { order: 2; padding: 16px; overflow: visible; }
+            #panelControls > * + * { margin-top: 1.1rem; }
+            #panelSchematic { order: 3; padding: 10px; }
+            #schematicContainer { height: 300px; flex: none; }
+            #patternCanvas { max-width: 240px; }
+        }
+    </style>
+<link rel="icon" href="../../../favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../../../assets/sim.css">
+</head>
+<body class="bg-gray-900 text-gray-100 flex items-center justify-center min-h-screen p-4">
+
+    <div id="wrapOuter" class="relative w-full max-w-screen-2xl" style="padding-bottom: 56.25%;"> 
+        <div id="wrapInner" class="absolute inset-0 flex flex-col md:flex-row space-y-4 md:space-y-0 md:space-x-4">
+            <div id="panelControls" class="w-full md:w-1/4 p-6 bg-gray-800 shadow-xl rounded-xl overflow-y-auto space-y-6">
+                <h2 class="text-3xl font-extrabold mb-6 text-center text-blue-400">Controls</h2>
+
+                <div>
+                    <label for="wavelength" class="block text-sm font-medium text-gray-300 slider-label">
+                        <span>Wavelength (λ):</span>
+                        <span id="wavelengthValue" class="font-semibold text-blue-300">550 nm</span>
+                    </label>
+                    <input type="range" id="wavelength" name="wavelength" min="400" max="700" value="550" class="w-full h-3 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500 shadow-inner">
+                </div>
+
+                <div>
+                    <label for="slitSeparation" class="block text-sm font-medium text-gray-300 slider-label">
+                        <span>Slit Separation (a):</span> <span id="slitSeparationValue" class="font-semibold text-blue-300">50 µm</span>
+                    </label>
+                    <input type="range" id="slitSeparation" name="slitSeparation" min="10" max="250" value="50" step="1" class="w-full h-3 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500 shadow-inner">
+                </div>
+
+                <div>
+                    <label for="screenDistance" class="block text-sm font-medium text-gray-300 slider-label">
+                        <span>Slit-to-screen Distance (D):</span> 
+                        <span id="screenDistanceValue" class="font-semibold text-blue-300">1.00 m</span>
+                    </label>
+                    <input type="range" id="screenDistance" name="screenDistance" min="0.5" max="2.5" value="1.0" step="0.01" class="w-full h-3 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500 shadow-inner">
+                </div>
+                
+                </div>
+
+            <div id="panelSchematic" class="w-full md:w-1/2 flex flex-col items-center justify-center bg-gray-800 rounded-xl shadow-xl p-2">
+                <h2 class="text-3xl font-extrabold mb-4 text-center text-blue-400">Experiment Schematic</h2>
+                <div id="schematicContainer" class="w-full h-full rounded-xl overflow-hidden bg-gray-700 shadow-inner"></div>
+            </div>
+
+            <div id="panelPattern" class="w-full md:w-1/4 p-6 bg-gray-800 shadow-xl rounded-xl flex flex-col items-center relative"> 
+                <h2 class="text-3xl font-extrabold mb-6 text-center text-blue-400">Interference Pattern</h2>
+                <canvas id="patternCanvas" class="bg-black rounded-xl shadow-inner border border-gray-700"></canvas>
+                
+                <div id="fringeArrowContainer" class="fringe-arrow-container">
+                    <div class="fringe-arrow-line"></div>
+                    <span id="fringeArrowLabel" class="fringe-arrow-label"></span>
+                </div>
+
+                </div>
+        </div>
+    </div>
+
+    <script>
+        // --- Global Variables & Parameters ---
+        let lambda = 550e-9; // meters (initial: 550 nm)
+        let a = 50e-6;       // meters (initial: 50 µm)
+        let D = 1.0;         // meters (initial: 1.0 m)
+
+        // Define the physical width of the pattern displayed on the 2D canvas (e.g., 4 cm)
+        const physicalPatternDisplayWidth = 0.04; 
+
+        // --- DOM Elements ---
+        const wavelengthSlider = document.getElementById('wavelength');
+        const slitSeparationSlider = document.getElementById('slitSeparation');
+        const screenDistanceSlider = document.getElementById('screenDistance');
+
+        const wavelengthValueDisplay = document.getElementById('wavelengthValue');
+        const slitSeparationValueDisplay = document.getElementById('slitSeparationValue');
+        const screenDistanceValueDisplay = document.getElementById('screenDistanceValue');
+        
+        // Removed schematicInfoDisplay as the element is removed
+        // const schematicInfoDisplay = document.getElementById('schematicInfo');
+
+        const patternCanvas = document.getElementById('patternCanvas');
+        const patternCtx = patternCanvas.getContext('2d');
+        // Set a fixed resolution for the pattern canvas for consistent rendering
+        patternCanvas.width = 200; 
+        patternCanvas.height = 200; 
+
+        // Offscreen canvas for generating texture for Three.js screen
+        const patternTextureCanvas = document.createElement('canvas');
+        const patternTextureCtx = patternTextureCanvas.getContext('2d');
+        // Set a larger resolution for the texture canvas to allow for a smaller pattern within it
+        patternTextureCanvas.width = 512; 
+        patternTextureCanvas.height = 512;
+
+        // HTML elements for the arrow and label
+        const fringeArrowContainer = document.getElementById('fringeArrowContainer');
+        const fringeArrowLabel = document.getElementById('fringeArrowLabel');
+
+        // --- Three.js Setup ---
+        let scene, camera, renderer, controls;
+        let sourceMesh, slitBarrierMesh, screenMesh;
+        let slit1Mesh, slit2Mesh; 
+        const lightLines = []; // Array to hold light path lines
+        const schematicContainer = document.getElementById('schematicContainer');
+        let screenTexture; // Three.js texture for the screen
+
+        // --- Helper: Map Range ---
+        // Maps a value from one range to another.
+        function mapRange(value, inMin, inMax, outMin, outMax) {
+            return (value - inMin) * (outMax - outMin) / (inMax - inMin) + outMin;
+        }
+
+        // --- Helper: Wavelength to HSL Color ---
+        // Converts a wavelength in nanometers to an HSL color string.
+        // Intensity (0-1) controls the lightness of the color.
+        function wavelengthToHSL(nm, intensity = 1) {
+            if (nm < 380) nm = 380; // Clamp to visible spectrum
+            if (nm > 700) nm = 700;
+
+            let hue;
+            // Approximate mapping of wavelength to hue for visible spectrum
+            if (nm <= 439) hue = mapRange(nm, 380, 439, 270, 250); // Violet to Blue
+            else if (nm <= 489) hue = mapRange(nm, 440, 489, 250, 180); // Blue to Cyan
+            else if (nm <= 559) hue = mapRange(nm, 490, 559, 180, 70);  // Cyan to Green-Yellow
+            else if (nm <= 579) hue = mapRange(nm, 560, 579, 70, 55);   // Yellow-Green to Yellow
+            else if (nm <= 624) hue = mapRange(nm, 580, 624, 55, 30);   // Orange
+            else hue = mapRange(nm, 625, 700, 30, 0);     // Red
+            
+            const lightness = 50 * intensity; // Adjust lightness based on intensity
+            return `hsl(${hue}, 100%, ${lightness}%)`;
+        }
+        
+        // --- Helper: Wavelength to Three.js Color ---
+        // Converts a wavelength in nanometers to a THREE.Color object.
+        function wavelengthToThreeColor(nm, intensity = 1) {
+            const hslColor = wavelengthToHSL(nm, intensity); 
+            return new THREE.Color(hslColor);
+        }
+
+        // --- Initialize Three.js Scene ---
+        function initThreeJS() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x334155); // Tailwind gray-700
+
+            // Set up camera with aspect ratio based on container size
+            const aspect = schematicContainer.clientWidth / schematicContainer.clientHeight;
+            camera = new THREE.PerspectiveCamera(50, aspect, 0.1, 100);
+            // Set default camera position and target for a consistent, more zoomed-out view
+            camera.position.set(0, 0.2, -1.8); 
+            camera.lookAt(0, 0, 0.5); 
+
+            // Initialize WebGL Renderer
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(schematicContainer.clientWidth, schematicContainer.clientHeight);
+            schematicContainer.appendChild(renderer.domElement);
+
+            // OrbitControls for camera interaction
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true; 
+            controls.dampingFactor = 0.1;
+            controls.screenSpacePanning = false; 
+            controls.minDistance = 0.5; 
+            controls.maxDistance = 10; 
+            controls.target.set(0, 0, 0.5); 
+            
+            // Lights
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6); 
+            scene.add(ambientLight);
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8); 
+            directionalLight.position.set(1, 1, 1);
+            scene.add(directionalLight);
+
+            // Source (Sphere)
+            const sourceGeometry = new THREE.SphereGeometry(0.03, 16, 16);
+            const sourceMaterial = new THREE.MeshStandardMaterial({ emissive: 0xffffff, emissiveIntensity: 1 });
+            sourceMesh = new THREE.Mesh(sourceGeometry, sourceMaterial);
+            sourceMesh.position.z = -0.5; 
+            scene.add(sourceMesh);
+
+            // Slit Barrier (Box)
+            const barrierMaterial = new THREE.MeshStandardMaterial({ color: 0x6B7280, transparent: true, opacity: 0.8 }); 
+            const barrierWidth = 0.6;
+            const barrierHeight = 0.4;
+            const barrierDepth = 0.02;
+            slitBarrierMesh = new THREE.Mesh(new THREE.BoxGeometry(barrierWidth, barrierHeight, barrierDepth), barrierMaterial);
+            scene.add(slitBarrierMesh); 
+
+            // Slits (visual representation - black boxes within the barrier)
+            const slitVisualWidth = 0.005; 
+            const slitVisualHeight = 0.15;
+            const slitMaterial = new THREE.MeshBasicMaterial({ color: 0x000000 }); 
+            
+            slit1Mesh = new THREE.Mesh(new THREE.BoxGeometry(slitVisualWidth, slitVisualHeight, barrierDepth + 0.001), slitMaterial);
+            slit2Mesh = new THREE.Mesh(new THREE.BoxGeometry(slitVisualWidth, slitVisualHeight, barrierDepth + 0.001), slitMaterial);
+            slitBarrierMesh.add(slit1Mesh); 
+            slitBarrierMesh.add(slit2Mesh);
+
+            // Screen (Plane)
+            const screenMaterial = new THREE.MeshStandardMaterial({ color: 0xFFFFFF, side: THREE.DoubleSide }); 
+            screenMesh = new THREE.Mesh(new THREE.PlaneGeometry(0.8, 0.6), screenMaterial); 
+            scene.add(screenMesh);
+
+            // Initialize screen texture
+            screenTexture = new THREE.CanvasTexture(patternTextureCanvas);
+            screenMesh.material.map = screenTexture;
+            screenMesh.material.needsUpdate = true; 
+            
+            // Light path lines (placeholders, will be updated)
+            const lineMaterial = new THREE.LineBasicMaterial({ vertexColors: false, linewidth: 2 }); 
+            const points1 = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
+            const points2 = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
+            
+            const geometry1 = new THREE.BufferGeometry().setFromPoints(points1);
+            const geometry2 = new THREE.BufferGeometry().setFromPoints(points2);
+
+            lightLines.push(new THREE.Line(geometry1, lineMaterial.clone()));
+            lightLines.push(new THREE.Line(geometry2, lineMaterial.clone()));
+            lightLines.forEach(line => scene.add(line));
+
+            update3DScene(); 
+            animateThreeJS(); 
+        }
+
+        // --- Update 3D Scene Elements ---
+        function update3DScene() {
+            if (!scene) return; 
+
+            // Update source color
+            sourceMesh.material.emissive = wavelengthToThreeColor(lambda * 1e9);
+
+            // Scale D and a for 3D visualization to be visible
+            const D_3D = mapRange(D, parseFloat(screenDistanceSlider.min), parseFloat(screenDistanceSlider.max), 0.8, 2.0); 
+            const a_3D = mapRange(a, parseFloat(slitSeparationSlider.min) * 1e-6, parseFloat(slitSeparationSlider.max) * 1e-6, 0.05, 0.2); 
+            
+            // Update positions of screen and slits
+            screenMesh.position.z = D_3D; 
+            slit1Mesh.position.x = -a_3D / 2; 
+            slit2Mesh.position.x = a_3D / 2; 
+            
+            // Update light path lines
+            const sourcePos = sourceMesh.position;
+            const slit1Pos = new THREE.Vector3(-a_3D / 2, 0, slitBarrierMesh.position.z + 0.01); 
+            const slit2Pos = new THREE.Vector3(a_3D / 2, 0, slitBarrierMesh.position.z + 0.01); 
+            const screenCenterPos = new THREE.Vector3(0, 0, D_3D); 
+
+            const pointsPath1 = [sourcePos.clone(), slit1Pos.clone(), screenCenterPos.clone()];
+            lightLines[0].geometry.setFromPoints(pointsPath1);
+            lightLines[0].material.color = wavelengthToThreeColor(lambda * 1e9, 0.8); 
+
+            const pointsPath2 = [sourcePos.clone(), slit2Pos.clone(), screenCenterPos.clone()];
+            lightLines[1].geometry.setFromPoints(pointsPath2);
+            lightLines[1].material.color = wavelengthToThreeColor(lambda * 1e9, 0.8);
+            
+            lightLines.forEach(line => line.geometry.attributes.position.needsUpdate = true);
+
+            // Update the texture on the 3D screen
+            drawPatternOnScreenTexture();
+        }
+
+        // --- Animation Loop for Three.js ---
+        function animateThreeJS() {
+            requestAnimationFrame(animateThreeJS);
+            controls.update(); 
+            renderer.render(scene, camera); 
+        }
+        
+        // --- Handle Window Resize ---
+        window.addEventListener('resize', () => {
+            if (camera && renderer && schematicContainer.clientWidth > 0 && schematicContainer.clientHeight > 0) {
+                camera.aspect = schematicContainer.clientWidth / schematicContainer.clientHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(schematicContainer.clientWidth, schematicContainer.clientHeight);
+            }
+            updateArrowPosition(); // Update arrow position on resize
+        }, false);
+
+        // --- Draw Interference Pattern on 2D Canvas and Offscreen Canvas ---
+        function drawInterferencePattern() {
+            // Clear both canvases
+            patternCtx.clearRect(0, 0, patternCanvas.width, patternCanvas.height);
+            patternTextureCtx.clearRect(0, 0, patternTextureCanvas.width, patternTextureCanvas.height);
+
+            // Calculate meters per pixel for the display width
+            const metersPerPixel = physicalPatternDisplayWidth / patternCanvas.width;
+            const I_max = 1.0; 
+
+            for (let px = 0; px < patternCanvas.width; px++) {
+                const y_screen = (px - patternCanvas.width / 2) * metersPerPixel;
+                const phaseTerm = (Math.PI * a * y_screen) / (lambda * D); 
+                const intensity = I_max * Math.pow(Math.cos(phaseTerm), 2);
+                
+                patternCtx.fillStyle = wavelengthToHSL(lambda * 1e9, intensity);
+                patternCtx.fillRect(px, 0, 1, patternCanvas.height);
+            }
+
+            const texturePatternWidth = 32; 
+            const texturePatternHeight = 32; 
+
+            const offsetX = (patternTextureCanvas.width - texturePatternWidth) / 2;
+            const offsetY = (patternTextureCanvas.height - texturePatternHeight) / 2;
+
+            patternTextureCtx.drawImage(patternCanvas, 
+                                        0, 0, patternCanvas.width, patternCanvas.height, 
+                                        offsetX, offsetY, texturePatternWidth, texturePatternHeight); 
+            
+            // Update the HTML arrow and label
+            updateArrowPosition();
+        }
+
+        // --- Update the position and size of the HTML arrow and label ---
+        function updateArrowPosition() {
+            const patternCanvasRect = patternCanvas.getBoundingClientRect();
+            const parentRect = patternCanvas.parentElement.getBoundingClientRect(); 
+
+            // Calculate the distance to the first order maximum in meters
+            const firstOrderMaxDistance_m = (lambda * D) / a; 
+            // Convert to pixels on the patternCanvas's current display scale
+            const metersPerPixel = physicalPatternDisplayWidth / patternCanvas.width;
+            const firstOrderMaxDistance_px = firstOrderMaxDistance_m / metersPerPixel;
+
+            // Set the width of the arrow line directly
+            const arrowLine = fringeArrowContainer.querySelector('.fringe-arrow-line');
+            if (arrowLine) {
+                arrowLine.style.width = `${firstOrderMaxDistance_px}px`;
+            }
+
+            // Update the label text to include both y1 and Fringe Spacing
+            if (fringeArrowLabel) {
+                const y1_mm = (firstOrderMaxDistance_m * 1000).toFixed(2);
+                fringeArrowLabel.innerHTML = `Fringe separation<br>Δy = ${y1_mm} mm`;
+            }
+
+            // Position the arrow container relative to its parent (the right panel)
+            // The arrow should start at the horizontal center of the pattern canvas
+            const arrowStartXRelativeToParent = (patternCanvasRect.left - parentRect.left) + (patternCanvasRect.width / 2);
+            
+            fringeArrowContainer.style.left = `${arrowStartXRelativeToParent}px`;
+            fringeArrowContainer.style.width = `${firstOrderMaxDistance_px}px`;
+            fringeArrowContainer.style.transform = `translateX(0)`; // No horizontal transform on the container itself
+
+            // Position the arrow container below the canvas.
+            const verticalOffsetBelowCanvas = 10; 
+            fringeArrowContainer.style.top = `${patternCanvasRect.bottom - parentRect.top + verticalOffsetBelowCanvas}px`; 
+        }
+
+
+        // --- Draw Pattern onto 3D Screen Mesh as a Texture ---
+        function drawPatternOnScreenTexture() {
+            if (screenTexture) {
+                screenTexture.needsUpdate = true; 
+            }
+        }
+
+        // --- Event Listeners for Controls ---
+        wavelengthSlider.addEventListener('input', (e) => {
+            lambda = parseFloat(e.target.value) * 1e-9; 
+            wavelengthValueDisplay.textContent = `${e.target.value} nm`;
+            updateSimulation();
+        });
+
+        slitSeparationSlider.addEventListener('input', (e) => {
+            a = parseFloat(e.target.value) * 1e-6; 
+            slitSeparationValueDisplay.textContent = `${e.target.value} µm`;
+            updateSimulation();
+        });
+
+        screenDistanceSlider.addEventListener('input', (e) => {
+            D = parseFloat(e.target.value); 
+            screenDistanceValueDisplay.textContent = `${parseFloat(e.target.value).toFixed(2)} m`;
+            updateSimulation();
+        });
+
+        // --- Update All Simulation Components ---
+        function updateSimulation() {
+            drawInterferencePattern(); 
+            update3DScene(); 
+            // Removed call to updateSchematicInfo() as the element is removed
+        }
+
+        // --- Update Schematic Information Text ---
+        // This function is no longer needed as the element is removed.
+        // Keeping it as an empty function to avoid potential errors if other parts of the code still call it.
+        function updateSchematicInfo() {
+            
+        }
+
+        // --- Initial Setup ---
+        const observer = new ResizeObserver(entries => {
+            for (let entry of entries) {
+                if (entry.contentRect.width > 0 && entry.contentRect.height > 0) {
+                    initThreeJS();
+                    updateSimulation();
+                    observer.disconnect(); 
+                    break;
+                }
+            }
+        });
+        observer.observe(schematicContainer); 
+
+    </script>
+<script src="../../../assets/sim.js" data-root="../../../#wave-motion-and-ray-optics"></script>
+</body>
+</html>

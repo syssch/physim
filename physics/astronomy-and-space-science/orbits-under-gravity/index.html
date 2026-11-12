@@ -1,0 +1,744 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="../../../assets/sim-early.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Orbits under Gravity · PhySim</title>
+    <link rel="stylesheet" href="../../../assets/vendor/tailwind.css">
+    <link rel="stylesheet" href="../../../assets/vendor/inter/inter.css">
+    <style>
+        /* Custom styles for the range input thumb and track for better cross-browser consistency */
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #007bff;
+            cursor: pointer;
+            box-shadow: 0 0 2px rgba(0, 0, 0, 0.3);
+            margin-top: -6px; /* Adjust thumb vertical position */
+        }
+
+        input[type="range"]::-moz-range-thumb {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #007bff;
+            cursor: pointer;
+            box-shadow: 0 0 2px rgba(0, 0, 0, 0.3);
+        }
+
+        input[type="range"]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            background: #e0e0e0;
+            border-radius: 2px;
+        }
+
+        input[type="range"]::-moz-range-track {
+            width: 100%;
+            height: 4px;
+            background: #e0e0e0;
+            border-radius: 2px;
+        }
+
+        canvas {
+            display: block;
+            /* touch-action: none; -- Will be set in JS */
+            cursor: grab; 
+        }
+        /* ---- Phone / narrow-screen layout ---- */
+        @media (max-width: 900px) {
+            body { display: block !important; }
+            #app-root { aspect-ratio: auto; height: auto; max-height: none; padding: 10px; }
+            #app-root > h1 { font-size: 1.4rem; margin-bottom: 10px; }
+            #main-content-area { overflow: visible; gap: 12px; flex-direction: column; }
+            #main-content-area .controls-container { width: 100%; height: auto; }
+            #orbitCanvas { order: 1; flex: none; height: 400px; }
+            #main-content-area .controls-container { order: 2; padding: 14px; overflow: visible; }
+            #main-content-area .presets > div { flex-wrap: wrap; }
+            #main-content-area .presets button { flex: 1 1 40%; padding-left: 8px; padding-right: 8px; }
+        }
+    </style>
+<link rel="icon" href="../../../favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../../../assets/sim.css">
+</head>
+<body class="min-h-screen flex items-center justify-center bg-black text-gray-100 font-inter">
+
+    <div id="app-root" class="aspect-video bg-gray-900 flex flex-col w-full h-full max-w-[100vw] max-h-[100vh] shadow-xl p-4">
+        
+        <h1 class="text-3xl font-bold text-white mb-4 flex-shrink-0">2D Orbit Simulator</h1>
+
+        <div id="main-content-area" class="flex flex-col md:flex-row gap-6 flex-1 overflow-hidden w-full">
+            
+            <div class="controls-container flex flex-col items-center gap-4 p-6 bg-gray-800 rounded-xl shadow-lg w-full md:w-80 flex-shrink-0 overflow-y-auto md:h-full">
+                <div class="controls grid grid-cols-1 gap-y-4 items-center w-full">
+                    <label for="heightSlider" class="text-gray-200 text-base font-semibold">Height (h): <span id="heightValue" class="text-gray-400 text-lg font-normal">1000 km</span></label>
+                    <input type="range" id="heightSlider" min="100" max="35786" value="1000" class="w-full h-1 bg-blue-400 rounded-lg appearance-none cursor-pointer">
+
+                    <label for="angleSlider" class="text-gray-200 text-base font-semibold">Projection Angle (θ): <span id="angleValue" class="text-gray-400 text-lg font-normal">0°</span></label>
+                    <input type="range" id="angleSlider" min="-90" max="90" value="0" class="w-full h-1 bg-blue-400 rounded-lg appearance-none cursor-pointer">
+
+                    <label for="speedSlider" class="text-gray-200 text-base font-semibold">Initial Speed (u): <span id="speedValue" class="text-gray-400 text-lg font-normal">7000 m/s</span></label>
+                    <input type="range" id="speedSlider" min="1000" max="15000" value="7000" class="w-full h-1 bg-blue-400 rounded-lg appearance-none cursor-pointer">
+                </div>
+
+                <div class="presets flex flex-col items-center gap-2 w-full mt-4">
+                    <div class="flex gap-2 mb-2 w-full justify-center">
+                        <button id="startButton" class="px-5 py-2 rounded-md bg-blue-600 text-white font-semibold shadow-md hover:bg-blue-700 transition-colors duration-200 ease-in-out transform hover:scale-105">Start</button>
+                        <button id="pauseButton" class="px-5 py-2 rounded-md bg-yellow-600 text-white font-semibold shadow-md hover:bg-yellow-700 transition-colors duration-200 ease-in-out transform hover:scale-105" disabled>Pause</button>
+                        <button id="resetButton" class="px-5 py-2 rounded-md bg-gray-600 text-white font-semibold shadow-md hover:bg-gray-700 transition-colors duration-200 ease-in-out transform hover:scale-105">Reset</button>
+                    </div>
+                    
+                    <div class="flex gap-2 w-full justify-center">
+                        <button id="presetCrash" class="px-5 py-2 rounded-md bg-red-600 text-white font-semibold shadow-md hover:bg-red-700 transition-colors duration-200 ease-in-out transform hover:scale-105 w-1/2 md:w-auto">Crash to Earth</button>
+                        <button id="presetEllipticalSmall" class="px-5 py-2 rounded-md bg-green-600 text-white font-semibold shadow-md hover:bg-green-700 transition-colors duration-200 ease-in-out transform hover:scale-105 w-1/2 md:w-auto">Elliptical (Apogee)</button>
+                    </div>
+                    <div class="flex gap-2 w-full justify-center">
+                        <button id="presetCircular" class="px-5 py-2 rounded-md bg-green-600 text-white font-semibold shadow-md hover:bg-green-700 transition-colors duration-200 ease-in-out transform hover:scale-105 w-1/2 md:w-auto">Circular</button>
+                        <button id="presetEllipticalLarge" class="px-5 py-2 rounded-md bg-green-600 text-white font-semibold shadow-md hover:bg-green-700 transition-colors duration-200 ease-in-out transform hover:scale-105 w-1/2 md:w-auto">Elliptical (Perigee)</button>
+                    </div>
+                    <div class="flex gap-2 w-full justify-center">
+                        <button id="presetParabolic" class="px-5 py-2 rounded-md bg-purple-600 text-white font-semibold shadow-md hover:bg-purple-700 transition-colors duration-200 ease-in-out transform hover:scale-105 w-1/2 md:w-auto">Parabolic</button>
+                        <button id="presetHyperbolic" class="px-5 py-2 rounded-md bg-purple-600 text-white font-semibold shadow-md hover:bg-purple-700 transition-colors duration-200 ease-in-out transform hover:scale-105 w-1/2 md:w-auto">Hyperbolic</button>
+                    </div>
+                </div>
+            </div>
+            
+            <canvas id="orbitCanvas" class="border border-gray-700 bg-black rounded-lg shadow-md w-full flex-1 md:h-full"></canvas>
+        </div>
+    </div>
+
+    <script>
+        // --- Constants for Physics Calculations ---
+        const G = 6.67430e-11; // Gravitational constant (N m^2/kg^2)
+        const M_EARTH = 5.972e24; // Mass of Earth (kg)
+        const R_EARTH_METERS = 6.371e6; // Radius of Earth (m)
+
+        // --- Canvas and Drawing Variables ---
+        let canvas, ctx;
+        let canvasWidth, canvasHeight;
+        let baseScale;
+        let currentScale;
+        let earthImage = new Image();
+        let earthImageLoaded = false;
+
+        // --- Viewport Control Variables (Zoom and Pan) ---
+        let zoomLevel = 1.0;
+        const MIN_ZOOM = 0.1;
+        const MAX_ZOOM = 10.0;
+        let offsetX = 0;
+        let offsetY = 0;
+        
+        let isMouseDragging = false; // For mouse
+        let lastMouseX, lastMouseY;
+
+        // --- Touch Specific State Variables ---
+        let isTouchPanning = false; // For single-finger touch pan
+        let lastTouchX = null;
+        let lastTouchY = null;
+        let lastTouchDistance = null; // For pinch-zoom
+
+        // --- Simulation State Variables ---
+        let simRunning = false;
+        let objectPos = { x: 0, y: 0 };
+        let objectVel = { x: 0, y: 0 };
+        let path = [];
+        const MAX_PATH_POINTS = 3000;
+
+        const DT_PHYSICS = 2;
+        const STEPS_PER_FRAME = 10;
+
+        let animationFrameId;
+        let hasCrashed = false;
+
+        // --- Parameters from Sliders (updated dynamically) ---
+        let h_meters;
+        let theta_rad;
+        let u_mps;
+
+        // --- DOM Elements ---
+        let heightSlider, angleSlider, speedSlider;
+        let heightValueSpan, angleValueSpan, speedValueSpan;
+        let startButton, pauseButton, resetButton;
+
+        // --- Diagnostic Variables ---
+        let initialDrawPhase = true;
+        let initialDrawCounter = 0;
+
+
+        window.onload = () => {
+            requestAnimationFrame(performSetup);
+        };
+
+        function performSetup() {
+            console.log("performSetup called via requestAnimationFrame");
+            offsetX = 0;
+            offsetY = 0;
+            zoomLevel = 1.0;
+            initialDrawPhase = true;
+            initialDrawCounter = 0;
+
+            canvas = document.getElementById('orbitCanvas');
+            ctx = canvas.getContext('2d');
+            
+            // MODIFIED: Explicitly set touch-action to none for the canvas
+            canvas.style.touchAction = 'none';
+
+            console.log(`Initial canvas clientWidth: ${canvas.clientWidth}, clientHeight: ${canvas.clientHeight}`);
+
+            earthImage.onload = () => {
+                earthImageLoaded = true;
+                console.log("Earth image loaded.");
+                if (canvasWidth && canvasHeight) {
+                    draw();
+                } else {
+                    console.log("Image loaded, but canvas dimensions not yet set. Draw deferred.");
+                }
+            };
+            earthImage.src = '../../../assets/img/earth_disk.png';
+            earthImage.onerror = () => {
+                console.error("Failed to load Earth image. Using fallback circle.");
+                earthImageLoaded = false;
+                if (canvasWidth && canvasHeight) {
+                    draw();
+                }
+            };
+
+            heightSlider = document.getElementById('heightSlider');
+            angleSlider = document.getElementById('angleSlider');
+            speedSlider = document.getElementById('speedSlider');
+            heightValueSpan = document.getElementById('heightValue');
+            angleValueSpan = document.getElementById('angleValue');
+            speedValueSpan = document.getElementById('speedValue');
+            startButton = document.getElementById('startButton');
+            pauseButton = document.getElementById('pauseButton');
+            resetButton = document.getElementById('resetButton');
+
+            heightSlider.addEventListener('input', () => { updateAllSliderDisplays(); updateParamsAndReset(); });
+            angleSlider.addEventListener('input', () => { updateAllSliderDisplays(); updateParamsAndReset(); });
+            speedSlider.addEventListener('input', () => { updateAllSliderDisplays(); updateParamsAndReset(); });
+            startButton.addEventListener('click', startSimulation);
+            pauseButton.addEventListener('click', pauseSimulation);
+            resetButton.addEventListener('click', resetSimulation);
+            setupPresetButtons();
+
+            // Mouse listeners
+            canvas.addEventListener('wheel', handleZoom); 
+            canvas.addEventListener('mousedown', handleMouseDown);
+            canvas.addEventListener('mousemove', handleMouseMove);
+            canvas.addEventListener('mouseup', handleMouseUp);
+            canvas.addEventListener('mouseleave', handleMouseUp);
+
+            // Touch listeners
+            canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
+            canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
+            canvas.addEventListener('touchend', handleTouchEnd);
+            canvas.addEventListener('touchcancel', handleTouchEnd);
+
+
+            const EARTH_DEFAULT_DISPLAY_RADIUS_PX = 50;
+            baseScale = EARTH_DEFAULT_DISPLAY_RADIUS_PX / R_EARTH_METERS;
+            currentScale = baseScale * zoomLevel;
+
+            resizeCanvas();
+            window.addEventListener('resize', resizeCanvas);
+
+            updateButtonStates();
+            updateAllSliderDisplays();
+            updateParamsAndReset();
+
+            setTimeout(() => {
+                initialDrawPhase = false;
+                console.log("Initial draw phase ended. Switching to actual Earth image.");
+                draw(); 
+            }, 2000);
+        }
+
+
+        function worldToCanvas(worldX, worldY) {
+            currentScale = baseScale * zoomLevel;
+            const centerX = Math.floor(canvasWidth / 2);
+            const centerY = Math.floor(canvasHeight / 2);
+            const canvasX = (worldX * currentScale) + centerX + offsetX;
+            const canvasY = (worldY * -currentScale) + centerY + offsetY;
+            return { canvasX, canvasY };
+        }
+
+        function resizeCanvas() {
+            canvasWidth = canvas.clientWidth;
+            canvasHeight = canvas.clientHeight;
+            console.log(`resizeCanvas: clientWidth=${canvas.clientWidth}, clientHeight=${canvas.clientHeight}, setting canvas.width/height`);
+            if (canvasWidth === 0 || canvasHeight === 0) {
+                console.warn("resizeCanvas called with zero dimensions. Layout might not be ready.");
+            }
+            canvas.width = canvasWidth;
+            canvas.height = canvasHeight;
+            currentScale = baseScale * zoomLevel;
+            draw();
+        }
+
+        function updateAllSliderDisplays() {
+            heightValueSpan.textContent = heightSlider.value + ' km';
+            angleValueSpan.textContent = angleSlider.value + '°';
+            speedValueSpan.textContent = speedSlider.value + ' m/s';
+        }
+
+        function updateParamsAndReset() {
+            h_meters = parseFloat(heightSlider.value) * 1000;
+            theta_rad = parseFloat(angleSlider.value) * Math.PI / 180;
+            u_mps = parseFloat(speedSlider.value);
+            resetSimulation();
+        }
+
+        function updateButtonStates() {
+            startButton.disabled = simRunning;
+            pauseButton.disabled = !simRunning;
+            resetButton.disabled = false;
+        }
+
+        function startSimulation() {
+            if (simRunning) return;
+            simRunning = true;
+            initialDrawPhase = false; 
+            updateButtonStates();
+            animationFrameId = requestAnimationFrame(animate);
+        }
+
+        function pauseSimulation() {
+            if (!simRunning) return;
+            simRunning = false;
+            updateButtonStates();
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+            }
+        }
+
+        function resetSimulation() {
+            simRunning = false;
+            hasCrashed = false;
+            initialDrawPhase = false; 
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+            }
+            path = [];
+            objectPos = { x: 0, y: R_EARTH_METERS + h_meters };
+            objectVel = {
+                x: u_mps * Math.cos(theta_rad),
+                y: u_mps * Math.sin(theta_rad)
+            };
+            resetButton.textContent = 'Reset';
+            updateButtonStates();
+            draw();
+        }
+
+        function animate() {
+            if (!simRunning) return;
+            initialDrawPhase = false; 
+            for (let i = 0; i < STEPS_PER_FRAME; i++) {
+                const r_sq = objectPos.x * objectPos.x + objectPos.y * objectPos.y;
+                const r = Math.sqrt(r_sq);
+                if (r < R_EARTH_METERS) {
+                    simRunning = false;
+                    hasCrashed = true;
+                    path.push({ ...objectPos });
+                    updateButtonStates();
+                    draw();
+                    return;
+                }
+                const accel_gravity_mag = (G * M_EARTH) / r_sq;
+                const ax = -accel_gravity_mag * (objectPos.x / r);
+                const ay = -accel_gravity_mag * (objectPos.y / r);
+                objectVel.x += ax * DT_PHYSICS;
+                objectVel.y += ay * DT_PHYSICS;
+                objectPos.x += objectVel.x * DT_PHYSICS;
+                objectPos.y += objectVel.y * DT_PHYSICS;
+            }
+            path.push({ x: objectPos.x, y: objectPos.y });
+            if (path.length > MAX_PATH_POINTS) {
+                path.shift();
+            }
+            draw();
+            animationFrameId = requestAnimationFrame(animate);
+        }
+
+        function draw() {
+            if (!ctx) {
+                console.error("Draw called before ctx is initialized.");
+                return;
+            }
+            if (!canvasWidth || !canvasHeight) {
+                console.warn(`Draw called with invalid canvas dimensions: W=${canvasWidth}, H=${canvasHeight}.`);
+                return;
+            }
+
+            ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+            ctx.fillStyle = 'black';
+            ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+
+            const earthCanvasPos = worldToCanvas(0, 0);
+            const earthRadiusCanvas = R_EARTH_METERS * currentScale;
+
+            if (initialDrawPhase && initialDrawCounter < 120) { 
+                initialDrawCounter++;
+            }
+
+            if (initialDrawPhase) {
+                ctx.fillStyle = 'magenta';
+                ctx.beginPath();
+                ctx.arc(earthCanvasPos.canvasX, earthCanvasPos.canvasY, earthRadiusCanvas, 0, 2 * Math.PI);
+                ctx.fill();
+                ctx.strokeStyle = 'white'; 
+                ctx.lineWidth = 1;
+                ctx.stroke();
+                ctx.strokeStyle = 'lime'; 
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(earthCanvasPos.canvasX - 10, earthCanvasPos.canvasY);
+                ctx.lineTo(earthCanvasPos.canvasX + 10, earthCanvasPos.canvasY);
+                ctx.moveTo(earthCanvasPos.canvasX, earthCanvasPos.canvasY - 10);
+                ctx.lineTo(earthCanvasPos.canvasX, earthCanvasPos.canvasY + 10);
+                ctx.stroke();
+            } else {
+                if (earthImageLoaded && earthImage.complete && earthImage.naturalHeight !== 0) {
+                    try {
+                        ctx.drawImage(earthImage,
+                            earthCanvasPos.canvasX - earthRadiusCanvas,
+                            earthCanvasPos.canvasY - earthRadiusCanvas,
+                            earthRadiusCanvas * 2,
+                            earthRadiusCanvas * 2);
+                    } catch (e) {
+                        console.error("Error drawing Earth image:", e);
+                        drawFallbackEarth(earthCanvasPos, earthRadiusCanvas);
+                    }
+                } else {
+                    drawFallbackEarth(earthCanvasPos, earthRadiusCanvas);
+                }
+            }
+
+            if (path.length > 1) {
+                ctx.strokeStyle = 'rgba(0, 255, 0, 0.7)';
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                const firstPointCanvas = worldToCanvas(path[0].x, path[0].y);
+                ctx.moveTo(firstPointCanvas.canvasX, firstPointCanvas.canvasY);
+                for (let i = 1; i < path.length; i++) {
+                    const point = path[i];
+                    const pointCanvas = worldToCanvas(point.x, point.y);
+                    ctx.lineTo(pointCanvas.canvasX, pointCanvas.canvasY);
+                }
+                ctx.stroke();
+            }
+            const objCanvasPos = worldToCanvas(objectPos.x, objectPos.y);
+            const objectRadiusPixels = 5;
+            ctx.fillStyle = 'red';
+            ctx.beginPath();
+            ctx.arc(objCanvasPos.canvasX, objCanvasPos.canvasY, objectRadiusPixels, 0, 2 * Math.PI);
+            ctx.fill();
+
+            if (!simRunning && !hasCrashed) {
+                drawProjectionArrow();
+            }
+        }
+
+        function drawFallbackEarth(earthCanvasPos, earthRadiusCanvas) {
+            ctx.fillStyle = 'dodgerblue';
+            ctx.beginPath();
+            ctx.arc(earthCanvasPos.canvasX, earthCanvasPos.canvasY, Math.max(1, earthRadiusCanvas), 0, 2 * Math.PI);
+            ctx.fill();
+            ctx.strokeStyle = 'blue';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+        }
+
+        function drawProjectionArrow() {
+            const current_h_meters = parseFloat(heightSlider.value) * 1000;
+            const current_theta_rad = parseFloat(angleSlider.value) * Math.PI / 180;
+            const initialObjPhysX = 0;
+            const initialObjPhysY = R_EARTH_METERS + current_h_meters;
+            const startCanvasPos = worldToCanvas(initialObjPhysX, initialObjPhysY);
+            const startX = startCanvasPos.canvasX;
+            const startY = startCanvasPos.canvasY;
+            const arrowLengthPixels = 40;
+            const arrowTipX = startX + arrowLengthPixels * Math.cos(current_theta_rad);
+            const arrowTipY = startY - arrowLengthPixels * Math.sin(current_theta_rad);
+            ctx.strokeStyle = 'lime';
+            ctx.lineWidth = 2.5;
+            ctx.beginPath();
+            ctx.moveTo(startX, startY);
+            ctx.lineTo(arrowTipX, arrowTipY);
+            ctx.stroke();
+            const angle = Math.atan2(arrowTipY - startY, arrowTipX - startX);
+            ctx.beginPath();
+            ctx.moveTo(arrowTipX, arrowTipY);
+            ctx.lineTo(arrowTipX - 10 * Math.cos(angle - Math.PI / 6), arrowTipY - 10 * Math.sin(angle - Math.PI / 6));
+            ctx.moveTo(arrowTipX, arrowTipY);
+            ctx.lineTo(arrowTipX - 10 * Math.cos(angle + Math.PI / 6), arrowTipY - 10 * Math.sin(angle + Math.PI / 6));
+            ctx.stroke();
+        }
+
+        // Mouse Event Handlers
+        function handleZoom(event) { 
+            event.preventDefault();
+            initialDrawPhase = false; 
+            const zoomFactor = 1.1;
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = event.clientX - rect.left;
+            const mouseY = event.clientY - rect.top;
+            const worldXBeforeZoom = ((mouseX - Math.floor(canvasWidth / 2) - offsetX) / currentScale);
+            const worldYBeforeZoom = -((mouseY - Math.floor(canvasHeight / 2) - offsetY) / currentScale);
+            if (event.deltaY < 0) {
+                zoomLevel *= zoomFactor;
+            } else {
+                zoomLevel /= zoomFactor;
+            }
+            zoomLevel = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoomLevel));
+            currentScale = baseScale * zoomLevel;
+            const newCanvasX = (worldXBeforeZoom * currentScale) + Math.floor(canvasWidth / 2);
+            const newCanvasY = (worldYBeforeZoom * -currentScale) + Math.floor(canvasHeight / 2);
+            offsetX = mouseX - newCanvasX;
+            offsetY = mouseY - newCanvasY;
+            draw();
+        }
+
+        function handleMouseDown(event) {
+            if (event.button !== 0) return;
+            initialDrawPhase = false; 
+            isMouseDragging = true;
+            lastMouseX = event.clientX;
+            lastMouseY = event.clientY;
+            canvas.style.cursor = 'grabbing';
+        }
+
+        function handleMouseMove(event) {
+            if (!isMouseDragging) return;
+            const deltaX = event.clientX - lastMouseX;
+            const deltaY = event.clientY - lastMouseY;
+            offsetX += deltaX;
+            offsetY += deltaY;
+            lastMouseX = event.clientX;
+            lastMouseY = event.clientY;
+            draw();
+        }
+
+        function handleMouseUp(event) {
+            if (event.pointerType && event.pointerType !== 'mouse' && event.pointerType !== 'pen') return; 
+            if (event.button === 0) { 
+                isMouseDragging = false;
+                canvas.style.cursor = 'grab';
+            }
+        }
+
+
+        // Touch Event Handlers
+        function getTouchDistance(touch1, touch2) {
+            const dx = touch1.clientX - touch2.clientX;
+            const dy = touch1.clientY - touch2.clientY;
+            return Math.sqrt(dx * dx + dy * dy);
+        }
+
+        function handleTouchStart(event) {
+            console.log(`TouchStart: ${event.touches.length} touches`);
+            event.preventDefault(); 
+            initialDrawPhase = false;
+
+            if (event.touches.length === 1) {
+                isTouchPanning = true;
+                lastTouchX = event.touches[0].clientX;
+                lastTouchY = event.touches[0].clientY;
+                lastTouchDistance = null; 
+                console.log(`TouchStart (1 finger): Panning started. lastTouchX=${lastTouchX.toFixed(2)}, lastTouchY=${lastTouchY.toFixed(2)}`);
+            } else if (event.touches.length === 2) {
+                isTouchPanning = false; 
+                lastTouchDistance = getTouchDistance(event.touches[0], event.touches[1]);
+                console.log(`TouchStart (2 fingers): Pinch zoom started. lastTouchDistance=${lastTouchDistance.toFixed(2)}`);
+            }
+        }
+
+        function handleTouchMove(event) {
+            console.log(`TouchMove: ${event.touches.length} touches. isTouchPanning=${isTouchPanning}, lastTouchDistance=${lastTouchDistance}`);
+            event.preventDefault(); 
+
+            if (event.touches.length === 1 && isTouchPanning) { 
+                const touch = event.touches[0];
+                if (lastTouchX === null || lastTouchY === null) { 
+                    lastTouchX = touch.clientX;
+                    lastTouchY = touch.clientY;
+                    console.log("TouchMove (1 finger): lastTouchX/Y was null, re-initialized.");
+                    return;
+                }
+                const deltaX = touch.clientX - lastTouchX;
+                const deltaY = touch.clientY - lastTouchY;
+                offsetX += deltaX;
+                offsetY += deltaY;
+                lastTouchX = touch.clientX;
+                lastTouchY = touch.clientY;
+                console.log(`TouchMove (1 finger - PAN): dX=${deltaX.toFixed(2)}, dY=${deltaY.toFixed(2)} => offsetX=${offsetX.toFixed(2)}, offsetY=${offsetY.toFixed(2)}`);
+                draw();
+            } else if (event.touches.length === 2 && lastTouchDistance !== null) { 
+                const touch1 = event.touches[0];
+                const touch2 = event.touches[1];
+                const currentDistance = getTouchDistance(touch1, touch2);
+                
+                if (lastTouchDistance === 0) { 
+                    console.log("TouchMove (2 fingers): lastTouchDistance is zero, skipping zoom factor calculation.");
+                    lastTouchDistance = currentDistance; 
+                    return;
+                }
+                const zoomFactor = currentDistance / lastTouchDistance;
+
+                const rect = canvas.getBoundingClientRect();
+                const midPointClientX = (touch1.clientX + touch2.clientX) / 2;
+                const midPointClientY = (touch1.clientY + touch2.clientY) / 2;
+                
+                const midPointCanvasX = midPointClientX - rect.left;
+                const midPointCanvasY = midPointClientY - rect.top;
+
+                const worldXBeforeZoom = ((midPointCanvasX - Math.floor(canvasWidth / 2) - offsetX) / currentScale);
+                const worldYBeforeZoom = -((midPointCanvasY - Math.floor(canvasHeight / 2) - offsetY) / currentScale);
+
+                const oldZoomLevel = zoomLevel;
+                zoomLevel *= zoomFactor;
+                zoomLevel = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoomLevel));
+                
+                if (zoomLevel === oldZoomLevel && zoomFactor !== 1.0 && Math.abs(zoomFactor - 1.0) > 0.001) { // Check if zoom actually changed
+                     console.log("TouchMove (2 fingers - ZOOM): Zoom level unchanged (at boundary or no significant change).");
+                     lastTouchDistance = currentDistance; 
+                     // No draw() here as nothing visually changed regarding zoom/pan
+                     return; 
+                } else if (Math.abs(zoomFactor - 1.0) < 0.001 && zoomLevel === oldZoomLevel) {
+                    // Negligible zoom factor change, treat as no zoom to avoid jitter
+                    lastTouchDistance = currentDistance;
+                    return;
+                }
+
+
+                currentScale = baseScale * zoomLevel;
+
+                const newCanvasX = (worldXBeforeZoom * currentScale) + Math.floor(canvasWidth / 2);
+                const newCanvasY = (worldYBeforeZoom * -currentScale) + Math.floor(canvasHeight / 2);
+
+                offsetX = midPointCanvasX - newCanvasX;
+                offsetY = midPointCanvasY - newCanvasY;
+
+                console.log(`TouchMove (2 fingers - ZOOM): currentDist=${currentDistance.toFixed(2)}, lastDist=${lastTouchDistance.toFixed(2)}, zoomFactor=${zoomFactor.toFixed(3)}`);
+                console.log(`MidPointCanvas: X=${midPointCanvasX.toFixed(2)}, Y=${midPointCanvasY.toFixed(2)}`);
+                console.log(`ZoomLevel: ${zoomLevel.toFixed(3)}, CurrentScale: ${currentScale.toPrecision(3)}`);
+                console.log(`Offsets: offsetX=${offsetX.toFixed(2)}, offsetY=${offsetY.toFixed(2)}`);
+
+                lastTouchDistance = currentDistance;
+                draw();
+            }
+        }
+
+        function handleTouchEnd(event) {
+            console.log(`TouchEnd: ${event.touches.length} touches remaining`);
+            // event.preventDefault(); // Usually not needed for touchend
+
+            if (event.touches.length < 2) {
+                lastTouchDistance = null; 
+                // console.log("TouchEnd: Pinch zoom ended or less than 2 touches.");
+            }
+            if (event.touches.length < 1) {
+                isTouchPanning = false; 
+                lastTouchX = null;
+                lastTouchY = null;
+                console.log("TouchEnd: Panning ended (no touches).");
+            } else if (event.touches.length === 1) {
+                isTouchPanning = true;
+                lastTouchX = event.touches[0].clientX;
+                lastTouchY = event.touches[0].clientY;
+                lastTouchDistance = null; 
+                console.log(`TouchEnd: Transitioned to 1-finger pan. lastTouchX=${lastTouchX.toFixed(2)}, lastTouchY=${lastTouchY.toFixed(2)}`);
+            }
+        }
+
+
+        function setupPresetButtons() {
+            const presets = [
+                'presetCrash', 'presetEllipticalSmall', 'presetCircular', 
+                'presetEllipticalLarge', 'presetParabolic', 'presetHyperbolic'
+            ];
+            const presetTypeMap = {
+                'presetCrash': 'crash',
+                'presetEllipticalSmall': 'ellipticalSmall',
+                'presetCircular': 'circular',
+                'presetEllipticalLarge': 'ellipticalLarge',
+                'presetParabolic': 'parabolic',
+                'presetHyperbolic': 'hyperbolic'
+            };
+
+            presets.forEach(id => {
+                const button = document.getElementById(id);
+                if (button) {
+                    button.addEventListener('click', () => { 
+                        initialDrawPhase = false; 
+                        setPreset(presetTypeMap[id]); 
+                    });
+                }
+            });
+        }
+
+
+        function setPreset(type) {
+            const h_val_km = parseFloat(heightSlider.value);
+            const r0_meters = R_EARTH_METERS + (h_val_km * 1000);
+            const v_circ = Math.sqrt(G * M_EARTH / r0_meters);
+            const v_esc = v_circ * Math.sqrt(2);
+            let preset_u_mps, preset_theta_deg;
+            switch (type) {
+                case 'crash':
+                    preset_u_mps = v_circ * 0.5;
+                    preset_theta_deg = 0;
+                    break;
+                case 'ellipticalSmall':
+                    const min_perigee_altitude_km = 200;
+                    const target_perigee_radius_meters = R_EARTH_METERS + min_perigee_altitude_km * 1000;
+                    let calculated_v_apogee;
+                    if (r0_meters > target_perigee_radius_meters) {
+                        calculated_v_apogee = Math.sqrt(G * M_EARTH * (2 * target_perigee_radius_meters) / (r0_meters * (r0_meters + target_perigee_radius_meters)));
+                    } else {
+                        calculated_v_apogee = v_circ;
+                    }
+                    if (isNaN(calculated_v_apogee) || calculated_v_apogee >= v_circ) {
+                        preset_u_mps = v_circ * 0.95;
+                    } else {
+                        preset_u_mps = calculated_v_apogee;
+                    }
+                    preset_theta_deg = 0;
+                    break;
+                case 'circular':
+                    preset_u_mps = v_circ;
+                    preset_theta_deg = 0;
+                    break;
+                case 'ellipticalLarge':
+                    preset_u_mps = v_circ + (v_esc - v_circ) * 0.3;
+                    if (preset_u_mps >= v_esc) preset_u_mps = v_esc * 0.99;
+                    if (preset_u_mps <= v_circ) preset_u_mps = v_circ * 1.01;
+                    preset_theta_deg = 0;
+                    break;
+                case 'parabolic':
+                    preset_u_mps = v_esc;
+                    preset_theta_deg = 0;
+                    break;
+                case 'hyperbolic':
+                    preset_u_mps = v_esc * 1.15;
+                    preset_theta_deg = 0;
+                    break;
+                default:
+                    preset_u_mps = v_circ;
+                    preset_theta_deg = 0;
+            }
+            preset_u_mps = Math.max(parseFloat(speedSlider.min), Math.min(parseFloat(speedSlider.max), preset_u_mps));
+            speedSlider.value = preset_u_mps.toFixed(0);
+            angleSlider.value = preset_theta_deg;
+            updateAllSliderDisplays();
+            updateParamsAndReset();
+        }
+
+    </script>
+<script src="../../../assets/sim.js" data-root="../../../#astronomy-and-space-science"></script>
+</body>
+</html>

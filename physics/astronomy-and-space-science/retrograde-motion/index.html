@@ -1,0 +1,913 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="../../../assets/sim-early.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Retrograde Motion · PhySim</title>
+    <link rel="stylesheet" href="../../../assets/vendor/tailwind.css">
+    <link rel="stylesheet" href="../../../assets/vendor/inter/inter.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🪐</text></svg>">
+    <style>
+        /* Custom styles for the range input accent color */
+        input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            background: #e0e0e0;
+            border-radius: 5px;
+            height: 8px;
+            outline: none;
+            transition: opacity .2s;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #2563eb; /* Blue-600 */
+            cursor: pointer;
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.4); /* Blue-600 with opacity */
+        }
+
+        input[type="range"]::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #2563eb; /* Blue-600 */
+            cursor: pointer;
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.4); /* Blue-600 with opacity */
+        }
+
+        /* Ensure canvas elements fill their parent container and are responsive */
+        #canvas3D, #canvas2D {
+            width: 100%; /* Default to full width for small screens */
+            height: 450px; /* Fixed height for consistency */
+            display: block; /* Remove extra space below canvas */
+        }
+
+        /* On medium screens and up, allow panels to be side-by-side */
+        @media (min-width: 768px) { /* md breakpoint */
+            .app-container {
+                flex-direction: row; /* Arrange children in a row */
+                justify-content: center; /* Center them horizontally */
+                align-items: flex-start; /* Align items to the top if heights differ */
+            }
+            .panel {
+                width: 450px; /* Fixed width for side-by-side on larger screens */
+                height: 450px;
+            }
+        }
+
+        /* For even larger screens, slightly increase panel size */
+        @media (min-width: 1024px) { /* lg breakpoint */
+            .panel {
+                width: 500px;
+                height: 500px;
+            }
+        }
+        /* ---- Phone / narrow-screen layout ---- */
+        @media (max-width: 767px) {
+            body { padding: 10px; }
+            body > h1 { font-size: 1.5rem; margin-bottom: 12px; }
+            .controls { padding: 14px; margin-bottom: 14px; }
+            .controls .button-group { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; width: 100%; }
+            .controls .button-group button { min-width: 0; padding: 10px 6px; font-size: .9rem; }
+            #timeDisplay { grid-column: span 2; text-align: center; }
+            .controls label { white-space: normal; text-align: center; font-size: .9rem; }
+            .controls input[type=range] { width: 100%; max-width: 320px; }
+            .control-set { width: 100%; }
+            #resetBtn { width: 100%; min-width: 0; }
+            #canvas3D { height: 340px !important; }
+            #canvas2D { width: 100% !important; height: auto !important; aspect-ratio: 1 / 1; }
+        }
+    </style>
+    <script src="../../../assets/vendor/three.min.js"></script>
+    <script src="../../../assets/vendor/OrbitControls.js"></script>
+<link rel="icon" href="../../../favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../../../assets/sim.css">
+</head>
+<body class="font-inter flex flex-col items-center bg-gray-100 p-5 text-gray-800 antialiased">
+    <h1 class="text-3xl md:text-4xl font-extrabold text-gray-900 mb-6 text-center leading-tight">
+        Mars Retrograde Motion
+        <br class="hidden sm:block">
+        <span class="text-blue-600">(Adjustable Loop Parameters)</span>
+    </h1>
+
+    <div class="controls flex flex-col items-center justify-center p-6 bg-white rounded-xl shadow-xl gap-y-4 w-full max-w-5xl mb-8">
+        <div class="flex flex-row flex-wrap items-center justify-center gap-x-8 gap-y-4 w-full">
+            <div class="button-group flex gap-4 items-center justify-center flex-wrap">
+                <button id="rewindWeekBtn" disabled
+                        class="px-6 py-3 text-base font-semibold cursor-pointer bg-blue-600 text-white rounded-lg shadow-md
+                               hover:bg-blue-700 transition-colors duration-200 min-w-[160px] disabled:bg-gray-400 disabled:cursor-not-allowed disabled:hover:bg-gray-400">
+                    Rewind One Week
+                </button>
+                <button id="nextWeekBtn"
+                        class="px-6 py-3 text-base font-semibold cursor-pointer bg-blue-600 text-white rounded-lg shadow-md
+                               hover:bg-blue-700 transition-colors duration-200 min-w-[160px] disabled:bg-gray-400 disabled:cursor-not-allowed disabled:hover:bg-gray-400">
+                    Advance One Week
+                </button>
+                <button id="autoAdvanceBtn"
+                        class="px-6 py-3 text-base font-semibold cursor-pointer bg-green-600 text-white rounded-lg shadow-md
+                               hover:bg-green-700 transition-colors duration-200 min-w-[160px]">
+                    Auto Advance
+                </button>
+                <button id="stopAutoBtn" disabled
+                        class="px-6 py-3 text-base font-semibold cursor-pointer bg-yellow-600 text-white rounded-lg shadow-md
+                               hover:bg-yellow-700 transition-colors duration-200 min-w-[160px] disabled:bg-gray-400 disabled:cursor-not-allowed disabled:hover:bg-gray-400">
+                    Stop Auto
+                </button>
+                <p id="timeDisplay" class="text-lg font-medium text-gray-700">Week: 0 / 40</p>
+            </div>
+        </div>
+
+        <div class="flex flex-row flex-wrap items-center justify-center gap-x-8 gap-y-4 w-full">
+            <div class="control-set flex flex-col items-center gap-3">
+                <label for="inclinationSlider" class="text-base font-medium text-gray-700 whitespace-nowrap">
+                    Mars Orbit Inclination (deg): <span id="inclinationValue" class="font-bold text-blue-700">1.85</span>
+                </label>
+                <input type="range" id="inclinationSlider" min="0" max="10" value="1.85" step="0.05" class="w-48">
+            </div>
+
+            <div class="control-set flex flex-col items-center gap-3">
+                <label for="phaseOffsetSlider" class="text-base font-medium text-gray-700 whitespace-nowrap">
+                    Mars Initial Phase Offset (deg): <span id="phaseOffsetValue" class="font-bold text-blue-700">45</span>
+                </label>
+                <input type="range" id="phaseOffsetSlider" min="0" max="360" value="45" step="1" class="w-48">
+            </div>
+            <button id="resetBtn"
+                    class="px-6 py-3 text-base font-semibold cursor-pointer bg-red-600 text-white rounded-lg shadow-md
+                           hover:bg-red-700 transition-colors duration-200 min-w-[160px]">
+                Reset Simulation
+            </button>
+        </div>
+    </div>
+
+    <div class="app-container flex flex-col md:flex-row gap-5 w-full max-w-screen-xl mx-auto">
+        <div id="canvas3D" class="panel border border-gray-300 shadow-lg rounded-lg overflow-hidden
+                                   bg-gradient-to-br from-purple-950 to-indigo-950 relative">
+        </div>
+        <canvas id="canvas2D" class="panel border border-gray-300 shadow-lg rounded-lg
+                                    bg-gradient-to-br from-purple-950 to-indigo-950"></canvas>
+    </div>
+
+    <script>
+        // Constants for astronomical calculations
+        const PI = Math.PI;
+        const TWO_PI = 2 * PI;
+        const DEG_TO_RAD = PI / 180;
+
+        const EARTH_ORBIT_RADIUS_AU = 1;      // Earth's orbital radius in Astronomical Units
+        const MARS_ORBIT_RADIUS_AU = 1.52;    // Mars's orbital radius in Astronomical Units
+        const EARTH_PERIOD_DAYS = 365.25;     // Earth's orbital period in days
+        const MARS_PERIOD_DAYS = 687;         // Mars's orbital period in days
+
+        // Initial values for adjustable parameters
+        let MARS_ORBITAL_INCLINATION_DEG = 1.85;
+        let MARS_INITIAL_PHASE_OFFSET_DEG = 45;
+
+        // Derived orbital angular velocities
+        const OMEGA_E_RAD_PER_DAY = TWO_PI / EARTH_PERIOD_DAYS; // Earth's angular velocity
+        const OMEGA_M_RAD_PER_DAY = TWO_PI / MARS_PERIOD_DAYS;   // Mars's angular velocity
+
+        // Simulation control variables
+        let currentTimeDays = 0;        // Current time in days since simulation start
+        const timeStepDays = 7;         // Advance/rewind step in days (one week)
+        const NUM_TOTAL_WEEKS = 40;     // Total number of weeks to simulate
+        let currentWeek = 0;            // Current week index (0 to NUM_TOTAL_WEEKS - 1)
+        let simulationActualStartTime = 0; // The calculated start time for the current simulation window
+        let autoAdvanceIntervalId = null; // Stores the interval ID for auto-advance
+
+        // Data storage for celestial path
+        let marsPathCelestial = []; // Stores precomputed RA/DEC points for Mars's apparent path
+
+        // Variables for 2D canvas drawing bounds
+        let minRA, maxRA, minDEC, maxDEC;
+        let canvas2D, ctx2D;
+        const NUM_STARS_2D = 250; // Number of stars for 2D background
+        let stars2D = []; // Array to hold 2D star positions and properties
+        const CANVAS2D_DISPLAY_WIDTH = 450; // Reference width for 2D canvas (actual size adjusted by DPR)
+        const CANVAS2D_DISPLAY_HEIGHT = 450; // Reference height for 2D canvas (actual size adjusted by DPR)
+
+        // Three.js (3D) variables
+        let scene3D, camera3D, renderer3D, controls3D;
+        let sun3D, earth3DObj, mars3DObj;
+        let earthOrbitLine3D, marsOrbitLine3D, marsOrbitContainer3D;
+        let stars3D; // Three.js Points object for 3D starfield
+        let celestialSphere3D; // Semi-transparent sphere around Earth
+        let earthMarsRay3D;    // Ray from Earth to Mars (projected onto celestial sphere)
+        let celestialPathGeometry3D; // New: Geometry for points on celestial sphere
+        let celestialPathMesh3D;     // New: Mesh for points on celestial sphere
+
+        // Scaling factors for 3D scene
+        const AU_SCALE_3JS = 100;       // 1 AU = 100 Three.js units
+        const SUN_RADIUS_3JS = 8;       // Increased Sun radius for better visual scale
+        const PLANET_RADIUS_3JS = 4;    // Increased Planet radius for better visibility
+        const CELESTIAL_SPHERE_RADIUS_AU = 2.5; // Radius of the celestial sphere in AU
+        const CELESTIAL_SPHERE_OPACITY = 0.1; // Opacity for the celestial sphere
+
+        // Current planet positions in AU (for 3D and 2D calculations)
+        let currentEarthPosAU = { x: 0, y: 0, z: 0 };
+        let currentMarsPosAU = { x: 0, y: 0, z: 0 };
+
+        // DOM Elements for buttons
+        let nextWeekBtn, rewindWeekBtn, resetBtn, autoAdvanceBtn, stopAutoBtn;
+
+        /**
+         * Sets up the 2D canvas for drawing, adjusting for device pixel ratio.
+         * @param {HTMLCanvasElement} canvasElement - The canvas DOM element.
+         * @returns {CanvasRenderingContext2D} The 2D rendering context.
+         */
+        function setup2DCanvas(canvasElement) {
+            const dpr = window.devicePixelRatio || 1;
+            // Set canvas internal resolution based on CSS size and DPR
+            canvasElement.width = CANVAS2D_DISPLAY_WIDTH * dpr;
+            canvasElement.height = CANVAS2D_DISPLAY_HEIGHT * dpr;
+            // Set canvas display size using CSS
+            canvasElement.style.width = CANVAS2D_DISPLAY_WIDTH + 'px';
+            canvasElement.style.height = CANVAS2D_DISPLAY_HEIGHT + 'px';
+            const ctx = canvasElement.getContext('2d');
+            // Scale context to match DPR for sharp drawing
+            ctx.scale(dpr, dpr);
+            return ctx;
+        }
+
+        /**
+         * Initializes the Three.js 3D scene, camera, renderer, and objects.
+         */
+        function init3DScene() {
+            const container = document.getElementById('canvas3D');
+            if (!container) {
+                console.error("3D canvas container not found.");
+                return;
+            }
+            const width = container.clientWidth;
+            const height = container.clientHeight;
+
+            // Scene, Camera, Renderer
+            scene3D = new THREE.Scene();
+            camera3D = new THREE.PerspectiveCamera(60, width / height, 0.1, AU_SCALE_3JS * MARS_ORBIT_RADIUS_AU * 4);
+            // Position camera to look at the center of the solar system
+            camera3D.position.set(0, -MARS_ORBIT_RADIUS_AU * AU_SCALE_3JS * 1.5, MARS_ORBIT_RADIUS_AU * AU_SCALE_3JS * 1);
+            camera3D.lookAt(0, 0, 0);
+
+            renderer3D = new THREE.WebGLRenderer({ antialias: true });
+            renderer3D.setSize(width, height); /* Corrected typo here */
+            renderer3D.setPixelRatio(window.devicePixelRatio);
+            renderer3D.setClearColor(0x100820); // Dark space background
+            container.appendChild(renderer3D.domElement);
+
+            // Lighting
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.4); // Soft ambient light
+            scene3D.add(ambientLight);
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8); // Stronger directional light
+            directionalLight.position.set(5, 10, 7).normalize();
+            scene3D.add(directionalLight);
+            const hemisphereLight = new THREE.HemisphereLight(0xb1e1ff, 0x0b0b0b, 0.3); // Sky and ground light
+            scene3D.add(hemisphereLight);
+
+            // Orbit Controls for user interaction
+            controls3D = new THREE.OrbitControls(camera3D, renderer3D.domElement);
+            controls3D.enableDamping = true; // Smooth camera movement
+            controls3D.dampingFactor = 0.05;
+            controls3D.minDistance = AU_SCALE_3JS * 0.2; // Prevent camera from going too close
+            controls3D.maxDistance = AU_SCALE_3JS * MARS_ORBIT_RADIUS_AU * 3; // Prevent camera from going too far
+
+            // Sun
+            const sunGeo = new THREE.SphereGeometry(SUN_RADIUS_3JS, 32, 32);
+            const sunMat = new THREE.MeshBasicMaterial({ color: 0xffff00 }); // Yellow for Sun
+            sun3D = new THREE.Mesh(sunGeo, sunMat);
+            scene3D.add(sun3D);
+
+            // Earth
+            const earthGeo = new THREE.SphereGeometry(PLANET_RADIUS_3JS, 16, 16);
+            const earthMat = new THREE.MeshStandardMaterial({ color: 0x0077ff, roughness: 0.8, metalness: 0.1 }); // Blue for Earth
+            earth3DObj = new THREE.Mesh(earthGeo, earthMat);
+            scene3D.add(earth3DObj);
+
+            // Mars
+            const marsGeo = new THREE.SphereGeometry(PLANET_RADIUS_3JS * 0.8, 16, 16); // Slightly smaller Mars
+            const marsMat = new THREE.MeshStandardMaterial({ color: 0xff4500, roughness: 0.8, metalness: 0.1 }); // Orange-red for Mars
+            mars3DObj = new THREE.Mesh(marsGeo, marsMat);
+            
+            // Mars orbit container to apply inclination
+            marsOrbitContainer3D = new THREE.Object3D();
+            scene3D.add(marsOrbitContainer3D);
+            marsOrbitContainer3D.add(mars3DObj);
+
+            // Earth Orbit Line
+            const earthOrbitCurve = new THREE.EllipseCurve(0, 0, EARTH_ORBIT_RADIUS_AU * AU_SCALE_3JS, EARTH_ORBIT_RADIUS_AU * AU_SCALE_3JS, 0, TWO_PI, false, 0);
+            const earthOrbitPoints = earthOrbitCurve.getPoints(100);
+            const earthOrbitGeo = new THREE.BufferGeometry().setFromPoints(earthOrbitPoints);
+            const earthOrbitMat = new THREE.LineBasicMaterial({ color: 0x0077ff, opacity: 0.5, transparent: true });
+            earthOrbitLine3D = new THREE.LineLoop(earthOrbitGeo, earthOrbitMat);
+            scene3D.add(earthOrbitLine3D);
+
+            // Mars Orbit Line (added to marsOrbitContainer3D to rotate with inclination)
+            const marsOrbitCurve = new THREE.EllipseCurve(0, 0, MARS_ORBIT_RADIUS_AU * AU_SCALE_3JS, MARS_ORBIT_RADIUS_AU * AU_SCALE_3JS, 0, TWO_PI, false, 0);
+            const marsOrbitPoints = marsOrbitCurve.getPoints(100);
+            const marsOrbitGeo = new THREE.BufferGeometry().setFromPoints(marsOrbitPoints);
+            const marsOrbitMat = new THREE.LineBasicMaterial({ color: 0xff4500, opacity: 0.5, transparent: true });
+            marsOrbitLine3D = new THREE.LineLoop(marsOrbitGeo, marsOrbitMat);
+            marsOrbitContainer3D.add(marsOrbitLine3D);
+
+            // Add a starfield to the 3D scene
+            const starGeometry = new THREE.BufferGeometry();
+            const starMaterial = new THREE.PointsMaterial({ color: 0xffffff, size: 0.5 });
+            const starVertices = [];
+            for (let i = 0; i < 2000; i++) { // More stars for 3D
+                const x = (Math.random() - 0.5) * 2000;
+                const y = (Math.random() - 0.5) * 2000;
+                const z = (Math.random() - 0.5) * 2000;
+                starVertices.push(x, y, z);
+            }
+            starGeometry.setAttribute('position', new THREE.Float32BufferAttribute(starVertices, 3));
+            stars3D = new THREE.Points(starGeometry, starMaterial);
+            scene3D.add(stars3D);
+
+            // Initialize Celestial Sphere centered around Earth
+            const celestialSphereGeo = new THREE.SphereGeometry(CELESTIAL_SPHERE_RADIUS_AU * AU_SCALE_3JS, 64, 64);
+            const celestialSphereMat = new THREE.MeshBasicMaterial({
+                color: 0x00aaff, // Light blue
+                transparent: true,
+                opacity: CELESTIAL_SPHERE_OPACITY,
+                side: THREE.BackSide // Render inside the sphere
+            });
+            celestialSphere3D = new THREE.Mesh(celestialSphereGeo, celestialSphereMat);
+            scene3D.add(celestialSphere3D);
+
+            // Initialize Ray from Earth to Mars (projected onto celestial sphere)
+            const rayGeometry = new THREE.BufferGeometry();
+            const rayVertices = new Float32Array(2 * 3); // 2 points (start, end), 3 components (x,y,z)
+            rayGeometry.setAttribute('position', new THREE.BufferAttribute(rayVertices, 3));
+            const rayMaterial = new THREE.LineBasicMaterial({ color: 0xffffff, linewidth: 2 }); // White ray
+            earthMarsRay3D = new THREE.Line(rayGeometry, rayMaterial);
+            scene3D.add(earthMarsRay3D);
+
+            // New: Initialize celestial path points on the sphere
+            const maxPoints = NUM_TOTAL_WEEKS; // Max number of points we expect
+            celestialPathGeometry3D = new THREE.BufferGeometry();
+            // Pre-allocate a buffer for positions (maxPoints * 3 components per point)
+            celestialPathGeometry3D.setAttribute('position', new THREE.BufferAttribute(new Float32Array(maxPoints * 3), 3));
+            const celestialPathMaterial3D = new THREE.PointsMaterial({ color: 0x00ff00, size: 5 }); // Green points, increased size
+            celestialPathMesh3D = new THREE.Points(celestialPathGeometry3D, celestialPathMaterial3D);
+            // IMPORTANT CHANGE: Add celestialPathMesh3D to celestialSphere3D, not scene3D
+            celestialSphere3D.add(celestialPathMesh3D);
+
+
+            // Initial update of Mars orbit inclination
+            updateMarsOrbitInclination3D();
+
+            // Handle window resizing for 3D scene
+            window.addEventListener('resize', onWindowResize3D, false);
+        }
+        
+        /**
+         * Updates the inclination of Mars's orbit in the 3D scene.
+         */
+        function updateMarsOrbitInclination3D() {
+            if (marsOrbitContainer3D) {
+                marsOrbitContainer3D.rotation.x = MARS_ORBITAL_INCLINATION_DEG * DEG_TO_RAD;
+            }
+        }
+
+        /**
+         * Handles window resize events for the 3D scene, adjusting camera aspect ratio and renderer size.
+         */
+        function onWindowResize3D() {
+            const container = document.getElementById('canvas3D');
+            if (!container || !camera3D || !renderer3D) return;
+            camera3D.aspect = container.clientWidth / container.clientHeight;
+            camera3D.updateProjectionMatrix();
+            renderer3D.setSize(container.clientWidth, container.clientHeight);
+        }
+
+        /**
+         * Calculates the 3D positions of Earth and Mars in AU relative to the Sun.
+         * @param {number} t_days - Current time in days.
+         */
+        function calculatePlanetPositions(t_days) {
+            // Earth's position (in the XY plane)
+            const earthAngle = OMEGA_E_RAD_PER_DAY * t_days;
+            currentEarthPosAU.x = EARTH_ORBIT_RADIUS_AU * Math.cos(earthAngle);
+            currentEarthPosAU.y = EARTH_ORBIT_RADIUS_AU * Math.sin(earthAngle);
+            currentEarthPosAU.z = 0; // Earth's orbit is in the ecliptic plane (Z=0)
+
+            // Mars's position in its orbital plane
+            const marsAngleInItsPlane = OMEGA_M_RAD_PER_DAY * t_days + (MARS_INITIAL_PHASE_OFFSET_DEG * DEG_TO_RAD);
+            const marsX_orb = MARS_ORBIT_RADIUS_AU * Math.cos(marsAngleInItsPlane);
+            const marsY_orb = MARS_ORBIT_RADIUS_AU * Math.sin(marsAngleInItsPlane);
+
+            // Rotate Mars's position by its orbital inclination around the X-axis to get ecliptic coordinates
+            const marsY_ecl = marsY_orb * Math.cos(MARS_ORBITAL_INCLINATION_DEG * DEG_TO_RAD);
+            const marsZ_ecl = marsY_orb * Math.sin(MARS_ORBITAL_INCLINATION_DEG * DEG_TO_RAD);
+            
+            currentMarsPosAU.x = marsX_orb;
+            currentMarsPosAU.y = marsY_ecl;
+            currentMarsPosAU.z = marsZ_ecl;
+        }
+        
+        /**
+         * Resets the simulation, recalculating the entire Mars celestial path based on current parameters.
+         * This function is called when inclination or phase offset sliders are changed.
+         */
+        function resetSimulation() {
+            console.log("Resetting simulation. Inclination(deg):", MARS_ORBITAL_INCLINATION_DEG, "Phase Offset(deg):", MARS_INITIAL_PHASE_OFFSET_DEG);
+            
+            // Stop auto-advance if it's running
+            stopAutoAdvance();
+
+            // Update 3D Mars orbit inclination immediately
+            updateMarsOrbitInclination3D();
+            
+            // Calculate the time of opposition (when Earth and Mars are closest and aligned with Sun)
+            // This sets the center of our simulation window to a point of interest.
+            const delta_omega = OMEGA_E_RAD_PER_DAY - OMEGA_M_RAD_PER_DAY;
+            let t_opp;
+            if (Math.abs(delta_omega) > 1e-9) {
+                // Time when the angular difference between Earth and Mars (plus initial offset) is 0 or 2PI etc.
+                // We want Earth's angle to match Mars's angle plus its initial offset.
+                // Earth_Angle = Mars_Angle_at_t0 + Mars_Relative_Motion
+                // OMEGA_E * t_opp = (OMEGA_M * t_opp + MARS_INITIAL_PHASE_OFFSET_RAD)
+                // (OMEGA_E - OMEGA_M) * t_opp = MARS_INITIAL_PHASE_OFFSET_RAD
+                t_opp = MARS_INITIAL_PHASE_OFFSET_DEG * DEG_TO_RAD / delta_omega;
+                
+                // Ensure t_opp is positive and within one synodic period
+                const synodicPeriod = TWO_PI / Math.abs(delta_omega);
+                while (t_opp < 0) {
+                    t_opp += synodicPeriod;
+                }
+                t_opp = t_opp % synodicPeriod; // Normalize to be within one synodic period
+            } else {
+                t_opp = 0; // Should not happen with realistic orbital periods
+                console.warn("Delta omega is zero, t_opp calculation might be problematic.");
+            }
+            
+            // Calculate the actual start time for the simulation window
+            // The simulation window is centered around t_opp.
+            const simWindowCenterOffset = ((NUM_TOTAL_WEEKS - 1) / 2) * timeStepDays;
+            simulationActualStartTime = t_opp - simWindowCenterOffset;
+            
+            // Reset current week and time
+            currentWeek = 0;
+            currentTimeDays = simulationActualStartTime;
+
+            // Precompute the entire Mars celestial path for the simulation duration
+            marsPathCelestial = []; // Clear previous path
+            let tempRaValuesForUnwrapping = []; // Temporary array to help with RA unwrapping
+            
+            for (let i = 0; i < NUM_TOTAL_WEEKS; i++) {
+                const t_days_loop = simulationActualStartTime + i * timeStepDays;
+                
+                // Calculate Earth's position
+                const earthAngle = OMEGA_E_RAD_PER_DAY * t_days_loop;
+                const earthX = EARTH_ORBIT_RADIUS_AU * Math.cos(earthAngle);
+                const earthY = EARTH_ORBIT_RADIUS_AU * Math.sin(earthAngle);
+
+                // Calculate Mars's position in its inclined plane
+                const marsAngleInItsPlane = OMEGA_M_RAD_PER_DAY * t_days_loop + (MARS_INITIAL_PHASE_OFFSET_DEG * DEG_TO_RAD);
+                const marsX_orb = MARS_ORBIT_RADIUS_AU * Math.cos(marsAngleInItsPlane);
+                const marsY_orb = MARS_ORBIT_RADIUS_AU * Math.sin(marsAngleInItsPlane);
+
+                // Convert Mars's position to ecliptic coordinates
+                const marsX_ecl = marsX_orb;
+                const marsY_ecl = marsY_orb * Math.cos(MARS_ORBITAL_INCLINATION_DEG * DEG_TO_RAD);
+                const marsZ_ecl = marsY_orb * Math.sin(MARS_ORBITAL_INCLINATION_DEG * DEG_TO_RAD);
+
+                // Calculate vector from Earth to Mars
+                const vecEMx = marsX_ecl - earthX;
+                const vecEMy = marsY_ecl - earthY;
+                const vecEMz = marsZ_ecl - 0; // Earth is at Z=0
+
+                // Calculate Right Ascension (RA) and Declination (DEC)
+                let ra_raw = Math.atan2(vecEMy, vecEMx);
+                let dec = Math.atan2(vecEMz, Math.sqrt(vecEMx * vecEMx + vecEMy * vecEMy));
+
+                // Unwrap RA to ensure continuous path (no jumps from PI to -PI)
+                let ra_unwrapped = ra_raw;
+                if (i > 0) {
+                    const prev_ra = tempRaValuesForUnwrapping[i - 1];
+                    while (ra_unwrapped - prev_ra > PI) ra_unwrapped -= TWO_PI;
+                    while (ra_unwrapped - prev_ra < -PI) ra_unwrapped += TWO_PI;
+                }
+                tempRaValuesForUnwrapping.push(ra_unwrapped); // Store for next iteration's unwrapping
+
+                marsPathCelestial.push({ ra_unwrapped: ra_unwrapped, dec: dec, time: t_days_loop });
+            }
+
+            // After populating marsPathCelestial, determine the plotting bounds for the 2D canvas
+            precomputeCelestialPathBounds();
+
+            // Clear 3D celestial path points on reset
+            if (celestialPathGeometry3D) {
+                const positions = celestialPathGeometry3D.attributes.position.array;
+                // Explicitly zero out all positions in the buffer for a clean slate
+                for (let i = 0; i < NUM_TOTAL_WEEKS * 3; i++) {
+                    positions[i] = 0;
+                }
+                celestialPathGeometry3D.setDrawRange(0, 0); // Hide all points
+                celestialPathGeometry3D.attributes.position.needsUpdate = true;
+            }
+
+            // Update display and draw
+            drawApp(); // This will update planets and ray, but *not* add path points.
+            updateTimeDisplay();
+            
+            // Set button states
+            nextWeekBtn.disabled = false;
+            rewindWeekBtn.disabled = true; // Start at week 0, so rewind is disabled
+            autoAdvanceBtn.disabled = false; // Enable auto-advance button
+            stopAutoBtn.disabled = true; // Disable stop auto button
+
+            console.log("Sim reset complete. Simulation starts at day:", simulationActualStartTime.toFixed(2));
+        }
+
+        /**
+         * Main initialization function, called when the window loads.
+         * Sets up canvases, event listeners, and starts the simulation.
+         */
+        function init() {
+            try {
+                // Get DOM elements
+                nextWeekBtn = document.getElementById('nextWeekBtn');
+                rewindWeekBtn = document.getElementById('rewindWeekBtn');
+                resetBtn = document.getElementById('resetBtn');
+                autoAdvanceBtn = document.getElementById('autoAdvanceBtn'); // Get new auto advance button
+                stopAutoBtn = document.getElementById('stopAutoBtn');     // Get new stop auto button
+                canvas2D = document.getElementById('canvas2D');
+                
+                // Setup 2D canvas and create background stars
+                ctx2D = setup2DCanvas(canvas2D);
+                createStars2D(CANVAS2D_DISPLAY_WIDTH, CANVAS2D_DISPLAY_HEIGHT);
+                
+                // Initialize 3D scene
+                init3DScene();
+                
+                // Get slider elements and their value displays
+                const inclinationSlider = document.getElementById('inclinationSlider');
+                const inclinationValueDisplay = document.getElementById('inclinationValue');
+                const phaseOffsetSlider = document.getElementById('phaseOffsetSlider');
+                const phaseOffsetValueDisplay = document.getElementById('phaseOffsetValue');
+
+                // Add event listeners for inclination slider
+                inclinationSlider.addEventListener('input', (e) => {
+                    MARS_ORBITAL_INCLINATION_DEG = parseFloat(e.target.value);
+                    inclinationValueDisplay.textContent = MARS_ORBITAL_INCLINATION_DEG.toFixed(2);
+                });
+                inclinationSlider.addEventListener('change', resetSimulation); // Recalculate on change
+
+                // Add event listeners for phase offset slider
+                phaseOffsetSlider.addEventListener('input', (e) => {
+                    MARS_INITIAL_PHASE_OFFSET_DEG = parseFloat(e.target.value);
+                    phaseOffsetValueDisplay.textContent = MARS_INITIAL_PHASE_OFFSET_DEG.toFixed(0);
+                });
+                phaseOffsetSlider.addEventListener('change', resetSimulation); // Recalculate on change
+
+                // Set initial display values for sliders
+                inclinationValueDisplay.textContent = MARS_ORBITAL_INCLINATION_DEG.toFixed(2);
+                phaseOffsetValueDisplay.textContent = MARS_INITIAL_PHASE_OFFSET_DEG.toFixed(0);
+
+                // Initial simulation reset and draw
+                resetSimulation();
+                
+                // Add event listeners for navigation buttons
+                nextWeekBtn.addEventListener('click', advanceTime);
+                rewindWeekBtn.addEventListener('click', rewindTime);
+                resetBtn.addEventListener('click', resetSimulation);
+                autoAdvanceBtn.addEventListener('click', startAutoAdvance); // Event listener for auto advance
+                stopAutoBtn.addEventListener('click', stopAutoAdvance);   // Event listener for stop auto
+                
+                // Start the 3D animation loop
+                animate3D();
+            } catch (error) {
+                console.error("Error during initialization:", error);
+            }
+        }
+
+        /**
+         * Animation loop for the Three.js 3D scene.
+         */
+        function animate3D() {
+            requestAnimationFrame(animate3D); // Request next frame
+            if (controls3D) controls3D.update(); // Update orbit controls
+            if (renderer3D && scene3D && camera3D) renderer3D.render(scene3D, camera3D); // Render the scene
+        }
+
+        /**
+         * Generates random stars for the 2D background.
+         * @param {number} w - Width of the 2D canvas.
+         * @param {number} h - Height of the 2D canvas.
+         */
+        function createStars2D(w, h) {
+            stars2D = [];
+            for (let i = 0; i < NUM_STARS_2D; i++) {
+                stars2D.push({
+                    x: Math.random() * w,
+                    y: Math.random() * h,
+                    r: Math.random() * 1.2 + 0.3, // Radius
+                    a: Math.random() * 0.5 + 0.3  // Alpha (opacity)
+                });
+            }
+        }
+
+        /**
+         * Draws the 2D background stars on the canvas.
+         * @param {CanvasRenderingContext2D} ctx - The 2D rendering context.
+         */
+        function drawStars2D(ctx) {
+            stars2D.forEach(s => {
+                ctx.beginPath();
+                ctx.arc(s.x, s.y, s.r, 0, TWO_PI);
+                ctx.fillStyle = `rgba(255,255,220,${s.a})`; // Slightly yellowish stars
+                ctx.fill();
+            });
+        }
+
+        /**
+         * Determines the min/max Right Ascension (RA) and Declination (DEC)
+         * for the entire precomputed Mars celestial path. This is used to scale
+         * the 2D plot correctly.
+         */
+        function precomputeCelestialPathBounds() {
+            if (marsPathCelestial.length === 0) return;
+
+            let tempRaValues = marsPathCelestial.map(p => p.ra_unwrapped);
+            let decValues = marsPathCelestial.map(p => p.dec);
+
+            let minRA_actual = Math.min(...tempRaValues);
+            let maxRA_actual = Math.max(...tempRaValues);
+            let minDEC_actual = Math.min(...decValues);
+            let maxDEC_actual = Math.max(...decValues);
+
+            let raRange_actual = maxRA_actual - minRA_actual;
+            let decRange_actual = maxDEC_actual - minDEC_actual;
+
+            // Ensure a minimum range to prevent extreme zooming
+            const MIN_DISPLAY_RANGE_RAD = 2.0 * DEG_TO_RAD; // A reasonable minimum angular size (e.g., 2 degrees)
+
+            raRange_actual = Math.max(raRange_actual, MIN_DISPLAY_RANGE_RAD);
+            decRange_actual = Math.max(decRange_actual, MIN_DISPLAY_RANGE_RAD);
+
+            // Determine the larger range to maintain aspect ratio for a square canvas
+            const maxOverallRange = Math.max(raRange_actual, decRange_actual);
+
+            // Add a consistent padding percentage to the determined range
+            const paddingFactor = 0.20; // 20% padding
+            const paddedRange = maxOverallRange * (1 + paddingFactor);
+
+            // Calculate new min/max RA and DEC to fit the padded square range, centered
+            const midRA_actual = (minRA_actual + maxRA_actual) / 2;
+            const midDEC_actual = (minDEC_actual + maxDEC_actual) / 2;
+
+            minRA = midRA_actual - paddedRange / 2;
+            maxRA = midRA_actual + paddedRange / 2;
+            minDEC = midDEC_actual - paddedRange / 2;
+            maxDEC = midDEC_actual + paddedRange / 2;
+
+            // Ensure bounds are not identical (edge case for tiny movements)
+            if (maxRA === minRA) { maxRA += 0.01; minRA -= 0.01; }
+            if (maxDEC === minDEC) { maxDEC += 0.01; minDEC -= 0.01; }
+        }
+
+        /**
+         * Updates the positions of Earth and Mars in the 3D scene,
+         * and also updates the celestial sphere and the Earth-Mars ray.
+         */
+        function update3DPlanetPositions() {
+            // Update Earth's 3D position
+            if (earth3DObj) {
+                earth3DObj.position.set(
+                    currentEarthPosAU.x * AU_SCALE_3JS,
+                    currentEarthPosAU.y * AU_SCALE_3JS,
+                    currentEarthPosAU.z * AU_SCALE_3JS
+                );
+            }
+
+            // Update Mars's 3D position (relative to its inclined orbit container)
+            if (mars3DObj && marsOrbitContainer3D) {
+                // Calculate Mars's angle within its own orbital plane
+                const marsAngle = OMEGA_M_RAD_PER_DAY * currentTimeDays + (MARS_INITIAL_PHASE_OFFSET_DEG * DEG_TO_RAD);
+                mars3DObj.position.set(
+                    MARS_ORBIT_RADIUS_AU * Math.cos(marsAngle) * AU_SCALE_3JS,
+                    MARS_ORBIT_RADIUS_AU * Math.sin(marsAngle) * AU_SCALE_3JS,
+                    0 // Z is 0 in its own plane before inclination
+                );
+            }
+
+            // Update celestial sphere position to be centered on Earth
+            if (celestialSphere3D && earth3DObj) {
+                celestialSphere3D.position.copy(earth3DObj.position);
+            }
+
+            // Update Earth-Mars Ray
+            if (earthMarsRay3D && earth3DObj && mars3DObj) {
+                const earthPos = earth3DObj.position;
+                // Get Mars's world position (important as Mars is nested in marsOrbitContainer3D)
+                const marsWorldPos = new THREE.Vector3();
+                mars3DObj.getWorldPosition(marsWorldPos);
+
+                // Calculate the direction vector from Earth to Mars
+                const direction = new THREE.Vector3().subVectors(marsWorldPos, earthPos).normalize();
+
+                // Calculate the end point of the ray on the celestial sphere
+                // The ray starts at Earth's center and extends outwards by the sphere's radius
+                const rayEndPoint = new THREE.Vector3().copy(earthPos).add(direction.multiplyScalar(CELESTIAL_SPHERE_RADIUS_AU * AU_SCALE_3JS));
+
+                // Update the ray's geometry vertices
+                const positions = earthMarsRay3D.geometry.attributes.position.array;
+                positions[0] = earthPos.x;
+                positions[1] = earthPos.y;
+                positions[2] = earthPos.z;
+                positions[3] = rayEndPoint.x;
+                positions[4] = rayEndPoint.y;
+                positions[5] = rayEndPoint.z;
+                earthMarsRay3D.geometry.attributes.position.needsUpdate = true; // Tell Three.js to update
+            }
+        }
+
+        /**
+         * Updates the 3D celestial path points based on the current simulation week.
+         */
+        function update3DCelestialPathPoints() {
+            if (!celestialPathGeometry3D || marsPathCelestial.length === 0) return;
+
+            const pathPositions = celestialPathGeometry3D.attributes.position.array;
+            const radius = CELESTIAL_SPHERE_RADIUS_AU * AU_SCALE_3JS; // Radius of the celestial sphere
+
+            // Iterate up to currentWeek to draw points
+            for (let i = 0; i <= currentWeek; i++) {
+                const p = marsPathCelestial[i];
+                const ra = p.ra_unwrapped;
+                const dec = p.dec;
+
+                // Convert RA/DEC to Cartesian coordinates on the sphere
+                // These coordinates are relative to the center of the celestial sphere (Earth's position)
+                const x = radius * Math.cos(dec) * Math.cos(ra);
+                const y = radius * Math.cos(dec) * Math.sin(ra);
+                const z = radius * Math.sin(dec);
+
+                const index = i * 3;
+                pathPositions[index] = x;
+                pathPositions[index + 1] = y;
+                pathPositions[index + 2] = z;
+            }
+
+            celestialPathGeometry3D.setDrawRange(0, (currentWeek + 1) * 3);
+            celestialPathGeometry3D.attributes.position.needsUpdate = true;
+        }
+
+        /**
+         * Draws the entire application state, including 3D and 2D panels.
+         */
+        function drawApp() {
+            // Calculate current planet positions in AU
+            calculatePlanetPositions(currentTimeDays);
+            
+            // Update 3D planet positions and auxiliary objects (sphere, ray)
+            update3DPlanetPositions();
+
+            // Draw the 2D celestial path panel
+            draw2DPanel();
+        }
+
+        /**
+         * Draws the 2D celestial path of Mars as seen from Earth.
+         */
+        function draw2DPanel() {
+            ctx2D.clearRect(0, 0, CANVAS2D_DISPLAY_WIDTH, CANVAS2D_DISPLAY_HEIGHT); // Clear canvas
+            drawStars2D(ctx2D); // Draw background stars
+
+            // Return if path data or bounds are not ready
+            if (marsPathCelestial.length === 0 || typeof minRA === 'undefined' || maxRA === minRA || typeof minDEC === 'undefined' || maxDEC === minDEC) {
+                return;
+            }
+
+            // Draw the path
+            ctx2D.beginPath();
+            ctx2D.strokeStyle = 'rgba(255,255,255,0.25)'; // Faded path color
+            ctx2D.lineWidth = 1.5;
+
+            // Iterate through the precomputed path up to the current week
+            for (let i = 0; i <= currentWeek; i++) {
+                const p = marsPathCelestial[i];
+                // Map RA and DEC to canvas coordinates
+                const x = CANVAS2D_DISPLAY_WIDTH * (maxRA - p.ra_unwrapped) / (maxRA - minRA);
+                const y = CANVAS2D_DISPLAY_HEIGHT * (1 - (p.dec - minDEC) / (maxDEC - minDEC));
+
+                if (i === 0) {
+                    ctx2D.moveTo(x, y);
+                } else {
+                    ctx2D.lineTo(x, y);
+                }
+            }
+            ctx2D.stroke();
+
+            // Draw points along the path and highlight the current position
+            for (let i = 0; i <= currentWeek; i++) {
+                const p = marsPathCelestial[i];
+                const x = CANVAS2D_DISPLAY_WIDTH * (maxRA - p.ra_unwrapped) / (maxRA - minRA);
+                const y = CANVAS2D_DISPLAY_HEIGHT * (1 - (p.dec - minDEC) / (maxDEC - minDEC));
+
+                ctx2D.beginPath();
+                ctx2D.arc(x, y, 3.5, 0, TWO_PI); // Draw a circle for each point
+
+                // Highlight the current week's position
+                const isCurrent = (i === currentWeek);
+                ctx2D.fillStyle = isCurrent ? 'yellow' : 'white';
+                ctx2D.shadowBlur = isCurrent ? 8 : 5;
+                ctx2D.shadowColor = isCurrent ? "yellow" : "rgba(255,255,255,0.7)";
+                ctx2D.fill();
+                ctx2D.shadowBlur = 0; // Reset shadow
+            }
+        }
+
+        /**
+         * Starts the automatic advancement of the simulation.
+         */
+        function startAutoAdvance() {
+            if (autoAdvanceIntervalId === null) { // Only start if not already running
+                autoAdvanceIntervalId = setInterval(() => {
+                    // Stop auto-advance if we reach the end
+                    if (currentWeek >= NUM_TOTAL_WEEKS - 1) {
+                        stopAutoAdvance();
+                    } else {
+                        advanceTime(); // Advance by one week
+                    }
+                }, 500); // Advance every 500 milliseconds (0.5 seconds)
+
+                // Disable manual controls and auto-advance button, enable stop button
+                nextWeekBtn.disabled = true;
+                rewindWeekBtn.disabled = true;
+                autoAdvanceBtn.disabled = true;
+                stopAutoBtn.disabled = false;
+            }
+        }
+
+        /**
+         * Stops the automatic advancement of the simulation.
+         */
+        function stopAutoAdvance() {
+            if (autoAdvanceIntervalId !== null) {
+                clearInterval(autoAdvanceIntervalId);
+                autoAdvanceIntervalId = null;
+
+                // Re-enable manual controls and auto-advance button, disable stop button
+                nextWeekBtn.disabled = (currentWeek >= NUM_TOTAL_WEEKS - 1); // Re-evaluate next button state
+                rewindWeekBtn.disabled = (currentWeek <= 0); // Re-evaluate rewind button state
+                autoAdvanceBtn.disabled = false;
+                stopAutoBtn.disabled = true;
+            }
+        }
+
+        /**
+         * Advances the simulation by one week.
+         */
+        function advanceTime() {
+            if (currentWeek < NUM_TOTAL_WEEKS - 1) {
+                currentWeek++;
+                currentTimeDays = simulationActualStartTime + currentWeek * timeStepDays; // Update current time
+                drawApp(); // Redraw the application
+                update3DCelestialPathPoints(); // Update 3D points
+                updateTimeDisplay(); // Update week display
+                rewindWeekBtn.disabled = false; // Enable rewind button
+            }
+            if (currentWeek >= NUM_TOTAL_WEEKS - 1) {
+                nextWeekBtn.disabled = true; // Disable advance button if at the end
+                stopAutoAdvance(); // Stop auto-advance if it reaches the end
+            }
+        }
+
+        /**
+         * Rewinds the simulation by one week.
+         */
+        function rewindTime() {
+            if (currentWeek > 0) {
+                currentWeek--;
+                currentTimeDays = simulationActualStartTime + currentWeek * timeStepDays; // Update current time
+                drawApp(); // Redraw the application
+                update3DCelestialPathPoints(); // Update 3D points (this will effectively hide the last point)
+                updateTimeDisplay(); // Update week display
+                nextWeekBtn.disabled = false; // Enable advance button
+            }
+            if (currentWeek <= 0) {
+                rewindWeekBtn.disabled = true; // Disable rewind button if at the beginning
+            }
+        }
+
+        /**
+         * Updates the text display for the current week.
+         */
+        function updateTimeDisplay() {
+            const el = document.getElementById('timeDisplay');
+            if (el) {
+                el.textContent = `Week: ${currentWeek + 1} / ${NUM_TOTAL_WEEKS}`;
+            }
+        }
+
+        // Initialize the application when the window finishes loading
+        window.onload = init;
+    </script>
+<script src="../../../assets/sim.js" data-root="../../../#astronomy-and-space-science"></script>
+</body>
+</html>

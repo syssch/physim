@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="../../../assets/sim-early.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bohr Model and Spectral Lines · PhySim</title>
+    <link rel="stylesheet" href="../../../assets/vendor/tailwind.css">
+    <link rel="stylesheet" href="../../../assets/vendor/inter/inter.css">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            overflow: hidden; /* Prevent scrollbars */
+        }
+        .panel {
+            border: 1px solid #374151; /* gray-700 */
+            border-radius: 0.75rem;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+        }
+        canvas {
+            cursor: pointer;
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+        .toggle-btn {
+            background-color: #374151; /* gray-700 */
+            color: #d1d5db; /* gray-300 */
+            padding: 0.25rem 0.75rem;
+            border-radius: 0.5rem;
+            border: 1px solid #4b5563; /* gray-600 */
+            transition: all 0.2s ease-in-out;
+            font-size: 0.875rem;
+        }
+        .toggle-btn.active {
+            background-color: #38bdf8; /* sky-500 */
+            color: #ffffff;
+            border-color: #38bdf8;
+        }
+        /* ---- Phone / narrow-screen layout ---- */
+        @media (max-width: 900px) {
+            body { overflow: auto; height: auto !important; display: block !important; padding: 8px !important; }
+            #appBox { aspect-ratio: auto; padding: 12px; }
+            #appBox header h1 { font-size: 1.35rem; }
+            #appBox header p { font-size: .9rem; }
+            #infoRow { flex-direction: column; gap: 10px; margin-bottom: 8px; }
+            #instructions { font-size: .85rem; padding: 10px 12px; }
+            #infoRow > div:last-child { justify-content: center; }
+            #infoRow .panel { padding: 8px 14px; }
+            #infoRow .panel p:first-child { font-size: .7rem; }
+            #initialStateDisplay, #finalStateDisplay { font-size: 1.6rem; }
+            #panelsRow { margin-top: 4px; gap: 12px; }
+            #panelsRow > .panel { padding: 10px; }
+            #panelsRow > .panel:first-child { height: 380px; }
+            #panelsRow > .panel:last-child { height: 230px; }
+            .toggle-btn { padding: .45rem .9rem; }
+        }
+    </style>
+<link rel="icon" href="../../../favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../../../assets/sim.css">
+</head>
+<body class="bg-black flex items-center justify-center h-screen p-4 md:p-6">
+
+    <div id="appBox" class="w-full max-w-7xl aspect-[16/9] bg-gray-900 text-gray-200 rounded-2xl shadow-2xl p-6 flex flex-col">
+        <header class="text-center mb-4">
+            <h1 class="text-3xl md:text-4xl font-bold text-gray-100">Hydrogen Emission Spectrum Simulator</h1>
+            <p class="text-md md:text-lg text-gray-400 mt-1">An interactive Bohr model visualization.</p>
+        </header>
+        
+        <div id="infoRow" class="flex justify-between items-stretch gap-6 mb-4">
+             <div id="instructions" class="bg-gray-800 border-l-4 border-sky-500 text-sky-300 p-4 rounded-md flex-grow" role="alert">
+                <p class="font-bold">How to use:</p>
+                <p>1. <span class="font-semibold">Click two orbits or energy levels</span> on the left to see the corresponding spectral line.</p>
+                <p>2. <span class="font-semibold">Click a spectral line</span> on the right to see the electron transition on the left.</p>
+            </div>
+        
+            <div class="flex items-center gap-4">
+                <div class="panel bg-gray-800/50 p-4 text-center">
+                    <p class="text-sm text-gray-400 uppercase tracking-wider">Initial State</p>
+                    <p id="initialStateDisplay" class="text-3xl md:text-4xl font-bold text-yellow-400">-</p>
+                </div>
+                <div class="text-yellow-400">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 md:h-10 md:w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                    </svg>
+                </div>
+                <div class="panel bg-gray-800/50 p-4 text-center">
+                    <p class="text-sm text-gray-400 uppercase tracking-wider">Final State</p>
+                    <p id="finalStateDisplay" class="text-3xl md:text-4xl font-bold text-yellow-400">-</p>
+                </div>
+            </div>
+        </div>
+
+        <div id="panelsRow" class="flex-grow flex flex-col lg:flex-row gap-6 mt-4">
+            <!-- Left Panel: Bohr Model / Energy Levels -->
+            <div class="panel bg-gray-800/50 p-4 flex flex-col lg:aspect-square">
+                <div class="flex justify-center items-center mb-2 space-x-2">
+                    <button id="bohrModeBtn" class="toggle-btn active">Bohr Model</button>
+                    <button id="energyModeBtn" class="toggle-btn">Energy Levels</button>
+                </div>
+                <div class="flex-grow relative">
+                    <canvas id="bohrCanvas"></canvas>
+                </div>
+            </div>
+
+            <!-- Right Panel: Spectrum -->
+            <div class="panel bg-gray-800/50 p-4 flex flex-col flex-grow">
+                <div class="flex justify-center items-center mb-2 space-x-2">
+                    <button id="wavelengthModeBtn" class="toggle-btn active">Wavelength</button>
+                    <button id="frequencyModeBtn" class="toggle-btn">Frequency</button>
+                </div>
+                 <div class="flex-grow relative">
+                    <canvas id="spectrumCanvas"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- Canvas and Context Setup ---
+            const bohrCanvas = document.getElementById('bohrCanvas');
+            const spectrumCanvas = document.getElementById('spectrumCanvas');
+            const bohrCtx = bohrCanvas.getContext('2d');
+            const spectrumCtx = spectrumCanvas.getContext('2d');
+
+            const bohrModeBtn = document.getElementById('bohrModeBtn');
+            const energyModeBtn = document.getElementById('energyModeBtn');
+            const wavelengthModeBtn = document.getElementById('wavelengthModeBtn');
+            const frequencyModeBtn = document.getElementById('frequencyModeBtn');
+            const initialStateDisplay = document.getElementById('initialStateDisplay');
+            const finalStateDisplay = document.getElementById('finalStateDisplay');
+
+            let bohrCanvasContainer = bohrCanvas.parentElement;
+            let spectrumCanvasContainer = spectrumCanvas.parentElement;
+            
+            // --- Constants and State ---
+            const RYDBERG_CONSTANT = 1.097373e7; // m^-1
+            const SPEED_OF_LIGHT = 299792458; // m/s
+            const E1_EV = -13.6; // Ground state energy in eV
+            const MAX_N = 10; // Max n for transition calculations
+            const MAX_N_DRAW = 7; // Max n for drawing orbits/levels
+            const NUCLEUS_RADIUS = 4;
+            
+            let transitions = [];
+            let selectedOrbits = [];
+            let highlightedTransition = null;
+            let leftDiagramMode = 'bohr'; // 'bohr' or 'energy'
+            let rightDiagramMode = 'wavelength'; // 'wavelength' or 'frequency'
+
+
+            // --- Main Resizing and Initialization Logic ---
+            function resizeCanvases() {
+                let dpr = window.devicePixelRatio || 1;
+                // Bohr canvas setup
+                let rectBohr = bohrCanvasContainer.getBoundingClientRect();
+                if (rectBohr.width > 0 && rectBohr.height > 0) {
+                    bohrCanvas.width = rectBohr.width * dpr;
+                    bohrCanvas.height = rectBohr.height * dpr;
+                    bohrCtx.scale(dpr, dpr);
+                    bohrCanvas.style.width = `${rectBohr.width}px`;
+                    bohrCanvas.style.height = `${rectBohr.height}px`;
+                }
+
+
+                // Spectrum canvas setup
+                let rectSpectrum = spectrumCanvasContainer.getBoundingClientRect();
+                 if (rectSpectrum.width > 0 && rectSpectrum.height > 0) {
+                    spectrumCanvas.width = rectSpectrum.width * dpr;
+                    spectrumCanvas.height = rectSpectrum.height * dpr;
+                    spectrumCtx.scale(dpr, dpr);
+                    spectrumCanvas.style.width = `${rectSpectrum.width}px`;
+                    spectrumCanvas.style.height = `${rectSpectrum.height}px`;
+                }
+
+                calculateTransitions();
+                draw();
+            }
+
+            function init() {
+                resizeCanvases();
+                window.addEventListener('resize', resizeCanvases);
+
+                bohrCanvas.addEventListener('click', handleLeftPanelClick);
+                spectrumCanvas.addEventListener('click', handleSpectrumClick);
+
+                bohrModeBtn.addEventListener('click', () => {
+                    leftDiagramMode = 'bohr';
+                    bohrModeBtn.classList.add('active');
+                    energyModeBtn.classList.remove('active');
+                    draw();
+                });
+                energyModeBtn.addEventListener('click', () => {
+                    leftDiagramMode = 'energy';
+                    energyModeBtn.classList.add('active');
+                    bohrModeBtn.classList.remove('active');
+                    draw();
+                });
+                wavelengthModeBtn.addEventListener('click', () => {
+                    rightDiagramMode = 'wavelength';
+                    wavelengthModeBtn.classList.add('active');
+                    frequencyModeBtn.classList.remove('active');
+                    draw();
+                });
+                frequencyModeBtn.addEventListener('click', () => {
+                    rightDiagramMode = 'frequency';
+                    frequencyModeBtn.classList.add('active');
+                    wavelengthModeBtn.classList.remove('active');
+                    draw();
+                });
+            }
+
+            // --- Calculation Functions ---
+            function calculateWavelength(n1, n2) {
+                if (n1 >= n2) return 0;
+                const wavelength_m = 1 / (RYDBERG_CONSTANT * (1 / (n1 * n1) - 1 / (n2 * n2)));
+                return wavelength_m * 1e9; // Convert to nanometers
+            }
+
+            function calculateTransitions() {
+                transitions = [];
+                for (let n1 = 1; n1 < MAX_N; n1++) {
+                    for (let n2 = n1 + 1; n2 <= MAX_N; n2++) {
+                        const wavelength = calculateWavelength(n1, n2);
+                        if (wavelength > 0) {
+                            const frequency = SPEED_OF_LIGHT / (wavelength * 1e-9);
+                            transitions.push({ n1, n2, wavelength, frequency });
+                        }
+                    }
+                }
+            }
+            
+            function getEnergyY(n, canvasHeight) {
+                const topPadding = 40;
+                const bottomPadding = 40;
+                const plotHeight = canvasHeight - topPadding - bottomPadding;
+
+                if (n === Infinity) return topPadding;
+                const energy = E1_EV / (n * n);
+                const normalizedEnergy = (energy - E1_EV) / (0 - E1_EV); // 0 to 1
+                return (1 - normalizedEnergy) * plotHeight + topPadding;
+            }
+
+            // Wavelength to RGB conversion
+            function wavelengthToRgb(wavelength) {
+                let r, g, b;
+                if (wavelength >= 380 && wavelength <= 439) { // Violet
+                    r = -(wavelength - 440) / (440 - 380); g = 0.0; b = 1.0;
+                } else if (wavelength >= 440 && wavelength <= 489) { // Blue
+                    r = 0.0; g = (wavelength - 440) / (490 - 440); b = 1.0;
+                } else if (wavelength >= 490 && wavelength <= 509) { // Cyan
+                    r = 0.0; g = 1.0; b = -(wavelength - 510) / (510 - 490);
+                } else if (wavelength >= 510 && wavelength <= 579) { // Green
+                    r = (wavelength - 510) / (580 - 510); g = 1.0; b = 0.0;
+                } else if (wavelength >= 580 && wavelength <= 644) { // Yellow/Orange
+                    r = 1.0; g = -(wavelength - 645) / (645 - 580); b = 0.0;
+                } else if (wavelength >= 645 && wavelength <= 750) { // Red
+                    r = 1.0; g = 0.0; b = 0.0;
+                } else { // UV or IR
+                    return { r: 150, g: 150, b: 150 }; // Gray
+                }
+                const factor = wavelength < 420 ? 0.3 + 0.7 * (wavelength - 380) / (420 - 380) :
+                               wavelength > 645 ? 0.3 + 0.7 * (750 - wavelength) / (750 - 645) : 1.0;
+                return { r: r * 255 * factor, g: g * 255 * factor, b: b * 255 * factor };
+            }
+
+            // --- Drawing Functions ---
+            function draw() {
+                if (leftDiagramMode === 'bohr') {
+                    drawBohrModel();
+                } else {
+                    drawEnergyLevels();
+                }
+                drawSpectrum();
+                updateStateDisplay();
+            }
+
+            function updateStateDisplay() {
+                if (highlightedTransition) {
+                    initialStateDisplay.textContent = 'n = ' + highlightedTransition.n2;
+                    finalStateDisplay.textContent = 'n = ' + highlightedTransition.n1;
+                } else {
+                    initialStateDisplay.textContent = '-';
+                    finalStateDisplay.textContent = '-';
+                }
+            }
+
+            function drawBohrModel() {
+                const { width, height } = bohrCanvas.getBoundingClientRect();
+                if (width === 0 || height === 0) return;
+                const centerX = width / 2;
+                const centerY = height / 2;
+                const maxOrbitRadius = Math.min(width, height) / 2 - 30;
+                if (maxOrbitRadius <= 0) return;
+                const radiusScale = maxOrbitRadius / (MAX_N_DRAW * MAX_N_DRAW);
+
+                bohrCtx.clearRect(0, 0, width, height);
+
+                for (let n = 1; n <= MAX_N_DRAW; n++) {
+                    const radius = n * n * radiusScale;
+                    const isSelected = selectedOrbits.includes(n);
+                    bohrCtx.beginPath();
+                    bohrCtx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
+                    bohrCtx.strokeStyle = isSelected ? '#38bdf8' : '#4b5563';
+                    bohrCtx.lineWidth = isSelected ? 3 : 1;
+                    bohrCtx.stroke();
+                }
+
+                if (highlightedTransition) {
+                    const { n1, n2 } = highlightedTransition;
+                    if (n1 <= MAX_N_DRAW) { // Only check if the destination is drawable
+                        const r1 = n1 * n1 * radiusScale;
+                        const r2 = (n2 <= MAX_N_DRAW) 
+                            ? (n2 * n2 * radiusScale)
+                            : (MAX_N_DRAW * MAX_N_DRAW * radiusScale + 15); // Start from just outside the last drawn orbit
+
+                        bohrCtx.beginPath();
+                        bohrCtx.moveTo(centerX, centerY - r2);
+                        bohrCtx.lineTo(centerX, centerY - r1);
+                        bohrCtx.strokeStyle = '#facc15';
+                        bohrCtx.lineWidth = 2;
+                        bohrCtx.stroke();
+                    }
+                    bohrCtx.fillStyle = '#facc15';
+                    bohrCtx.font = '14px Inter, system-ui, sans-serif';
+                    bohrCtx.textAlign = 'center';
+                    bohrCtx.textBaseline = 'bottom';
+                    bohrCtx.fillText(`Transition: n=${n2} → n=${n1}`, centerX, height - 10);
+                }
+
+                bohrCtx.beginPath();
+                bohrCtx.arc(centerX, centerY, NUCLEUS_RADIUS, 0, 2 * Math.PI);
+                bohrCtx.fillStyle = '#ef4444';
+                bohrCtx.fill();
+                bohrCtx.fillStyle = 'white';
+                bohrCtx.font = 'bold 10px Inter, system-ui, sans-serif';
+                bohrCtx.textAlign = 'center';
+                bohrCtx.textBaseline = 'middle';
+                bohrCtx.fillText('+', centerX, centerY);
+            }
+            
+            function drawEnergyLevels() {
+                const { width, height } = bohrCanvas.getBoundingClientRect();
+                 if (width === 0 || height === 0) return;
+                bohrCtx.clearRect(0, 0, width, height);
+                const leftX = 60;
+                const rightX = width - 60;
+
+                bohrCtx.font = '12px Inter, system-ui, sans-serif';
+                bohrCtx.textAlign = 'left';
+                bohrCtx.textBaseline = 'middle';
+
+                for (let n = 1; n <= MAX_N_DRAW; n++) {
+                    const y = getEnergyY(n, height);
+                    const isSelected = selectedOrbits.includes(n);
+                    
+                    bohrCtx.beginPath();
+                    bohrCtx.moveTo(leftX, y);
+                    bohrCtx.lineTo(rightX, y);
+                    bohrCtx.strokeStyle = isSelected ? '#38bdf8' : '#4b5563';
+                    bohrCtx.lineWidth = isSelected ? 3 : 1;
+                    bohrCtx.stroke();
+                }
+
+                if (highlightedTransition) {
+                    const { n1, n2 } = highlightedTransition;
+                    // We can draw the line as long as the destination level is visible.
+                    // The start level's Y position can be calculated even if it's not drawn.
+                    if (n1 <= MAX_N_DRAW) {
+                        const y1 = getEnergyY(n1, height);
+                        const y2 = getEnergyY(n2, height);
+                        bohrCtx.beginPath();
+                        bohrCtx.moveTo(width/2, y1);
+                        bohrCtx.lineTo(width/2, y2);
+                        bohrCtx.strokeStyle = '#facc15';
+                        bohrCtx.lineWidth = 2;
+                        bohrCtx.stroke();
+                    }
+                    const energy1 = E1_EV / (n1 * n1);
+                    const energy2 = E1_EV / (n2 * n2);
+                    bohrCtx.fillStyle = '#facc15';
+                    bohrCtx.font = '14px Inter, system-ui, sans-serif';
+                    bohrCtx.textAlign = 'center';
+                    bohrCtx.textBaseline = 'bottom';
+                    bohrCtx.fillText(`n = ${n2} (${energy2.toFixed(2)} eV) → n = ${n1} (${energy1.toFixed(2)} eV)`, width / 2, height - 10);
+                }
+            }
+
+            function drawSpectrum() {
+                const { width, height } = spectrumCanvas.getBoundingClientRect();
+                 if (width === 0 || height === 0) return;
+                spectrumCtx.clearRect(0, 0, width, height);
+
+                if (rightDiagramMode === 'wavelength') {
+                    drawWavelengthSpectrum();
+                } else {
+                    drawFrequencySpectrum();
+                }
+            }
+            
+            function drawWavelengthSpectrum() {
+                const { width, height } = spectrumCanvas.getBoundingClientRect();
+                const padding = 40;
+                const minW = 90, maxW = 30000;
+                
+                spectrumCtx.beginPath();
+                spectrumCtx.moveTo(padding, height - padding);
+                spectrumCtx.lineTo(width - padding, height - padding);
+                spectrumCtx.strokeStyle = '#6b7280';
+                spectrumCtx.stroke();
+                
+                spectrumCtx.fillStyle = '#9ca3af';
+                spectrumCtx.font = '12px Inter, system-ui, sans-serif';
+                spectrumCtx.textAlign = 'center';
+                const ticks = [400, 750, 4000, 10000, 25000];
+                let lastLabelX = -Infinity; // skip labels that would overlap on narrow (phone) screens
+                ticks.forEach(w => {
+                    const x = padding + (Math.log(w) - Math.log(minW)) / (Math.log(maxW) - Math.log(minW)) * (width - 2 * padding);
+                    const label = `${w} nm`;
+                    if (x - lastLabelX > spectrumCtx.measureText(label).width + 6) {
+                        spectrumCtx.fillText(label, x, height - padding + 20);
+                        lastLabelX = x;
+                    }
+                    spectrumCtx.beginPath();
+                    spectrumCtx.moveTo(x, height - padding);
+                    spectrumCtx.lineTo(x, height - padding + 5);
+                    spectrumCtx.stroke();
+                });
+                spectrumCtx.fillText("Wavelength (nm) [log scale]", width/2, height - 10);
+
+                transitions.forEach(trans => {
+                    const x = padding + (Math.log(trans.wavelength) - Math.log(minW)) / (Math.log(maxW) - Math.log(minW)) * (width - 2 * padding);
+                    const isHighlighted = highlightedTransition && highlightedTransition.n1 === trans.n1 && highlightedTransition.n2 === trans.n2;
+                    
+                    const isVisibleBalmer = trans.n1 === 2 && (trans.n2 >= 3 && trans.n2 <= 6);
+                    let lineColor;
+                    if (isVisibleBalmer) {
+                        const color = wavelengthToRgb(trans.wavelength);
+                        lineColor = `rgb(${color.r}, ${color.g}, ${color.b})`;
+                    } else {
+                        lineColor = '#808080';
+                    }
+                    
+                    if (x >= padding && x <= width - padding) {
+                        spectrumCtx.beginPath();
+                        spectrumCtx.moveTo(x, height - padding);
+                        spectrumCtx.lineTo(x, padding);
+                        spectrumCtx.strokeStyle = lineColor;
+                        spectrumCtx.lineWidth = isHighlighted ? 4 : 2;
+                        spectrumCtx.stroke();
+                        
+                        if(isHighlighted){
+                             spectrumCtx.fillStyle = '#facc15';
+                             spectrumCtx.textAlign = 'center';
+                             spectrumCtx.fillText(`n=${trans.n2} → n=${trans.n1}`, x, padding - 20);
+                             spectrumCtx.fillText(`${trans.wavelength.toFixed(1)} nm`, x, padding - 5);
+                        }
+                    } 
+                });
+            }
+
+            function drawFrequencySpectrum() {
+                const { width, height } = spectrumCanvas.getBoundingClientRect();
+                const padding = 40;
+                const plotWidth = width - 2 * padding;
+                const minFreq = Math.min(...transitions.map(t => t.frequency));
+                const maxFreq = Math.max(...transitions.map(t => t.frequency));
+                
+                spectrumCtx.beginPath();
+                spectrumCtx.moveTo(padding, height - padding);
+                spectrumCtx.lineTo(width - padding, height - padding);
+                spectrumCtx.strokeStyle = '#6b7280';
+                spectrumCtx.stroke();
+
+                spectrumCtx.fillStyle = '#9ca3af';
+                spectrumCtx.font = '12px Inter, system-ui, sans-serif';
+                spectrumCtx.textAlign = 'center';
+
+                const tickCount = 5;
+                for (let i = 0; i <= tickCount; i++) {
+                    const freq = minFreq + i/tickCount * (maxFreq - minFreq);
+                    const x = padding + i/tickCount * plotWidth;
+                    spectrumCtx.fillText(`${(freq / 1e15).toFixed(1)}`, x, height - padding + 20); // PHz
+                    spectrumCtx.beginPath();
+                    spectrumCtx.moveTo(x, height - padding);
+                    spectrumCtx.lineTo(x, height - padding + 5);
+                    spectrumCtx.stroke();
+                }
+                spectrumCtx.fillText("Frequency (PHz)", width/2, height-10);
+
+                transitions.forEach(trans => {
+                    const x = padding + ((trans.frequency - minFreq) / (maxFreq - minFreq)) * plotWidth;
+                    const isHighlighted = highlightedTransition && highlightedTransition.n1 === trans.n1 && highlightedTransition.n2 === trans.n2;
+                    
+                    const isVisibleBalmer = trans.n1 === 2 && (trans.n2 >= 3 && trans.n2 <= 6);
+                    let lineColor;
+                    if (isVisibleBalmer) {
+                        const color = wavelengthToRgb(trans.wavelength);
+                        lineColor = `rgb(${color.r}, ${color.g}, ${color.b})`;
+                    } else {
+                        lineColor = '#808080';
+                    }
+                    
+                    if (x >= padding && x <= width - padding) {
+                        spectrumCtx.beginPath();
+                        spectrumCtx.moveTo(x, height - padding);
+                        spectrumCtx.lineTo(x, padding);
+                        spectrumCtx.strokeStyle = lineColor;
+                        spectrumCtx.lineWidth = isHighlighted ? 4 : 2;
+                        spectrumCtx.stroke();
+                        
+                        if(isHighlighted){
+                             spectrumCtx.fillStyle = '#facc15';
+                             spectrumCtx.textAlign = 'center';
+                             spectrumCtx.fillText(`n=${trans.n2} → n=${trans.n1}`, x, padding - 20);
+                             spectrumCtx.fillText(`${(trans.frequency / 1e15).toFixed(2)} PHz`, x, padding - 5);
+                        }
+                    } 
+                });
+            }
+
+            // --- Event and Selection Logic ---
+            function updateSelection(clickedN) {
+                if (clickedN > 0) {
+                    const index = selectedOrbits.indexOf(clickedN);
+                    if (index > -1) selectedOrbits.splice(index, 1);
+                    else {
+                        if (selectedOrbits.length >= 2) selectedOrbits.shift();
+                        selectedOrbits.push(clickedN);
+                    }
+                } else {
+                    selectedOrbits = [];
+                }
+                
+                highlightedTransition = null;
+                if(selectedOrbits.length === 2){
+                    const n1 = Math.min(...selectedOrbits);
+                    const n2 = Math.max(...selectedOrbits);
+                    highlightedTransition = transitions.find(t => t.n1 === n1 && t.n2 === n2);
+                }
+                draw();
+            }
+
+            function handleLeftPanelClick(event) {
+                if (leftDiagramMode === 'bohr') handleBohrModelClick(event);
+                else handleEnergyLevelClick(event);
+            }
+
+            function handleBohrModelClick(event) {
+                const { width, height } = bohrCanvas.getBoundingClientRect();
+                const centerX = width / 2, centerY = height / 2;
+                const maxOrbitRadius = Math.min(width, height) / 2 - 30;
+                 if (maxOrbitRadius <= 0) return;
+                const radiusScale = maxOrbitRadius / (MAX_N_DRAW * MAX_N_DRAW);
+                const rect = bohrCanvas.getBoundingClientRect();
+                const x = event.clientX - rect.left, y = event.clientY - rect.top;
+                const dist = Math.sqrt((x - centerX) ** 2 + (y - centerY) ** 2);
+                let clickedN = 0;
+                for (let n = 1; n <= MAX_N_DRAW; n++) {
+                    const radius = n * n * radiusScale;
+                    if (Math.abs(dist - radius) < 10) { clickedN = n; break; }
+                }
+                updateSelection(clickedN);
+            }
+
+            function handleEnergyLevelClick(event) {
+                const { height } = bohrCanvas.getBoundingClientRect();
+                const rect = bohrCanvas.getBoundingClientRect();
+                const clickY = event.clientY - rect.top;
+                let clickedN = 0;
+                let minDistance = Infinity;
+                for (let n = 1; n <= MAX_N_DRAW; n++) {
+                    const yLevel = getEnergyY(n, height);
+                    const distance = Math.abs(clickY - yLevel);
+                    if (distance < minDistance && distance < 10) {
+                        minDistance = distance;
+                        clickedN = n;
+                    }
+                }
+                updateSelection(clickedN);
+            }
+
+            function handleSpectrumClick(event) {
+                let closestTransition = null;
+                let minDistance = Infinity;
+                const rect = spectrumCanvas.getBoundingClientRect();
+                const clickX = event.clientX - rect.left;
+
+                if (rightDiagramMode === 'wavelength') {
+                    const { width } = spectrumCanvas.getBoundingClientRect();
+                    const padding = 40, minW = 90, maxW = 30000;
+                    transitions.forEach(trans => {
+                        const x = padding + (Math.log(trans.wavelength) - Math.log(minW)) / (Math.log(maxW) - Math.log(minW)) * (width - 2 * padding);
+                        const distance = Math.abs(clickX - x);
+                        if (distance < minDistance && distance < 10) {
+                            minDistance = distance;
+                            closestTransition = trans;
+                        }
+                    });
+                } else { // Frequency mode
+                    const { width } = spectrumCanvas.getBoundingClientRect();
+                    const padding = 40;
+                    const plotWidth = width - 2 * padding;
+                    const minFreq = Math.min(...transitions.map(t => t.frequency));
+                    const maxFreq = Math.max(...transitions.map(t => t.frequency));
+                    transitions.forEach(trans => {
+                        const x = padding + ((trans.frequency - minFreq) / (maxFreq - minFreq)) * plotWidth;
+                        const distance = Math.abs(clickX - x);
+                        if (distance < minDistance && distance < 10) {
+                            minDistance = distance;
+                            closestTransition = trans;
+                        }
+                    });
+                }
+
+                if (closestTransition) {
+                    selectedOrbits = [closestTransition.n1, closestTransition.n2];
+                    highlightedTransition = closestTransition;
+                } else {
+                    selectedOrbits = [];
+                    highlightedTransition = null;
+                }
+                draw();
+            }
+
+            init();
+        });
+    </script>
+<script src="../../../assets/sim.js" data-root="../../../#atomic-world"></script>
+</body>
+</html>
+
+
+

@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="../../../assets/sim-early.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Conservation of Momentum · PhySim</title>
+    <link rel="stylesheet" href="../../../assets/vendor/tailwind.css">
+    <style>
+        body {
+            background-color: #0f172a;
+            color: #f8fafc;
+            font-family: system-ui, -apple-system, sans-serif;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            width: 100vw;
+            margin: 0;
+        }
+        #app-container {
+            /* Strict 16:9 Aspect Ratio */
+            width: 100vw;
+            height: 56.25vw;
+            max-height: 100vh;
+            max-width: 177.78vh;
+            
+            background: #1e293b;
+            position: relative;
+            display: grid;
+            grid-template-columns: 350px 1fr;
+            grid-template-rows: 70% 30%; 
+            border: 2px solid #334155;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            overflow: hidden;
+        }
+        .panel { border: 1px solid #334155; padding: 0.75rem; }
+        .canvas-container { position: relative; background: #020617; overflow: hidden; height: 100%; display: flex; flex-direction: column; }
+        
+        input[type=range] { width: 100%; cursor: pointer; height: 1rem; margin: 0; padding: 0; }
+        
+        .history-table { width: 100%; font-size: 13px; text-align: left; border-collapse: collapse; }
+        .history-table th { color: #94a3b8; border-bottom: 1px solid #334155; position: sticky; top: 0; background: #1e293b; z-index: 5; padding: 6px 4px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; }
+        .history-table td { padding: 6px 4px; border-bottom: 1px solid rgba(51, 65, 85, 0.5); }
+        
+        .history-scroll { overflow-y: auto; flex-grow: 1; height: 100%; }
+        .status-badge { padding: 2px 6px; border-radius: 3px; font-weight: 800; font-size: 10px; display: inline-block; white-space: nowrap; }
+        .badge-green { background: #065f46; color: #34d399; border: 1px solid #059669; }
+        .badge-red { background: #7f1d1d; color: #f87171; border: 1px solid #b91c1c; }
+        
+        .control-group { background: rgba(15, 23, 42, 0.3); padding: 0.5rem; border-radius: 0.5rem; border: 1px solid rgba(255,255,255,0.05); }
+        .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem; }
+        
+        .label-text { font-size: 0.85rem; font-weight: 500; line-height: 1; margin-bottom: 2px; }
+        .value-text { font-family: ui-monospace, monospace; font-weight: 700; color: #fff; }
+        
+        /* Legend Styles */
+        .legend-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+        /* ---- Phone / narrow-screen layout ---- */
+        @media (max-width: 900px) {
+            body { overflow: auto; height: auto; width: auto; display: block; }
+            #app-container { width: 100%; height: auto; max-height: none; max-width: none; display: flex; flex-direction: column; border: 0; overflow: visible; }
+            #controlPanel { order: 2; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+            #controlPanel h1 { display: none; }
+            #controlPanel > div:nth-of-type(3), #controlPanel > div:nth-of-type(4) { grid-column: span 2; }
+            #controlPanel .btn-grid button { padding-top: .7rem; padding-bottom: .7rem; font-size: .8rem; }
+            #controlPanel input[type=range] { height: 1.6rem; }
+            #controlPanel .mt-auto { margin-top: 0; }
+            #simPanel { order: 1; height: 360px; flex: none; }
+            #simPanel > .absolute { top: 8px; left: 8px; right: 8px; gap: 6px; }
+            #simPanel > .absolute > div { min-width: 0; flex: 1; padding: 8px 10px; }
+            #simPanel > .absolute > div > div:first-child { font-size: 9px; letter-spacing: .08em; }
+            #p-status, #ke-status { font-size: 1rem; line-height: 1.3rem; }
+            #simPanel .h-32 .flex.gap-6 { gap: 8px; flex-wrap: nowrap; }
+            #simPanel .h-32 .flex.gap-6 span.text-\[10px\] { font-size: 8px; letter-spacing: 0; }
+            #historyPanel { order: 3; }
+            #historyPanel .history-scroll { overflow-x: auto; max-height: 280px; padding-left: 4px; padding-right: 4px; }
+            #historyPanel .history-table { min-width: 640px; }
+            #historyPanel > div:first-child { padding: 0 4px; }
+        }
+    </style>
+<link rel="icon" href="../../../favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../../../assets/sim.css">
+</head>
+<body>
+
+<div id="app-container">
+    <div id="controlPanel" class="panel bg-slate-800/50 flex flex-col gap-2 overflow-hidden">
+        <h1 class="text-xl font-bold border-b border-slate-600 pb-1">Momentum Lab</h1>
+        
+        <div class="control-group">
+            <span class="text-[10px] uppercase text-blue-400 font-bold mb-1 block tracking-wider">Object A (Blue)</span>
+            <div class="space-y-1">
+                <div class="flex flex-col">
+                    <label class="flex justify-between label-text text-slate-300">Mass: <span id="m1-val" class="value-text">2.0</span> kg</label>
+                    <input type="range" id="m1-slider" min="0.5" max="10" step="0.5" value="2">
+                </div>
+                <div class="flex flex-col">
+                    <label class="flex justify-between label-text text-slate-300">Velocity: <span id="v1-val" class="value-text">3.0</span> m/s</label>
+                    <input type="range" id="v1-slider" min="-5" max="5" step="0.1" value="3">
+                </div>
+            </div>
+        </div>
+
+        <div class="control-group">
+            <span class="text-[10px] uppercase text-rose-400 font-bold mb-1 block tracking-wider">Object B (Red)</span>
+            <div class="space-y-1">
+                <div class="flex flex-col">
+                    <label class="flex justify-between label-text text-slate-300">Mass: <span id="m2-val" class="value-text">2.0</span> kg</label>
+                    <input type="range" id="m2-slider" min="0.5" max="10" step="0.5" value="2">
+                </div>
+                <div class="flex flex-col">
+                    <label class="flex justify-between label-text text-slate-300">Velocity: <span id="v2-val" class="value-text">-1.0</span> m/s</label>
+                    <input type="range" id="v2-slider" min="-5" max="5" step="0.1" value="-1">
+                </div>
+            </div>
+        </div>
+
+        <div class="flex flex-col gap-1.5">
+            <span class="text-[10px] uppercase text-indigo-400 font-bold tracking-widest">Select Collision</span>
+            <div class="btn-grid">
+                <button onclick="setType(1.0, 'Elastic')" class="bg-blue-600 hover:bg-blue-500 text-xs py-2.5 rounded font-black transition-all active:scale-95 leading-tight shadow-lg">Elastic</button>
+                <button onclick="setType(0.7, 'Slightly Inelastic')" class="bg-emerald-600 hover:bg-emerald-500 text-xs py-2.5 rounded font-black transition-all active:scale-95 leading-tight shadow-lg">Slightly Inelastic</button>
+                <button onclick="setType(0.3, 'Moderately Inelastic')" class="bg-amber-600 hover:bg-amber-500 text-xs py-2.5 rounded font-black transition-all active:scale-95 leading-tight shadow-lg">Moderately Inelastic</button>
+                <button onclick="setType(0.0, 'Perfectly Inelastic')" class="bg-rose-600 hover:bg-rose-500 text-xs py-2.5 rounded font-black transition-all active:scale-95 leading-tight shadow-lg">Perfectly Inelastic</button>
+            </div>
+        </div>
+
+        <div class="mt-auto pt-2 border-t border-slate-700">
+            <button onclick="resetSim()" class="w-full bg-slate-700 hover:bg-slate-600 py-2.5 rounded text-xs font-black uppercase tracking-widest transition-colors">Reset Lab</button>
+        </div>
+    </div>
+
+    <div id="simPanel" class="canvas-container">
+        <!-- Floating Boxes -->
+        <div class="absolute top-6 left-6 right-6 flex justify-between pointer-events-none z-10">
+            <div class="bg-black/80 p-5 rounded-xl border border-white/20 backdrop-blur-md shadow-2xl min-w-[320px]">
+                <div class="text-[11px] text-slate-400 uppercase font-black mb-1 tracking-[0.2em]">Total Momentum (P)</div>
+                <div id="p-status" class="text-3xl font-mono tracking-tighter text-emerald-400">—</div>
+            </div>
+            <div class="bg-black/80 p-5 rounded-xl border border-white/20 backdrop-blur-md shadow-2xl text-right min-w-[320px]">
+                <div class="text-[11px] text-slate-400 uppercase font-black mb-1 tracking-[0.2em]">Total Kinetic Energy (KE)</div>
+                <div id="ke-status" class="text-3xl font-mono tracking-tighter">—</div>
+            </div>
+        </div>
+
+        <canvas id="collisionCanvas" class="flex-grow"></canvas>
+
+        <div class="h-32 bg-slate-900/90 border-t border-slate-700 p-3 relative flex flex-col">
+            <h3 class="text-xs font-black text-slate-400 uppercase tracking-widest mb-1 pl-3">MOMENTUM VECTORS (p = mv)</h3>
+            <canvas id="vectorCanvas" class="flex-grow"></canvas>
+            
+            <!-- Updated Vector Legend -->
+            <div class="flex gap-6 justify-center pb-1">
+                <div class="flex items-center">
+                    <span class="legend-dot bg-blue-500"></span>
+                    <span class="text-[10px] font-bold text-slate-300 uppercase tracking-tight">Momentum of A</span>
+                </div>
+                <div class="flex items-center">
+                    <span class="legend-dot bg-rose-500"></span>
+                    <span class="text-[10px] font-bold text-slate-300 uppercase tracking-tight">Momentum of B</span>
+                </div>
+                <div class="flex items-center">
+                    <span class="legend-dot bg-purple-500"></span>
+                    <span class="text-[10px] font-bold text-slate-100 uppercase tracking-tight">Total Momentum of A and B</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="historyPanel" class="panel col-span-2 bg-slate-950 flex flex-col gap-2 overflow-hidden">
+        <div class="flex justify-between items-center px-4">
+            <h2 class="text-sm font-black text-indigo-400 uppercase tracking-[0.2em]">Laboratory Trial History</h2>
+            <button onclick="clearHistory()" class="text-xs text-slate-500 hover:text-white underline font-bold uppercase">Clear Records</button>
+        </div>
+        <div class="history-scroll px-4 pb-2">
+            <table class="history-table">
+                <thead>
+                    <tr>
+                        <th>Type</th>
+                        <th>Initial P</th>
+                        <th>Final P</th>
+                        <th>Initial KE</th>
+                        <th>Final KE</th>
+                        <th>Loss</th>
+                        <th>P Conserved?</th>
+                        <th>KE Conserved?</th>
+                    </tr>
+                </thead>
+                <tbody id="history-body" class="font-mono"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+    const canvas = document.getElementById('collisionCanvas');
+    const ctx = canvas.getContext('2d');
+    const vCanvas = document.getElementById('vectorCanvas');
+    const vCtx = vCanvas.getContext('2d');
+
+    let m1 = 2, m2 = 2;
+    let v1 = 3, v2 = -1;
+    let e = 1.0; 
+    let typeName = 'Elastic';
+    let running = false;
+    let collided = false;
+    let history = [];
+
+    let obj1 = { x: 0, v: 0, m: 2, color: '#3b82f6', radius: 0 };
+    let obj2 = { x: 0, v: 0, m: 2, color: '#f43f5e', radius: 0 };
+
+    function initPositions() {
+        const w = canvas.width;
+        obj1.x = w * 0.2;
+        obj2.x = w * 0.8;
+        obj1.v = v1;
+        obj2.v = v2;
+        obj1.m = m1;
+        obj2.m = m2;
+        const k = Math.min(1, w / 700); // shrink balls on narrow (phone) screens
+        obj1.radius = (Math.sqrt(m1) * 14 + 10) * k;
+        obj2.radius = (Math.sqrt(m2) * 14 + 10) * k;
+        collided = false;
+        running = false;
+        updatePreStartStats();
+    }
+
+    function resize() {
+        const container = canvas.parentElement;
+        if (!container) return;
+        canvas.width = container.clientWidth;
+        canvas.height = container.clientHeight - 128; 
+        vCanvas.width = container.clientWidth - 40;
+        vCanvas.height = 60;
+        initPositions();
+    }
+
+    function updatePreStartStats() {
+        if (running) return;
+        const pi = (m1 * v1) + (m2 * v2);
+        const kei = 0.5 * m1 * v1**2 + 0.5 * m2 * v2**2;
+        
+        document.getElementById('p-status').innerHTML = `${pi.toFixed(2)} <span class="text-lg">kg·m/s</span>`;
+        document.getElementById('ke-status').innerHTML = `${kei.toFixed(2)} <span class="text-lg">J</span>`;
+        document.getElementById('ke-status').className = "text-3xl font-mono tracking-tighter text-blue-400";
+    }
+
+    document.getElementById('m1-slider').oninput = e => { m1 = parseFloat(e.target.value); document.getElementById('m1-val').innerText = m1.toFixed(1); initPositions(); };
+    document.getElementById('m2-slider').oninput = e => { m2 = parseFloat(e.target.value); document.getElementById('m2-val').innerText = m2.toFixed(1); initPositions(); };
+    document.getElementById('v1-slider').oninput = e => { v1 = parseFloat(e.target.value); document.getElementById('v1-val').innerText = v1.toFixed(1); initPositions(); };
+    document.getElementById('v2-slider').oninput = e => { v2 = parseFloat(e.target.value); document.getElementById('v2-val').innerText = v2.toFixed(1); initPositions(); };
+
+    function setType(val, name) {
+        e = val;
+        typeName = name;
+        initPositions();
+        running = true; 
+    }
+
+    function calculateCollision() {
+        const u1 = obj1.v;
+        const u2 = obj2.v;
+        const nv1 = ((obj1.m - e * obj2.m) * u1 + (obj2.m * (1 + e)) * u2) / (obj1.m + obj2.m);
+        const nv2 = ((obj1.m * (1 + e)) * u1 + (obj2.m - e * obj1.m) * u2) / (obj1.m + obj2.m);
+        const pi = (obj1.m * u1) + (obj2.m * u2);
+        const kei = 0.5 * obj1.m * u1**2 + 0.5 * obj2.m * u2**2;
+        obj1.v = nv1;
+        obj2.v = nv2;
+        const pf = (obj1.m * nv1) + (obj2.m * nv2);
+        const kef = 0.5 * obj1.m * nv1**2 + 0.5 * obj2.m * nv2**2;
+        addHistory(pi, pf, kei, kef);
+    }
+
+    function addHistory(pi, pf, kei, kef) {
+        const pConserved = Math.abs(pi - pf) < 0.01;
+        const keLoss = Math.max(0, ((kei - kef) / (kei || 1) * 100)).toFixed(1);
+        const keConserved = Math.abs(kei - kef) < 0.05;
+        
+        history.unshift({
+            type: typeName,
+            pi: pi.toFixed(2),
+            pf: pf.toFixed(2),
+            kei: kei.toFixed(2),
+            kef: kef.toFixed(2),
+            loss: keLoss,
+            pStatus: pConserved ? "CONSERVED" : "NOT CONSERVED",
+            keStatus: keConserved ? "CONSERVED" : "NOT CONSERVED"
+        });
+        updateHistoryTable();
+        
+        document.getElementById('p-status').innerHTML = `${pi.toFixed(2)} → ${pf.toFixed(2)} <span class="text-sm">kg·m/s</span> <span class="status-badge badge-green">CONSERVED</span>`;
+        document.getElementById('ke-status').innerHTML = `${kei.toFixed(2)} → ${kef.toFixed(2)} <span class="text-sm">J</span> <span class="status-badge ${keConserved ? 'badge-green' : 'badge-red'}">${keConserved ? 'CONSERVED' : keLoss + '% LOSS'}</span>`;
+        document.getElementById('ke-status').className = "text-3xl font-mono tracking-tighter " + (keConserved ? "text-emerald-400" : "text-rose-400");
+    }
+
+    function updateHistoryTable() {
+        const body = document.getElementById('history-body');
+        body.innerHTML = history.map(h => `
+            <tr>
+                <td class="font-bold text-slate-200">${h.type}</td>
+                <td class="text-blue-300">${h.pi}</td>
+                <td class="text-blue-400">${h.pf}</td>
+                <td class="text-amber-200">${h.kei}</td>
+                <td class="text-amber-400">${h.kef}</td>
+                <td class="${h.loss > 0.1 ? 'text-rose-400' : 'text-emerald-400'}">${h.loss}%</td>
+                <td><span class="status-badge ${h.pStatus === 'CONSERVED' ? 'badge-green' : 'badge-red'}">${h.pStatus}</span></td>
+                <td><span class="status-badge ${h.keStatus === 'CONSERVED' ? 'badge-green' : 'badge-red'}">${h.keStatus}</span></td>
+            </tr>
+        `).join('');
+    }
+
+    function clearHistory() { history = []; updateHistoryTable(); }
+
+    function resetSim() { initPositions(); }
+
+    function drawVector(ctx, x, y, mag, color, offset = 0) {
+        const scale = 14 * Math.min(1, vCanvas.width / 700); // fit arrows on narrow screens
+        const length = mag * scale;
+        if (Math.abs(length) < 1) return;
+        ctx.strokeStyle = color;
+        ctx.fillStyle = color;
+        ctx.lineWidth = 4;
+        ctx.lineCap = 'round';
+        const drawY = y + offset;
+        ctx.beginPath();
+        ctx.moveTo(x, drawY);
+        ctx.lineTo(x + length, drawY);
+        ctx.stroke();
+        const headSize = 7;
+        const dir = length > 0 ? 1 : -1;
+        ctx.beginPath();
+        ctx.moveTo(x + length, drawY);
+        ctx.lineTo(x + length - headSize * dir, drawY - 5);
+        ctx.lineTo(x + length - headSize * dir, drawY + 5);
+        ctx.fill();
+    }
+
+    function animate() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        if (running) {
+            obj1.x += obj1.v * 0.5;
+            obj2.x += obj2.v * 0.5;
+            if (!collided && Math.abs(obj1.x - obj2.x) <= (obj1.radius + obj2.radius)) {
+                calculateCollision();
+                collided = true;
+                const overlap = (obj1.radius + obj2.radius) - Math.abs(obj1.x - obj2.x);
+                const dir = obj1.x < obj2.x ? -1 : 1;
+                obj1.x += overlap * dir * 0.51;
+                obj2.x -= overlap * dir * 0.51;
+            }
+        }
+        const floorY = canvas.height * 0.85;
+        ctx.strokeStyle = "#334155";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(0, floorY);
+        ctx.lineTo(canvas.width, floorY);
+        ctx.stroke();
+        [obj1, obj2].forEach(o => {
+            ctx.fillStyle = o.color;
+            ctx.beginPath();
+            ctx.arc(o.x, floorY - o.radius, o.radius, 0, Math.PI * 2);
+            ctx.fill();
+            if (Math.abs(o.v) > 0.1) {
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = o.color;
+                ctx.stroke();
+                ctx.shadowBlur = 0;
+            }
+            drawVector(ctx, o.x, floorY - o.radius, o.v * 4, "#ffffff99");
+        });
+        vCtx.clearRect(0, 0, vCanvas.width, vCanvas.height);
+        const centerX = vCanvas.width / 2;
+        const centerY = vCanvas.height / 2;
+        vCtx.strokeStyle = "#334155";
+        vCtx.setLineDash([5, 5]);
+        vCtx.beginPath();
+        vCtx.moveTo(centerX, 5); vCtx.lineTo(centerX, vCanvas.height - 5);
+        vCtx.stroke();
+        vCtx.setLineDash([]);
+        const p1 = obj1.m * obj1.v;
+        const p2 = obj2.m * obj2.v;
+        const pt = p1 + p2;
+        drawVector(vCtx, centerX, centerY, p1, obj1.color, -16);
+        drawVector(vCtx, centerX, centerY, p2, obj2.color, 0);
+        drawVector(vCtx, centerX, centerY, pt, "#a855f7", 16);
+        requestAnimationFrame(animate);
+    }
+
+    window.onload = () => {
+        window.addEventListener('resize', resize);
+        resize();
+        animate();
+    };
+</script>
+
+<script src="../../../assets/sim.js" data-root="../../../#force-and-motion"></script>
+</body>
+</html>

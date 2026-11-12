@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="../../../assets/sim-early.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Half-Life Dice Simulator · PhySim</title>
+    <link rel="stylesheet" href="../../../assets/vendor/tailwind.css">
+    <style>
+        /* Custom styles for better visual appeal, especially for the canvas */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f4f8; /* Light blue-gray background */
+            height: 100vh; /* Set body height to 100% of viewport height */
+            overflow: hidden; /* Prevent scrolling on the body if content overflows */
+        }
+        canvas {
+            background-color: #ffffff;
+            border-radius: 0.75rem; /* rounded-xl */
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); /* shadow-md */
+            display: block; /* Ensure canvas takes full width of its container */
+            width: 100%;
+            height: 100%; /* Make canvas responsive within its container */
+        }
+        /* Style for the message box */
+        .message-box {
+            background-color: #ffe0b2; /* Light orange for warnings/info */
+            color: #e65100; /* Darker orange text */
+            padding: 1rem;
+            border-radius: 0.5rem;
+            margin-top: 1rem;
+            text-align: center;
+        }
+        /* Style for the dice display panel - now using CSS Grid */
+        .dice-display-panel {
+            background-color: #ffffff;
+            border-radius: 0.75rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            padding: 1rem;
+            overflow-y: auto; /* Enable scrolling if many dice */
+            display: grid; /* Changed to grid */
+            grid-template-columns: repeat(10, 1fr); /* 10 columns, each taking equal fraction of space */
+            gap: 0.25rem; /* Smaller spacing between grid items */
+            justify-items: center; /* Center dice within their grid cells */
+            align-items: center;
+        }
+        .dice-svg {
+            /* Fixed size for each die */
+            width: 25px;
+            height: 25px;
+            border: 1px solid #ccc;
+            border-radius: 4px; /* Smaller border radius for smaller dice */
+            background-color: #f9f9f9;
+            box-shadow: 0.5px 0.5px 1.5px rgba(0,0,0,0.1); /* Smaller shadow */
+        }
+        .dice-svg.removed {
+            opacity: 0.3; /* Visually indicate removed dice */
+            filter: grayscale(100%);
+        }
+        .dice-dot {
+            fill: #333; /* Color of the dots */
+        }
+        /* ---- Phone / narrow-screen layout ---- */
+        @media (max-width: 900px) {
+            body { height: auto !important; overflow: auto !important; display: block !important; padding: 8px !important; }
+            #mainCard { max-height: none; aspect-ratio: auto; padding: 12px; gap: 12px; }
+            #headerRow { padding: 4px 4px 12px; margin-bottom: 0; align-items: stretch; }
+            #headerRow h3 { text-align: center; margin-bottom: 12px; }
+            #headerRow > div:nth-child(2) { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; align-items: end; }
+            #headerRow > div:nth-child(2) > div:first-child { grid-column: span 2; }
+            #headerRow > div:nth-child(2) > div:last-child { grid-column: span 2; display: flex; justify-content: space-around; text-align: center; }
+            #headerRow > div:nth-child(2) > div:last-child br { display: none; }
+            #throwDiceButton, #resetButton { padding-top: .7rem; padding-bottom: .7rem; }
+            #headerRow > div:nth-child(3) { align-items: stretch; }
+            #decayCheckboxes { gap: 14px; }
+            #decayCheckboxes input { width: 1.25rem; height: 1.25rem; }
+            #decayCheckboxes label { font-size: .9rem; }
+            #mainCard > div:last-child { gap: 12px; height: auto; }
+            #mainCard > div:last-child > div { padding: 4px; }
+            .dice-display-panel { padding: .5rem; gap: .2rem; }
+        }
+    </style>
+<link rel="icon" href="../../../favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../../../assets/sim.css">
+</head>
+<body class="flex items-center justify-center h-screen p-4">
+    <div id="mainCard" class="flex flex-col bg-white rounded-xl shadow-lg p-6 w-full max-w-7xl gap-8 max-h-[80vh] min-h-[400px] aspect-[16/10]">
+        <div id="headerRow" class="flex flex-col lg:flex-row items-center lg:justify-between p-4 border-b border-gray-200 pb-4 mb-4">
+            <h3 class="text-2xl font-bold text-gray-800 mb-4 lg:mb-0 text-left flex-shrink-0">Half-Life Simulator</h3>
+
+            <div class="flex flex-col sm:flex-row items-center gap-4 w-full lg:w-auto lg:flex-grow lg:ml-8">
+                <div class="w-full sm:w-auto lg:w-40">
+                    <label for="initialDice" class="block text-gray-700 text-base font-medium mb-1 text-left">Initial Dice (≤1000):</label>
+                    <input type="number" id="initialDice" value="1000" min="1" max="1000"
+                           class="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm">
+                </div>
+
+                <button id="throwDiceButton"
+                        class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-1 px-3 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-75 w-full sm:w-auto lg:w-32 text-sm">
+                    Throw All Dice
+                </button>
+
+                <button id="resetButton"
+                        class="bg-gray-400 hover:bg-gray-500 text-white font-bold py-1 px-3 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-opacity-75 w-full sm:w-auto text-sm">
+                    Reset Simulation
+                </button>
+
+                <div class="text-left flex-shrink-0">
+                    <p class="text-gray-700 mb-1">Remaining:<br><span id="currentDiceCount" class="font-semibold text-blue-600">0</span></p>
+                    <p class="text-gray-700">Throws:<br><span id="throwCount" class="font-semibold text-blue-600">0</span></p>
+                </div>
+            </div>
+
+            <div class="flex flex-col items-start flex-shrink-0 mt-4 lg:mt-0">
+                <div class="flex items-center">
+                    <input type="checkbox" id="showTheoreticalCurve" class="form-checkbox h-5 w-5 text-blue-600 rounded">
+                    <label for="showTheoreticalCurve" class="ml-2 text-gray-700 text-sm">Theoretical Curve</label>
+                </div>
+                <div class="flex items-center mt-2">
+                    <input type="checkbox" id="showHalfLifeLines" class="form-checkbox h-5 w-5 text-green-600 rounded">
+                    <label for="showHalfLifeLines" class="ml-2 text-gray-700 text-sm">Show Half-Life Lines</label>
+                </div>
+                <div class="mt-4 text-left w-full">
+                    <p class="text-gray-700 text-sm font-medium mb-1">Dice Faces to Decay:</p>
+                    <div id="decayCheckboxes" class="flex flex-wrap gap-2">
+                        <div class="flex items-center">
+                            <input type="checkbox" id="decay_1" value="1" class="form-checkbox h-4 w-4 text-red-600 rounded">
+                            <label for="decay_1" class="ml-1 text-gray-700 text-xs">1</label>
+                        </div>
+                        <div class="flex items-center">
+                            <input type="checkbox" id="decay_2" value="2" class="form-checkbox h-4 w-4 text-red-600 rounded">
+                            <label for="decay_2" class="ml-1 text-gray-700 text-xs">2</label>
+                        </div>
+                        <div class="flex items-center">
+                            <input type="checkbox" id="decay_3" value="3" class="form-checkbox h-4 w-4 text-red-600 rounded">
+                            <label for="decay_3" class="ml-1 text-gray-700 text-xs">3</label>
+                        </div>
+                        <div class="flex items-center">
+                            <input type="checkbox" id="decay_4" value="4" class="form-checkbox h-4 w-4 text-red-600 rounded">
+                            <label for="decay_4" class="ml-1 text-gray-700 text-xs">4</label>
+                        </div>
+                        <div class="flex items-center">
+                            <input type="checkbox" id="decay_5" value="5" class="form-checkbox h-4 w-4 text-red-600 rounded">
+                            <label for="decay_5" class="ml-1 text-gray-700 text-xs">5</label>
+                        </div>
+                        <div class="flex items-center">
+                            <input type="checkbox" id="decay_6" value="6" class="form-checkbox h-4 w-4 text-red-600 rounded" checked>
+                            <label for="decay_6" class="ml-1 text-gray-700 text-xs">6</label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="messageBox" class="message-box hidden text-sm mt-4 w-full"></div>
+        </div>
+
+        <div class="flex flex-col lg:flex-row flex-1 gap-8 h-full">
+            <div class="flex-auto lg:w-1/2 flex flex-col p-4 h-full min-h-[400px] max-h-[400px]">
+                <h2 class="text-xl font-bold text-gray-800 mb-3 text-center">Dice Rolls</h2>
+                <div id="diceDisplayPanel" class="dice-display-panel flex-1 h-full">
+                    </div>
+            </div>
+
+            <div class="flex-auto lg:w-1/2 flex items-center justify-center p-4 h-full min-h-[400px] max-h-[400px]">
+                <canvas id="halfLifeChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global variables for the simulation
+        let initialDice = 0;
+        let currentDice = 0;
+        let throwCounter = 0;
+        let diceHistory = []; // Stores the number of dice remaining after each throw
+        let activeDice = []; // Stores the state of each individual die (e.g., { id: 1, value: 3, removed: false })
+
+        // Decay settings
+        let selectedDecayValues = [6]; // Default: only '6' causes decay
+        let decayProbability = 5/6; // Default: probability of NOT decaying (1 - 1/6)
+
+        // Get DOM elements
+        const initialDiceInput = document.getElementById('initialDice');
+        const throwDiceButton = document.getElementById('throwDiceButton');
+        const resetButton = document.getElementById('resetButton');
+        const currentDiceCountSpan = document.getElementById('currentDiceCount');
+        const throwCountSpan = document.getElementById('throwCount');
+        const chartCanvas = document.getElementById('halfLifeChart');
+        const ctx = chartCanvas.getContext('2d');
+        const messageBox = document.getElementById('messageBox');
+        const diceDisplayPanel = document.getElementById('diceDisplayPanel');
+        const showTheoreticalCurveCheckbox = document.getElementById('showTheoreticalCurve');
+        const showHalfLifeLinesCheckbox = document.getElementById('showHalfLifeLines');
+        const decayCheckboxes = document.querySelectorAll('#decayCheckboxes input[type="checkbox"]');
+
+
+        // Max dice limit (Increased to 1000)
+        const MAX_DICE_LIMIT = 1000;
+
+        /**
+         * Displays a message in the message box.
+         * @param {string} message - The message to display.
+         * @param {string} type - The type of message (e.g., 'info', 'warning', 'error').
+         */
+        function showMessage(message, type = 'info') {
+            messageBox.textContent = message;
+            messageBox.className = 'message-box'; // Reset classes
+            messageBox.classList.remove('hidden');
+            if (type === 'info') {
+                messageBox.classList.add('bg-blue-100', 'text-blue-800');
+            } else if (type === 'warning') {
+                messageBox.classList.add('bg-yellow-100', 'text-yellow-800');
+            } else if (type === 'error') {
+                messageBox.classList.add('bg-red-100', 'text-red-800');
+            }
+        }
+
+        /**
+         * Hides the message box.
+         */
+        function hideMessageBox() {
+            messageBox.classList.add('hidden');
+        }
+
+        /**
+         * Generates SVG for a single die face.
+         * @param {number} value - The value of the die (1-6).
+         * @returns {string} - SVG string for the die.
+         */
+        function getDiceSVG(value) {
+            // Dot positions are relative to a 100x100 viewBox, scaled down for smaller dice
+            const dotPositions = {
+                1: [{ cx: 50, cy: 50 }],
+                2: [{ cx: 25, cy: 25 }, { cx: 75, cy: 75 }],
+                3: [{ cx: 25, cy: 25 }, { cx: 50, cy: 50 }, { cx: 75, cy: 75 }],
+                4: [{ cx: 25, cy: 25 }, { cx: 75, cy: 25 }, { cx: 25, cy: 75 }, { cx: 75, cy: 75 }],
+                5: [{ cx: 25, cy: 25 }, { cx: 75, cy: 25 }, { cx: 50, cy: 50 }, { cx: 25, cy: 75 }, { cx: 75, cy: 75 }],
+                6: [{ cx: 25, cy: 25 }, { cx: 75, cy: 25 }, { cx: 25, cy: 50 }, { cx: 75, cy: 50 }, { cx: 25, cy: 75 }, { cx: 75, cy: 75 }]
+            };
+
+            let dots = '';
+            // If the value is not between 1 and 6, return a blank die (e.g., for initial state)
+            if (value >= 1 && value <= 6) {
+                const dotRadius = 4; // Smaller radius for dots
+                dotPositions[value].forEach(pos => {
+                    dots += `<circle cx="${pos.cx}" cy="${pos.cy}" r="${dotRadius}" class="dice-dot" />`;
+                });
+            }
+
+            return `<svg viewBox="0 0 100 100" class="dice-svg">
+                        <rect x="0" y="0" width="100" height="100" fill="white" rx="10" ry="10" />
+                        ${dots}
+                    </svg>`;
+        }
+
+        /**
+         * Renders all active dice in the display panel.
+         */
+        function renderDice() {
+            diceDisplayPanel.innerHTML = ''; // Clear previous dice
+            activeDice.forEach(die => {
+                const dieContainer = document.createElement('div');
+                dieContainer.innerHTML = getDiceSVG(die.value);
+                const svgElement = dieContainer.querySelector('svg');
+                if (svgElement) { // Ensure svgElement exists before trying to add classes
+                    if (die.removed) {
+                        svgElement.classList.add('removed');
+                    }
+                    diceDisplayPanel.appendChild(svgElement);
+                }
+            });
+        }
+
+        /**
+         * Updates the selectedDecayValues array and recalculates decayProbability.
+         * Then redraws the graph.
+         */
+        function updateDecaySettings() {
+            selectedDecayValues = [];
+            let decayFacesCount = 0;
+            decayCheckboxes.forEach(checkbox => {
+                if (checkbox.checked) {
+                    selectedDecayValues.push(parseInt(checkbox.value));
+                    decayFacesCount++;
+                }
+            });
+            // Probability of a die NOT decaying (1 - (decayFacesCount / 6))
+            decayProbability = (6 - decayFacesCount) / 6;
+
+            // Handle edge cases for log calculation if decayProbability is 0 or 1
+            if (decayProbability === 0 && selectedDecayValues.length > 0) {
+                 // If all dice decay, probability is 0. Log(0) is -Infinity.
+                 // This means decay is instantaneous.
+                 // For practical purposes in graph, we can treat it as 0 after 1 throw.
+            } else if (decayProbability === 1 && selectedDecayValues.length === 0) {
+                // If no dice decay, probability is 1. Log(1) is 0.
+                // This means no decay ever happens.
+            }
+            drawGraph(); // Redraw graph with new theoretical curve
+        }
+
+        /**
+         * Initializes or resets the simulation.
+         */
+        function initializeSimulation() {
+            hideMessageBox();
+            let inputVal = parseInt(initialDiceInput.value);
+
+            // Enforce max dice limit
+            if (isNaN(inputVal) || inputVal <= 0) {
+                showMessage("Please enter a valid number of dice (between 1 and 1000).", 'error');
+                throwDiceButton.disabled = true;
+                return;
+            }
+            if (inputVal > MAX_DICE_LIMIT) {
+                inputVal = MAX_DICE_LIMIT;
+                initialDiceInput.value = MAX_DICE_LIMIT; // Update input field
+                showMessage(`Initial dice limited to ${MAX_DICE_LIMIT}.`, 'warning');
+            }
+
+            initialDice = inputVal;
+            currentDice = initialDice;
+            throwCounter = 0;
+            diceHistory = [initialDice]; // Start with the initial number of dice
+            // Initialize all dice with value 0 to represent unrolled state
+            activeDice = Array.from({ length: initialDice }, (_, i) => ({ id: i, value: 0, removed: false }));
+
+            // Reset and enable decay checkboxes and initial dice input
+            decayCheckboxes.forEach(checkbox => {
+                checkbox.checked = (parseInt(checkbox.value) === 6); // Only check '6' by default
+                checkbox.disabled = false; // Enable them
+            });
+            initialDiceInput.disabled = false; // Enable initial dice input
+
+            updateDecaySettings(); // Call to set initial probability and draw graph
+            updateDisplay();
+            renderDice(); // Render initial (unrolled) dice
+            drawGraph();
+            throwDiceButton.disabled = false;
+        }
+
+        /**
+         * Updates the displayed dice count and throw count.
+         */
+        function updateDisplay() {
+            currentDiceCountSpan.textContent = currentDice;
+            throwCountSpan.textContent = throwCounter;
+        }
+
+        /**
+         * Simulates throwing the dice and removing '6's.
+         */
+        function throwDice() {
+            if (currentDice === 0) {
+                throwDiceButton.disabled = true;
+                return;
+            }
+
+            hideMessageBox();
+            let removedThisThrow = 0;
+            let diceToRoll = activeDice.filter(die => !die.removed); // Only roll active dice
+
+            // Disable decay checkboxes and initial dice input after the first throw
+            if (throwCounter === 0) {
+                decayCheckboxes.forEach(checkbox => {
+                    checkbox.disabled = true;
+                });
+                initialDiceInput.disabled = true;
+            }
+
+            diceToRoll.forEach(die => {
+                const roll = Math.floor(Math.random() * 6) + 1; // Roll a die (1-6)
+                die.value = roll; // Update the die's value
+                // Check if the rolled value is in the selectedDecayValues array
+                if (selectedDecayValues.includes(roll)) {
+                    die.removed = true; // Mark as removed
+                    removedThisThrow++;
+                }
+            });
+
+            currentDice -= removedThisThrow;
+            throwCounter++;
+            diceHistory.push(currentDice); // Record the remaining dice
+
+            updateDisplay();
+            renderDice(); // Re-render all dice with updated values and removed states
+            drawGraph();
+
+            if (currentDice === 0) {
+                throwDiceButton.disabled = true;
+            }
+        }
+
+        /**
+         * Draws the graph on the canvas.
+         */
+        function drawGraph() {
+            // Adjust canvas size to be responsive
+            const parent = chartCanvas.parentElement;
+            chartCanvas.width = parent.clientWidth;
+            chartCanvas.height = parent.clientHeight;
+
+            ctx.clearRect(0, 0, chartCanvas.width, chartCanvas.height); // Clear previous drawing
+
+            const padding = 50;
+            const chartWidth = chartCanvas.width - 2 * padding;
+            const chartHeight = chartCanvas.height - 2 * padding;
+
+            // Determine max values for scaling
+            const maxThrows = Math.max(throwCounter, 20);
+            const maxDice = initialDice > 0 ? initialDice : 1;
+
+            // Scaling factors
+            const xScale = chartWidth / maxThrows;
+            const yScale = chartHeight / maxDice;
+
+            // Draw Axes
+            ctx.beginPath();
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 2;
+            ctx.moveTo(padding, padding);
+            ctx.lineTo(padding, chartHeight + padding);
+            ctx.moveTo(padding, chartHeight + padding);
+            ctx.lineTo(chartWidth + padding, chartHeight + padding);
+            ctx.stroke();
+
+            // Draw Labels
+            ctx.fillStyle = '#555';
+            ctx.font = '14px Inter, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('Number of Throws', chartWidth / 2 + padding, chartHeight + padding + 35);
+            ctx.save();
+            ctx.translate(padding - 35, chartHeight / 2 + padding);
+            ctx.rotate(-Math.PI / 2);
+            ctx.fillText('Remaining', 0, 0);
+            ctx.restore();
+
+            // Draw Y-axis ticks and labels
+            const numYLabels = 5;
+            for (let i = 0; i <= numYLabels; i++) {
+                const value = Math.round((maxDice / numYLabels) * i);
+                const y = chartHeight + padding - (value * yScale);
+                ctx.beginPath();
+                ctx.moveTo(padding - 5, y);
+                ctx.lineTo(padding, y);
+                ctx.strokeStyle = '#ccc';
+                ctx.stroke();
+                ctx.textAlign = 'right';
+                ctx.fillText(value, padding - 10, y + 5);
+            }
+
+            // Draw X-axis ticks and labels
+            const numXLabels = Math.min(maxThrows + 1, 10);
+            for (let i = 0; i <= maxThrows; i++) {
+                if (maxThrows > numXLabels && i % Math.ceil(maxThrows / numXLabels) !== 0 && i !== maxThrows) {
+                    continue;
+                }
+                const x = padding + (i * xScale);
+                ctx.beginPath();
+                ctx.moveTo(x, chartHeight + padding);
+                ctx.lineTo(x, chartHeight + padding + 5);
+                ctx.strokeStyle = '#ccc';
+                ctx.stroke();
+                ctx.textAlign = 'center';
+                ctx.fillText(i, x, chartHeight + padding + 20);
+            }
+
+            // Plot the simulated data
+            ctx.beginPath();
+            ctx.strokeStyle = '#4299e1'; // Blue color for the line
+            ctx.lineWidth = 3;
+            ctx.moveTo(padding, chartHeight + padding - (diceHistory[0] * yScale));
+            for (let i = 1; i < diceHistory.length; i++) {
+                const x = padding + (i * xScale);
+                const y = chartHeight + padding - (diceHistory[i] * yScale);
+                ctx.lineTo(x, y);
+            }
+            ctx.stroke();
+
+            // Draw points for simulated data
+            ctx.fillStyle = '#4299e1';
+            for (let i = 0; i < diceHistory.length; i++) {
+                const x = padding + (i * xScale);
+                const y = chartHeight + padding - (diceHistory[i] * yScale);
+                ctx.beginPath();
+                ctx.arc(x, y, 4, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // Calculate theoretical points if either theoretical curve or half-life lines are needed
+            const theoreticalPoints = [];
+            // Only calculate if decayProbability is not 1 (no decay) or 0 (instant decay)
+            if (decayProbability > 0 && decayProbability < 1) {
+                for (let i = 0; i <= maxThrows; i++) {
+                    const theoreticalDice = initialDice * Math.pow(decayProbability, i);
+                    const x = padding + (i * xScale);
+                    const y = chartHeight + padding - (theoreticalDice * yScale);
+                    theoreticalPoints.push({x, y});
+                }
+            } else if (decayProbability === 1) { // No decay
+                 for (let i = 0; i <= maxThrows; i++) {
+                    const x = padding + (i * xScale);
+                    const y = chartHeight + padding - (initialDice * yScale);
+                    theoreticalPoints.push({x, y});
+                }
+            } else if (decayProbability === 0) { // Instant decay
+                theoreticalPoints.push({x: padding, y: chartHeight + padding - (initialDice * yScale)}); // Initial point
+                if (maxThrows > 0) {
+                    const x = padding + (1 * xScale); // At throw 1
+                    const y = chartHeight + padding - (0 * yScale); // Dice remaining 0
+                    theoreticalPoints.push({x, y});
+                }
+                 for (let i = 2; i <= maxThrows; i++) { // For subsequent throws, also 0
+                    const x = padding + (i * xScale);
+                    const y = chartHeight + padding - (0 * yScale);
+                    theoreticalPoints.push({x, y});
+                }
+            }
+
+
+            // Plot the theoretical exponential decay curve if its checkbox is checked
+            if (showTheoreticalCurveCheckbox.checked && theoreticalPoints.length > 0) {
+                ctx.beginPath();
+                ctx.strokeStyle = '#ef4444'; // Red color for theoretical curve
+                ctx.lineWidth = 2;
+                ctx.setLineDash([5, 5]); // Dashed line
+
+                ctx.moveTo(theoreticalPoints[0].x, theoreticalPoints[0].y);
+                for (let i = 1; i < theoreticalPoints.length; i++) {
+                    ctx.lineTo(theoreticalPoints[i].x, theoreticalPoints[i].y);
+                }
+                ctx.stroke();
+                ctx.setLineDash([]); // Reset line dash
+            }
+
+            // Draw half-life lines if checkbox is checked AND theoretical points are available
+            if (showHalfLifeLinesCheckbox.checked && theoreticalPoints.length > 0) {
+                // Only draw half-life lines if decayProbability is between 0 and 1 (exclusive)
+                if (decayProbability > 0 && decayProbability < 1) {
+                    const halfLifeValues = [initialDice / 2, initialDice / 4, initialDice / 8];
+                    ctx.strokeStyle = '#22c55e'; // Green color for half-life lines
+                    ctx.lineWidth = 1;
+                    ctx.setLineDash([2, 3]); // Dotted line for half-life lines
+
+                    halfLifeValues.forEach((targetValue, index) => {
+                        if (targetValue < 1) return; // Don't draw lines if target is less than 1 die
+
+                        // Calculate theoretical 't' for the target value
+                        // N = N0 * (decayProbability)^t  =>  t = log(N/N0) / log(decayProbability)
+                        const tTheoretical = Math.log(targetValue / initialDice) / Math.log(decayProbability);
+
+                        if (tTheoretical >= 0 && tTheoretical <= maxThrows) {
+                            const xIntersect = padding + (tTheoretical * xScale);
+                            const yIntersect = chartHeight + padding - (targetValue * yScale);
+
+                            // Draw horizontal line from Y-axis to theoretical curve
+                            ctx.beginPath();
+                            ctx.moveTo(padding, yIntersect);
+                            ctx.lineTo(xIntersect, yIntersect);
+                            ctx.stroke();
+
+                            // Draw vertical line from theoretical curve to X-axis
+                            ctx.beginPath();
+                            ctx.moveTo(xIntersect, yIntersect);
+                            ctx.lineTo(xIntersect, chartHeight + padding);
+                            ctx.stroke();
+
+                            // Add label for corresponding number of throws
+                            ctx.fillStyle = '#16a34a'; // Darker green for text
+                            ctx.font = '12px Inter, sans-serif';
+                            ctx.textAlign = 'center';
+                            ctx.fillText(tTheoretical.toFixed(1), xIntersect, chartHeight + padding + 15);
+                        }
+                    });
+                } else {
+                    // Optionally, show a message if half-life lines are requested but probability is 0 or 1
+                    // For now, just don't draw them.
+                }
+                ctx.setLineDash([]); // Reset line dash
+            }
+        }
+
+        // Event Listeners
+        throwDiceButton.addEventListener('click', throwDice);
+        resetButton.addEventListener('click', initializeSimulation);
+        initialDiceInput.addEventListener('change', initializeSimulation); // Re-initialize on input change
+        showTheoreticalCurveCheckbox.addEventListener('change', drawGraph); // Redraw graph when checkbox changes
+        showHalfLifeLinesCheckbox.addEventListener('change', drawGraph); // Redraw graph when checkbox changes
+
+        // Add event listeners for decay checkboxes
+        decayCheckboxes.forEach(checkbox => {
+            checkbox.addEventListener('change', updateDecaySettings);
+        });
+
+        // Initialize the simulation when the window loads
+        window.onload = function() {
+            initializeSimulation();
+            // Add a resize listener to redraw the graph when the window is resized
+            window.addEventListener('resize', drawGraph);
+        };
+    </script>
+<script src="../../../assets/sim.js" data-root="../../../#radioactivity-and-nuclear-energy"></script>
+</body>
+</html>

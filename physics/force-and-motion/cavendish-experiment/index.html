@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="../../../assets/sim-early.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cavendish Experiment · PhySim</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #000020;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: #eee;
+        }
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+            display: block;
+        }
+        #ui-panel {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(30, 30, 30, 0.85);
+            padding: 15px 25px;
+            border-radius: 8px;
+            border: 1px solid #444;
+            pointer-events: auto;
+            max-width: 350px;
+            backdrop-filter: blur(4px);
+            box-shadow: 0 4px 6px rgba(0,0,0,0.5);
+        }
+        #ui-panel h2 {
+            margin-top: 0;
+            margin-bottom: 10px;
+            font-size: 1.2rem;
+            color: #4da6ff;
+        }
+        .data-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.85rem;
+            margin-bottom: 5px;
+            border-bottom: 1px solid #333;
+            padding-bottom: 3px;
+        }
+        .data-label { color: #aaa; }
+        .data-value { font-family: monospace; color: #fff; }
+        
+        .control-group {
+            margin-top: 15px;
+        }
+        .control-group label {
+            display: block;
+            font-size: 0.85rem;
+            margin-bottom: 5px;
+            color: #aaa;
+        }
+        input[type=range] {
+            width: 100%;
+            margin-bottom: 10px;
+        }
+        button {
+            width: 100%;
+            padding: 8px;
+            background: #4da6ff;
+            color: #000;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background 0.2s;
+        }
+        button:hover { background: #3388dd; }
+        
+        #readout {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px 20px;
+            border-radius: 20px;
+            border: 1px solid #555;
+            font-size: 1.1rem;
+            font-family: monospace;
+            text-align: center;
+        }
+        .highlight { color: #ffeb3b; }
+        /* ---- Phone / narrow-screen layout ---- */
+        @media (max-width: 900px) {
+            #ui-panel { padding: 12px 16px; }
+            #ui-panel h2 { font-size: 1rem; }
+            #ui-panel .data-row { font-size: .78rem; }
+            #readout { top: 56px; bottom: auto; font-size: .85rem; padding: 6px 12px; white-space: nowrap; }
+            button { padding: 11px; }
+        }
+    </style>
+    <!-- Include Three.js and OrbitControls -->
+    <script src="../../../assets/vendor/three.min.js"></script>
+    <script src="../../../assets/vendor/OrbitControls.js"></script>
+<link rel="icon" href="../../../favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../../../assets/sim.css">
+</head>
+<body>
+
+    <div id="ui-panel" data-physim-panel="Controls">
+        <h2>Cavendish Data (PASCO Specs)</h2>
+        <div class="data-row"><span class="data-label">Large Mass (M)</span> <span class="data-value">1.500 kg</span></div>
+        <div class="data-row"><span class="data-label">Small Mass (m)</span> <span class="data-value">0.0383 kg</span></div>
+        <div class="data-row"><span class="data-label">Torsion Constant (κ)</span> <span class="data-value">3.10e-8 N·m/rad</span></div>
+        <div class="data-row"><span class="data-label">Moment Arm (d)</span> <span class="data-value">50 mm</span></div>
+        <div class="data-row"><span class="data-label">Separation (r)</span> <span class="data-value">46.5 mm</span></div>
+        <div class="data-row"><span class="data-label">Target Eq. Angle</span> <span class="data-value">5.40e-3 rad</span></div>
+        <div class="data-row"><span class="data-label">Period (T)</span> <span class="data-value">498.2 s</span></div>
+        
+        <div class="control-group">
+            <button id="toggleMassesBtn">Cycle Large Mass Position</button>
+        </div>
+        
+        <div class="control-group">
+            <label>Simulation Speed Multiplier: <span id="speedVal">100x</span></label>
+            <input type="range" id="speedSlider" min="1" max="1000" value="100">
+        </div>
+        
+        <div class="control-group">
+            <label>Damping Coefficient</label>
+            <input type="range" id="dampingSlider" min="0" max="100" value="10">
+        </div>
+        
+        <div class="control-group" style="display: flex; align-items: center; justify-content: space-between;">
+            <label style="margin: 0; padding: 0;">Show Traces</label>
+            <input type="checkbox" id="showTracesToggle" checked style="width: auto; margin: 0;">
+        </div>
+        
+        <div class="control-group" style="display: flex; align-items: center; justify-content: space-between;">
+            <label style="margin: 0; padding: 0;">Equilibrium Markers</label>
+            <select id="eqMarkerMode" style="background: #333; color: #fff; border: 1px solid #555; padding: 2px 5px; border-radius: 3px;">
+                <option value="all">Show All</option>
+                <option value="current">Current Only</option>
+                <option value="none">Hide All</option>
+            </select>
+        </div>
+    </div>
+
+    <div id="readout">
+        Angle (θ): <span id="angleReadout" class="highlight">0.000e+0</span> rad | 
+        Time: <span id="timeReadout">0.0</span> s
+    </div>
+
+    <div id="canvas-container"></div>
+
+    <script>
+        window.onload = function () {
+            // --- PHYSICS CONSTANTS (From user image specs) ---
+            const G = 6.67430e-11; // Gravitational constant (m^3 kg^-1 s^-2)
+            const M = 1.5;         // Large mass (kg)
+            const m = 0.0383;      // Small mass (kg)
+            const kappa = 3.10e-8; // Torsion constant (N m / rad)
+            const d = 0.05;        // Distance from pivot to small mass (m)
+            const r_sep = 0.0465;  // Distance between M and m centers (m)
+            
+            // Calculate Moment of Inertia (I = 2 * m * d^2)
+            const I = 2 * m * Math.pow(d, 2);
+            
+            // Calculate swivel geometry to maximize torque (perpendicular to small mass rod)
+            // This forms a right triangle: Origin to Small Mass (d), Small to Large (r_sep)
+            const D_large = Math.sqrt(Math.pow(d, 2) + Math.pow(r_sep, 2)); // Distance from pivot to large mass
+            const alphaOffset = Math.atan2(r_sep, d); // Angle for perpendicular alignment
+
+            // State variables
+            let theta = 0;         // Current angle of the small mass rod (radians)
+            let omega = 0;         // Angular velocity (rad/s)
+            let simTime = 0;
+            
+            // Settings
+            let speedMultiplier = 100;
+            let dampingFactor = 1e-7; // Scaled via slider
+            const largeMassStates = [1, 0, -1]; // 1: Pos 1, 0: Neutral, -1: Pos 2
+            let currentStateIndex = 0;
+            let largeMassState = largeMassStates[currentStateIndex]; 
+            let targetLargeMassAngle = alphaOffset;
+            let currentLargeMassAngle = alphaOffset;
+
+            // --- THREE.JS SETUP ---
+            const container = document.getElementById('canvas-container');
+            const scene = new THREE.Scene();
+            scene.background = new THREE.Color('#000020');
+            
+            // Camera
+            const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.01, 10);
+            camera.position.set(0, 0.3, 0.4);
+
+            // Renderer
+            const renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.shadowMap.enabled = true;
+            container.appendChild(renderer.domElement);
+
+            // Controls
+            const controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.target.set(0, 0, 0);
+
+            // Lighting
+            const ambientLight = new THREE.AmbientLight(0x404040, 2); // Soft white light
+            scene.add(ambientLight);
+            
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 1.5);
+            directionalLight.position.set(5, 10, 5);
+            directionalLight.castShadow = true;
+            scene.add(directionalLight);
+
+            // --- MATERIALS & GEOMETRIES ---
+            const brassMaterial = new THREE.MeshStandardMaterial({ color: 0xb5a642, metalness: 0.8, roughness: 0.2 });
+            const leadMaterial = new THREE.MeshStandardMaterial({ color: 0x555555, metalness: 0.4, roughness: 0.6 });
+            const mirrorMaterial = new THREE.MeshStandardMaterial({ color: 0x88ccff, emissive: 0x224466, metalness: 0.8, roughness: 0.1 });
+            const wireMaterial = new THREE.MeshBasicMaterial({ color: 0x888888 });
+            const laserMaterial = new THREE.LineBasicMaterial({ color: 0xff0000, transparent: true, opacity: 0.7 });
+
+            // Torsion Wire
+            const wireGeo = new THREE.CylinderGeometry(0.0005, 0.0005, 0.3);
+            const wire = new THREE.Mesh(wireGeo, wireMaterial);
+            wire.position.y = 0.15;
+            scene.add(wire);
+
+            // Casing/Base (Aesthetic)
+            const baseGeo = new THREE.CylinderGeometry(0.08, 0.1, 0.02, 32);
+            const base = new THREE.Mesh(baseGeo, leadMaterial);
+            base.position.y = -0.05;
+            base.receiveShadow = true;
+            scene.add(base);
+
+            // --- MOVABLE PARTS ---
+
+            // 1. Small Mass Assembly (Torsion Pendulum)
+            const pendulumGroup = new THREE.Group();
+            
+            // Rod
+            const rodGeo = new THREE.CylinderGeometry(0.001, 0.001, d * 2);
+            rodGeo.rotateZ(Math.PI / 2);
+            const rod = new THREE.Mesh(rodGeo, brassMaterial);
+            rod.castShadow = true;
+            pendulumGroup.add(rod);
+
+            // Small Masses
+            const smallMassGeo = new THREE.SphereGeometry(0.005, 32, 32);
+            const m1 = new THREE.Mesh(smallMassGeo, brassMaterial);
+            m1.position.set(d, 0, 0);
+            m1.castShadow = true;
+            pendulumGroup.add(m1);
+
+            const m2 = new THREE.Mesh(smallMassGeo, brassMaterial);
+            m2.position.set(-d, 0, 0);
+            m2.castShadow = true;
+            pendulumGroup.add(m2);
+
+            // Mirror - Updated to face Z-axis and moved higher
+            const mirrorGeo = new THREE.BoxGeometry(0.015, 0.015, 0.002);
+            const mirror = new THREE.Mesh(mirrorGeo, mirrorMaterial);
+            mirror.position.set(0, 0.05, 0);
+            pendulumGroup.add(mirror);
+
+            scene.add(pendulumGroup);
+
+            // 2. Large Mass Assembly (Swivel Arm)
+            const swivelGroup = new THREE.Group();
+
+            // Swivel Rod - Lowered so it passes completely under the small masses, lengthened to D_large
+            const swivelRodGeo = new THREE.CylinderGeometry(0.002, 0.002, D_large * 2);
+            swivelRodGeo.rotateZ(Math.PI / 2);
+            const swivelRod = new THREE.Mesh(swivelRodGeo, leadMaterial);
+            swivelRod.position.y = -0.04; 
+            swivelRod.castShadow = true;
+            swivelGroup.add(swivelRod);
+
+            // Vertical stalks to connect lowered swivel rod to the perfectly aligned large masses
+            const stalkGeo = new THREE.CylinderGeometry(0.002, 0.002, 0.04);
+            const stalk1 = new THREE.Mesh(stalkGeo, leadMaterial);
+            stalk1.position.set(D_large, -0.02, 0);
+            swivelGroup.add(stalk1);
+            
+            const stalk2 = new THREE.Mesh(stalkGeo, leadMaterial);
+            stalk2.position.set(-D_large, -0.02, 0);
+            swivelGroup.add(stalk2);
+
+            // Large Masses - Set directly to Y=0 to perfectly match the small masses' plane
+            const largeMassGeo = new THREE.SphereGeometry(0.025, 32, 32);
+            const M1 = new THREE.Mesh(largeMassGeo, leadMaterial);
+            M1.position.set(D_large, 0, 0);
+            M1.castShadow = true;
+            swivelGroup.add(M1);
+
+            const M2 = new THREE.Mesh(largeMassGeo, leadMaterial);
+            M2.position.set(-D_large, 0, 0);
+            M2.castShadow = true;
+            swivelGroup.add(M2);
+
+            scene.add(swivelGroup);
+
+            // --- LASER BEAM SETUP ---
+            // Represents the optical lever used to measure tiny angles
+            const laserPoints = [];
+            laserPoints.push(new THREE.Vector3(-0.2, 0.05, 0.2)); // Source
+            laserPoints.push(new THREE.Vector3(0, 0.05, 0));      // Mirror reflection point
+            laserPoints.push(new THREE.Vector3(0.2, 0.05, 0.2));  // Screen hit
+            const laserGeo = new THREE.BufferGeometry().setFromPoints(laserPoints);
+            const laserLine = new THREE.Line(laserGeo, laserMaterial);
+            scene.add(laserLine);
+
+            // Scale/Screen for laser
+            const screenGeo = new THREE.BoxGeometry(0.4, 0.05, 0.01);
+            const screenMesh = new THREE.Mesh(screenGeo, new THREE.MeshStandardMaterial({color: 0xdddddd}));
+            screenMesh.position.set(0.2, 0.05, 0.2); // Centered over where the laser hits when theta=0
+            screenMesh.rotation.y = Math.PI / 4; // Rotate 45 degrees to face the mirror
+            scene.add(screenMesh);
+            
+            // Screen Zero-line Indicator
+            const zeroLine = new THREE.Mesh(new THREE.BoxGeometry(0.002, 0.05, 0.002), new THREE.MeshBasicMaterial({color: 0x222222}));
+            // Position slightly in front of the angled screen along its normal
+            zeroLine.position.set(0.2 - 0.001 * Math.SQRT1_2, 0.05, 0.2 - 0.001 * Math.SQRT1_2);
+            zeroLine.rotation.y = Math.PI / 4;
+            scene.add(zeroLine);
+
+            // Laser Dot on Screen
+            const dotGeo = new THREE.SphereGeometry(0.004, 16, 16);
+            const dotMesh = new THREE.Mesh(dotGeo, new THREE.MeshBasicMaterial({color: 0xff0000}));
+            scene.add(dotMesh);
+
+            // --- TRACES AND EQUILIBRIA ---
+            // Helper function to calculate where the laser hits the screen
+            function getScreenHitPosition(thetaAngle) {
+                const reflectionAngle = Math.PI/4 + (2 * thetaAngle);
+                const distance = (0.2 * Math.SQRT2) / Math.cos(reflectionAngle - Math.PI/4);
+                const hitX = distance * Math.sin(reflectionAngle);
+                const hitZ = distance * Math.cos(reflectionAngle);
+                // Offset slightly in front of screen normal so it doesn't clip
+                return new THREE.Vector3(hitX - 0.005 * Math.SQRT1_2, 0.05, hitZ - 0.005 * Math.SQRT1_2);
+            }
+
+            const eqAngle = 5.40e-3; // Target equilibrium angle
+            
+            // Equilibrium Markers
+            const eqMarker1 = new THREE.Mesh(new THREE.BoxGeometry(0.002, 0.05, 0.002), new THREE.MeshBasicMaterial({color: 0x00aaff}));
+            eqMarker1.position.copy(getScreenHitPosition(eqAngle));
+            eqMarker1.rotation.y = Math.PI / 4;
+            scene.add(eqMarker1);
+
+            const eqMarker2 = new THREE.Mesh(new THREE.BoxGeometry(0.002, 0.05, 0.002), new THREE.MeshBasicMaterial({color: 0xffaa00}));
+            eqMarker2.position.copy(getScreenHitPosition(-eqAngle));
+            eqMarker2.rotation.y = Math.PI / 4;
+            scene.add(eqMarker2);
+
+            const eqMarker3 = new THREE.Mesh(new THREE.BoxGeometry(0.002, 0.05, 0.002), new THREE.MeshBasicMaterial({color: 0x00ffaa}));
+            eqMarker3.position.copy(getScreenHitPosition(0)); // Neutral equilibrium at 0 rad
+            eqMarker3.rotation.y = Math.PI / 4;
+            scene.add(eqMarker3);
+
+            // Traces
+            const maxTraces = 2000; // Store up to 2000 circular dots per state
+            const traceGeo = new THREE.CircleGeometry(0.0025, 16);
+            const traceMat1 = new THREE.MeshBasicMaterial({color: 0x00aaff, transparent: true, opacity: 0.8, side: THREE.DoubleSide});
+            const traceMat2 = new THREE.MeshBasicMaterial({color: 0xffaa00, transparent: true, opacity: 0.8, side: THREE.DoubleSide});
+            const traceMat3 = new THREE.MeshBasicMaterial({color: 0x00ffaa, transparent: true, opacity: 0.8, side: THREE.DoubleSide});
+
+            const traceInstanced1 = new THREE.InstancedMesh(traceGeo, traceMat1, maxTraces);
+            const traceInstanced2 = new THREE.InstancedMesh(traceGeo, traceMat2, maxTraces);
+            const traceInstanced3 = new THREE.InstancedMesh(traceGeo, traceMat3, maxTraces);
+            traceInstanced1.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+            traceInstanced2.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+            traceInstanced3.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+            traceInstanced1.count = 0;
+            traceInstanced2.count = 0;
+            traceInstanced3.count = 0;
+            scene.add(traceInstanced1);
+            scene.add(traceInstanced2);
+            scene.add(traceInstanced3);
+
+            let traceIdx1 = 0;
+            let traceIdx2 = 0;
+            let traceIdx3 = 0;
+            let lastRealTraceTime = performance.now();
+            const dummyTrace = new THREE.Object3D();
+            dummyTrace.rotation.y = Math.PI / 4; // Face along screen normal
+
+            // --- UI EVENT LISTENERS ---
+            function updateVisibility() {
+                const showTraces = document.getElementById('showTracesToggle').checked;
+                const eqMode = document.getElementById('eqMarkerMode').value;
+
+                traceInstanced1.visible = showTraces;
+                traceInstanced2.visible = showTraces;
+                traceInstanced3.visible = showTraces;
+
+                if (eqMode === 'none') {
+                    eqMarker1.visible = false;
+                    eqMarker2.visible = false;
+                    eqMarker3.visible = false;
+                } else if (eqMode === 'current') {
+                    eqMarker1.visible = (largeMassState === 1);
+                    eqMarker3.visible = (largeMassState === 0);
+                    eqMarker2.visible = (largeMassState === -1);
+                } else {
+                    eqMarker1.visible = true;
+                    eqMarker2.visible = true;
+                    eqMarker3.visible = true;
+                }
+            }
+
+            document.getElementById('toggleMassesBtn').addEventListener('click', () => {
+                currentStateIndex = (currentStateIndex + 1) % 3;
+                largeMassState = largeMassStates[currentStateIndex];
+                
+                if (largeMassState === 1) {
+                    targetLargeMassAngle = alphaOffset;
+                } else if (largeMassState === 0) {
+                    targetLargeMassAngle = Math.PI / 2; // Halfway neutral point
+                } else {
+                    targetLargeMassAngle = Math.PI - alphaOffset;
+                }
+                
+                updateVisibility();
+            });
+
+            document.getElementById('speedSlider').addEventListener('input', (e) => {
+                speedMultiplier = parseFloat(e.target.value);
+                document.getElementById('speedVal').innerText = speedMultiplier + 'x';
+            });
+
+            document.getElementById('dampingSlider').addEventListener('input', (e) => {
+                // Scale damping exponentially so slider feels natural
+                const val = parseFloat(e.target.value);
+                dampingFactor = val === 0 ? 0 : Math.pow(10, (val / 20) - 10); 
+            });
+
+            document.getElementById('showTracesToggle').addEventListener('change', updateVisibility);
+            document.getElementById('eqMarkerMode').addEventListener('change', updateVisibility);
+
+            // Window resize handler
+            window.addEventListener('resize', () => {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            });
+
+            // --- PHYSICS ENGINE ---
+            
+            // Calculate the gravitational torque at a given small mass angle and large mass angle
+            function calculateGravitationalTorque(theta_small, theta_large) {
+                // Small mass positions
+                const sm1 = new THREE.Vector3(d * Math.cos(theta_small), 0, -d * Math.sin(theta_small));
+                const sm2 = new THREE.Vector3(-d * Math.cos(theta_small), 0, d * Math.sin(theta_small));
+
+                // Large mass positions (using D_large for correct perpendicular placement)
+                const lm1 = new THREE.Vector3(D_large * Math.cos(theta_large), 0, -D_large * Math.sin(theta_large));
+                const lm2 = new THREE.Vector3(-D_large * Math.cos(theta_large), 0, D_large * Math.sin(theta_large));
+
+                // Force vectors on m1
+                const f11_dir = new THREE.Vector3().subVectors(lm1, sm1);
+                const dist11 = Math.max(f11_dir.length(), 0.01); // Prevent explosion if they overlap
+                f11_dir.normalize();
+                const F11_mag = (G * M * m) / (dist11 * dist11);
+                const F11 = f11_dir.multiplyScalar(F11_mag);
+
+                const f12_dir = new THREE.Vector3().subVectors(lm2, sm1);
+                const dist12 = Math.max(f12_dir.length(), 0.01);
+                f12_dir.normalize();
+                const F12_mag = (G * M * m) / (dist12 * dist12);
+                const F12 = f12_dir.multiplyScalar(F12_mag);
+
+                // Total force on m1
+                const F1_total = new THREE.Vector3().addVectors(F11, F12);
+
+                // Torque = r x F
+                const torque1 = new THREE.Vector3().crossVectors(sm1, F1_total);
+
+                // By symmetry, torque on m2 is the same in magnitude and direction.
+                // Total torque on the system around Y axis:
+                return torque1.y * 2; 
+            }
+
+            const clock = new THREE.Clock();
+
+            function animate() {
+                requestAnimationFrame(animate);
+
+                const realDelta = Math.min(clock.getDelta(), 0.1); // Cap delta to prevent instability on lag
+                const dt = realDelta * speedMultiplier;
+                simTime += dt;
+
+                // 1. Update Large Mass Swivel animation (purely kinematic, moves smoothly to target)
+                const swivelDiff = targetLargeMassAngle - currentLargeMassAngle;
+                currentLargeMassAngle += swivelDiff * (realDelta * 2); // Adjust speed of swivel independent of sim speed
+                swivelGroup.rotation.y = currentLargeMassAngle;
+
+                // 2. Physics Step (Euler Integration)
+                // Perform multiple sub-steps for stability if speed multiplier is very high
+                const subSteps = 10;
+                const subDt = dt / subSteps;
+                
+                for(let i=0; i<subSteps; i++) {
+                    // Calculate Torques
+                    const tau_g = calculateGravitationalTorque(theta, currentLargeMassAngle);
+                    const tau_w = -kappa * theta; // Restoring torque from wire
+                    const tau_d = -dampingFactor * omega; // Damping torque
+
+                    const tau_net = tau_g + tau_w + tau_d;
+
+                    // Angular Acceleration
+                    const alpha = tau_net / I;
+
+                    // Integration
+                    omega += alpha * subDt;
+                    theta += omega * subDt;
+                }
+
+                // 3. Update Visuals
+                pendulumGroup.rotation.y = theta;
+
+                // Update Laser visuals
+                // Incoming beam is 45 degrees from Z-axis. Outgoing beam rotates by 2*theta
+                const dotPos = getScreenHitPosition(theta);
+                
+                // Update beam ray
+                laserPoints[2].copy(dotPos);
+                // Push ray exact point back to screen surface geometry plane
+                laserPoints[2].x += 0.005 * Math.SQRT1_2;
+                laserPoints[2].z += 0.005 * Math.SQRT1_2;
+                laserGeo.setFromPoints(laserPoints);
+                
+                // Position the red dot exactly where it hits the screen, offset slightly along the screen's normal towards the mirror
+                dotMesh.position.copy(dotPos);
+
+                // Update Traces
+                const currentRealTime = performance.now();
+                if (currentRealTime - lastRealTraceTime > 250) { // Record a circular mark every 250ms of real time
+                    dummyTrace.position.copy(dotPos);
+                    // Push the trace slightly behind the active red dot, but still in front of the screen
+                    dummyTrace.position.x += 0.001 * Math.SQRT1_2;
+                    dummyTrace.position.z += 0.001 * Math.SQRT1_2;
+                    dummyTrace.updateMatrix();
+
+                    if (largeMassState === 1) {
+                        traceInstanced1.setMatrixAt(traceIdx1, dummyTrace.matrix);
+                        traceInstanced1.instanceMatrix.needsUpdate = true;
+                        if (traceInstanced1.count < maxTraces) traceInstanced1.count++;
+                        traceIdx1 = (traceIdx1 + 1) % maxTraces;
+                    } else if (largeMassState === -1) {
+                        traceInstanced2.setMatrixAt(traceIdx2, dummyTrace.matrix);
+                        traceInstanced2.instanceMatrix.needsUpdate = true;
+                        if (traceInstanced2.count < maxTraces) traceInstanced2.count++;
+                        traceIdx2 = (traceIdx2 + 1) % maxTraces;
+                    } else {
+                        traceInstanced3.setMatrixAt(traceIdx3, dummyTrace.matrix);
+                        traceInstanced3.instanceMatrix.needsUpdate = true;
+                        if (traceInstanced3.count < maxTraces) traceInstanced3.count++;
+                        traceIdx3 = (traceIdx3 + 1) % maxTraces;
+                    }
+                    lastRealTraceTime = currentRealTime;
+                }
+
+                // 4. Update UI
+                document.getElementById('angleReadout').innerText = theta.toExponential(3);
+                document.getElementById('timeReadout').innerText = Math.floor(simTime);
+
+                controls.update();
+                renderer.render(scene, camera);
+            }
+
+            // Initialization
+            swivelGroup.rotation.y = currentLargeMassAngle;
+            updateVisibility();
+            animate();
+        };
+    </script>
+<script src="../../../assets/sim.js" data-root="../../../#force-and-motion"></script>
+</body>
+</html>

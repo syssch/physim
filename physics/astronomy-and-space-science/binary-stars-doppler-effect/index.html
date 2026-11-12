@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="../../../assets/sim-early.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Binary Stars Doppler Effect · PhySim</title>
+    <link rel="stylesheet" href="../../../assets/vendor/tailwind.css">
+    <link rel="stylesheet" href="../../../assets/vendor/fontawesome/css/all.min.css">
+    <style>
+        body { margin: 0; overflow: hidden; }
+        canvas { width: 100%; height: 100%; }
+        /* ---- Phone / narrow-screen layout ---- */
+        @media (max-width: 900px) {
+            body { height: auto !important; width: auto !important; overflow: auto !important; display: block !important; padding: 8px !important; }
+            #appBox { aspect-ratio: auto; max-width: none; max-height: none; overflow: visible; padding: 10px; gap: 10px; }
+            #appBox h1 { font-size: 1.05rem; }
+            #appBox > div:first-child { padding: 12px; gap: 12px; }
+            #appBox > div:first-child .grid { gap: 14px; }
+            #bottomGrid { grid-template-columns: 1fr; }
+            #bottomGrid > div:first-child { height: 340px; }
+            #bottomGrid > div:last-child { height: 320px; padding: 10px; }
+            #bottomGrid > div:last-child h3 { font-size: .85rem; }
+            #bottomGrid .text-lg.font-mono { font-size: .8rem; right: 6px; }
+            #bottomGrid .top-4.font-mono { top: 4px; }
+            #bottomGrid .bottom-4.font-mono { bottom: 4px; }
+        }
+    </style>
+<link rel="icon" href="../../../favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../../../assets/sim.css">
+</head>
+<body class="bg-gray-900 font-sans h-screen w-screen flex items-center justify-center p-4">
+
+    <!-- App Container (16:9 Aspect Ratio) -->
+    <div id="appBox" class="aspect-video w-full max-w-[177.78vh] max-h-screen bg-gray-50 rounded-2xl shadow-2xl flex flex-col p-4 gap-4 overflow-hidden relative text-gray-900">
+
+        <!-- TOP SECTION: Controls & Header -->
+        <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex flex-col gap-4 shrink-0">
+            
+            <!-- Title and Play Controls -->
+            <div class="flex justify-between items-center border-b border-gray-100 pb-3">
+                <h1 class="text-xl font-bold text-gray-800 flex items-center gap-2">
+                    <i class="fas fa-atom text-indigo-600"></i>
+                    Binary Star Doppler Simulator
+                </h1>
+                <div class="flex gap-2">
+                    <button id="btn-play" class="px-4 py-2 bg-amber-100 text-amber-700 hover:bg-amber-200 rounded-lg font-medium transition-colors flex items-center gap-2">
+                        <i class="fas fa-pause"></i> Pause
+                    </button>
+                    <button id="btn-reset" class="px-4 py-2 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg transition-colors" title="Reset">
+                        <i class="fas fa-undo"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Sliders Grid -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                
+                <!-- Mass 1 Slider -->
+                <div>
+                    <div class="flex justify-between mb-1">
+                        <label class="text-sm font-bold text-purple-700">Mass of Star 1 (Purple)</label>
+                        <span id="val-m1" class="text-sm font-mono bg-purple-50 px-2 rounded border border-purple-100 text-purple-800">20 M☉</span>
+                    </div>
+                    <input type="range" id="slider-m1" min="5" max="50" value="20" class="w-full h-2 bg-purple-100 rounded-lg appearance-none cursor-pointer accent-purple-600">
+                </div>
+
+                <!-- Mass 2 Slider -->
+                <div>
+                    <div class="flex justify-between mb-1">
+                        <label class="text-sm font-bold text-orange-700">Mass of Star 2 (Orange)</label>
+                        <span id="val-m2" class="text-sm font-mono bg-orange-50 px-2 rounded border border-orange-100 text-orange-800">10 M☉</span>
+                    </div>
+                    <input type="range" id="slider-m2" min="5" max="50" value="10" class="w-full h-2 bg-orange-100 rounded-lg appearance-none cursor-pointer accent-orange-500">
+                </div>
+
+                <!-- Angle to Orbital Plane Slider (Changed from Inclination) -->
+                <div>
+                    <div class="flex justify-between mb-1">
+                        <label class="text-sm font-bold text-gray-700">Angle to Orbital Plane</label>
+                        <span id="val-inc" class="text-sm font-mono bg-gray-100 px-2 rounded border border-gray-200 text-gray-800">0°</span>
+                    </div>
+                    <!-- Default value is now 0 (Edge-on) -->
+                    <input type="range" id="slider-inc" min="0" max="90" value="0" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-gray-600">
+                    <div class="flex justify-between text-[10px] text-gray-400 mt-1">
+                        <span>Edge-on (0°)</span>
+                        <span>Face-on (90°)</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- BOTTOM SECTION: Simulation & Graph -->
+        <div id="bottomGrid" class="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4 min-h-0">
+            
+            <!-- LEFT: Simulation Canvas -->
+            <div class="bg-gray-900 rounded-xl shadow-lg border border-gray-700 relative overflow-hidden flex flex-col">
+                <!-- Dynamic View Label -->
+                <div id="sim-view-label" class="absolute top-4 left-4 text-white/90 z-10 bg-black/60 px-3 py-1 rounded backdrop-blur-sm text-sm border border-white/10 font-mono">
+                    View from Earth (You)
+                </div>
+                <div class="flex-1 relative">
+                    <canvas id="sim-canvas"></canvas>
+                </div>
+            </div>
+
+            <!-- RIGHT: Graph Canvas -->
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 flex flex-col relative overflow-hidden">
+                <div class="flex justify-between items-center mb-2 shrink-0">
+                    <h3 class="font-bold text-gray-700">Radial Velocity (Doppler Shift)</h3>
+                    <div class="flex gap-4 text-xs font-medium">
+                        <div class="flex items-center gap-1 text-purple-600">
+                            <span class="w-2 h-2 rounded-full bg-purple-500"></span> Star 1
+                        </div>
+                        <div class="flex items-center gap-1 text-orange-600">
+                            <span class="w-2 h-2 rounded-full bg-orange-500"></span> Star 2
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="flex-1 relative w-full h-full">
+                    <!-- Labels overlay -->
+                    <div class="absolute top-0 right-0 h-full w-full pointer-events-none flex flex-col justify-center z-10">
+                        <div class="w-full border-t border-dashed border-gray-300 opacity-50 absolute top-[50%]"></div>
+                        <span class="absolute right-4 top-4 text-lg font-bold text-red-600 font-mono">Redshift (+v)</span>
+                        <span class="absolute right-4 bottom-4 text-lg font-bold text-blue-600 font-mono">Blueshift (-v)</span>
+                    </div>
+                    <canvas id="graph-canvas"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    {
+        // --- Constants ---
+        const G = 53.125;
+        const BASE_SEPARATION = 200;
+        const MAX_HISTORY = 400; 
+
+        // --- State ---
+        const state = {
+            mass1: 20,
+            mass2: 10,
+            inclination: 0, // Default 0 is now Edge-on
+            angle: 0,
+            time: 0,
+            isPlaying: true,
+            history: [] // { v1, v2 }
+        };
+
+        // --- DOM Elements ---
+        const canvasSim = document.getElementById('sim-canvas');
+        const canvasGraph = document.getElementById('graph-canvas');
+        const ctxSim = canvasSim.getContext('2d');
+        const ctxGraph = canvasGraph.getContext('2d');
+        const viewLabel = document.getElementById('sim-view-label');
+
+        const sliderM1 = document.getElementById('slider-m1');
+        const sliderM2 = document.getElementById('slider-m2');
+        const sliderInc = document.getElementById('slider-inc');
+        
+        const valM1 = document.getElementById('val-m1');
+        const valM2 = document.getElementById('val-m2');
+        const valInc = document.getElementById('val-inc');
+
+        const btnPlay = document.getElementById('btn-play');
+        const btnReset = document.getElementById('btn-reset');
+
+        // --- Resize Handling ---
+        const resizeCanvases = function() {
+            const simRect = canvasSim.parentElement.getBoundingClientRect();
+            canvasSim.width = simRect.width;
+            canvasSim.height = simRect.height;
+
+            const graphRect = canvasGraph.parentElement.getBoundingClientRect();
+            canvasGraph.width = graphRect.width;
+            canvasGraph.height = graphRect.height;
+        };
+        window.addEventListener('resize', resizeCanvases);
+        resizeCanvases(); 
+
+        // --- Physics & Logic ---
+        const updatePhysics = function() {
+            if (!state.isPlaying) return;
+
+            const totalMass = state.mass1 + state.mass2;
+            const r1 = (state.mass2 / totalMass) * BASE_SEPARATION;
+            const r2 = (state.mass1 / totalMass) * BASE_SEPARATION;
+            
+            const omega = Math.sqrt((G * totalMass) / Math.pow(BASE_SEPARATION, 3));
+
+            state.angle += omega;
+            state.time += 1;
+
+            // Velocities
+            const v1_mag = omega * r1;
+            const v2_mag = omega * r2;
+
+            // Doppler Calculation
+            // We define:
+            // Y < 0 (Up) is Back/Away (Redshift +).
+            // Y > 0 (Down) is Front/Close (Blueshift -).
+            // vy is dy/dt.
+            // When moving Up (Away), y is decreasing, so vy is negative.
+            // We want Redshift (+RadV) when moving Up.
+            // So RadV = -vy.
+            const vy1 = Math.cos(state.angle) * v1_mag;
+            const vy2 = Math.cos(state.angle + Math.PI) * v2_mag; 
+
+            // View Scaling Logic:
+            // 0 deg = Edge on (Max Doppler) -> Cos(0) = 1
+            const viewScale = Math.cos(state.inclination * Math.PI / 180);
+            
+            const radV1 = -vy1 * viewScale;
+            const radV2 = -vy2 * viewScale;
+
+            state.history.push({ v1: radV1, v2: radV2 });
+            if (state.history.length > MAX_HISTORY) {
+                state.history.shift();
+            }
+        };
+
+        // --- Drawing ---
+        const drawSim = function() {
+            const w = canvasSim.width;
+            const h = canvasSim.height;
+            const cx = w / 2;
+            const cy = h / 2;
+
+            // 1. Calculate View Tilt Constants
+            const incRad = state.inclination * Math.PI / 180;
+            const scaleY = Math.sin(incRad); 
+            const depthScale = Math.cos(incRad); 
+
+            // Clear
+            ctxSim.clearRect(0, 0, w, h);
+            ctxSim.fillStyle = '#111827';
+            ctxSim.fillRect(0, 0, w, h);
+
+            // Calculate Physics Positions (2D Plane)
+            const totalMass = state.mass1 + state.mass2;
+            const r1 = (state.mass2 / totalMass) * BASE_SEPARATION;
+            const r2 = (state.mass1 / totalMass) * BASE_SEPARATION;
+
+            const x1 = Math.cos(state.angle) * r1;
+            const y1 = Math.sin(state.angle) * r1;
+            
+            const x2 = -Math.cos(state.angle) * r2;
+            const y2 = -Math.sin(state.angle) * r2;
+
+            // Draw Center of Mass
+            ctxSim.beginPath();
+            ctxSim.strokeStyle = '#374151';
+            ctxSim.setLineDash([5, 5]);
+            ctxSim.moveTo(cx - 50, cy);
+            ctxSim.lineTo(cx + 50, cy);
+            ctxSim.moveTo(cx, cy - 50 * scaleY); 
+            ctxSim.lineTo(cx, cy + 50 * scaleY);
+            ctxSim.stroke();
+            ctxSim.setLineDash([]);
+
+            // Draw Orbit Paths
+            const drawScaleY = Math.max(0.01, scaleY);
+
+            ctxSim.beginPath();
+            ctxSim.strokeStyle = 'rgba(168, 85, 247, 0.2)'; // Purple tint
+            ctxSim.ellipse(cx, cy, r1, r1 * drawScaleY, 0, 0, Math.PI * 2);
+            ctxSim.stroke();
+
+            ctxSim.beginPath();
+            ctxSim.strokeStyle = 'rgba(249, 115, 22, 0.2)'; // Orange tint
+            ctxSim.ellipse(cx, cy, r2, r2 * drawScaleY, 0, 0, Math.PI * 2);
+            ctxSim.stroke();
+
+            // Function to draw a star with 3D perspective
+            const drawStar = (x, y, radius, color, shadowColor, label) => {
+                const vx = x;
+                const vy = y * scaleY;
+                
+                // Depth calculation (New Logic):
+                // Y < 0 (Up) is Back/Away -> Smaller
+                // Y > 0 (Down) is Front/Close -> Larger
+                // Using (+) sign for Y:
+                // If y is -100 (Back), 1 + (-0.15) < 1. Small.
+                // If y is +100 (Front), 1 + (0.15) > 1. Large.
+                const depthFactor = 1 + ((y / BASE_SEPARATION) * 0.3 * depthScale);
+                const drawRadius = Math.max(1, radius * depthFactor);
+                
+                ctxSim.beginPath();
+                ctxSim.fillStyle = color;
+                ctxSim.shadowBlur = 20 * depthFactor;
+                ctxSim.shadowColor = shadowColor;
+                ctxSim.arc(cx + vx, cy + vy, drawRadius, 0, Math.PI * 2);
+                ctxSim.fill();
+                ctxSim.shadowBlur = 0;
+                
+                // Label
+                ctxSim.fillStyle = `rgba(255, 255, 255, ${Math.max(0.4, depthFactor)})`;
+                ctxSim.font = `${Math.max(8, 10 * depthFactor)}px sans-serif`;
+                ctxSim.textAlign = 'center';
+                ctxSim.fillText(label, cx + vx, cy + vy + drawRadius + 12);
+            };
+
+            const s1BaseR = 10 + (state.mass1 / 5);
+            const s2BaseR = 10 + (state.mass2 / 5);
+
+            // Z-Order: Draw "Back" (Small Y / Negative Y) first.
+            if (y1 < y2) {
+                // y1 is smaller (Back). Draw y1 first.
+                drawStar(x1, y1, s1BaseR, '#A855F7', '#A855F7', "M1");
+                drawStar(x2, y2, s2BaseR, '#F97316', '#F97316', "M2");
+            } else {
+                // y2 is smaller (Back). Draw y2 first.
+                drawStar(x2, y2, s2BaseR, '#F97316', '#F97316', "M2");
+                drawStar(x1, y1, s1BaseR, '#A855F7', '#A855F7', "M1");
+            }
+        };
+
+        const drawGraph = function() {
+            const w = canvasGraph.width;
+            const h = canvasGraph.height;
+            
+            ctxGraph.clearRect(0, 0, w, h);
+
+            // Zero line
+            ctxGraph.strokeStyle = '#e5e7eb';
+            ctxGraph.lineWidth = 1;
+            ctxGraph.beginPath();
+            ctxGraph.moveTo(0, h/2);
+            ctxGraph.lineTo(w, h/2);
+            ctxGraph.stroke();
+
+            if (state.history.length < 2) return;
+
+            const maxV = 3.5; 
+            const scaleY = (h / 2) / maxV;
+
+            // Draw V1 (Purple)
+            ctxGraph.beginPath();
+            ctxGraph.strokeStyle = '#A855F7';
+            ctxGraph.lineWidth = 2;
+            
+            const stepX = w / MAX_HISTORY;
+            
+            ctxGraph.beginPath();
+            state.history.forEach((pt, i) => {
+                const x = i * stepX;
+                // v1 Positive (Redshift). 
+                // We want graph to go UP (towards Redshift label).
+                // Canvas Y=0 is Top. So Subtract v.
+                const y = (h/2) - (pt.v1 * scaleY);
+                if (i===0) ctxGraph.moveTo(x, y);
+                else ctxGraph.lineTo(x, y);
+            });
+            ctxGraph.stroke();
+
+            // Draw V2 (Orange)
+            ctxGraph.beginPath();
+            ctxGraph.strokeStyle = '#F97316';
+            state.history.forEach((pt, i) => {
+                const x = i * stepX;
+                const y = (h/2) - (pt.v2 * scaleY);
+                if (i===0) ctxGraph.moveTo(x, y);
+                else ctxGraph.lineTo(x, y);
+            });
+            ctxGraph.stroke();
+        };
+
+        // --- Loop ---
+        const loop = function() {
+            updatePhysics();
+            drawSim();
+            drawGraph();
+            requestAnimationFrame(loop);
+        };
+
+        // --- Event Listeners ---
+        if (sliderM1) {
+             sliderM1.addEventListener('input', (e) => {
+                state.mass1 = Number(e.target.value);
+                valM1.textContent = state.mass1 + " M☉";
+            });
+        }
+
+        if (sliderM2) {
+            sliderM2.addEventListener('input', (e) => {
+                state.mass2 = Number(e.target.value);
+                valM2.textContent = state.mass2 + " M☉";
+            });
+        }
+
+        if (sliderInc) {
+            sliderInc.addEventListener('input', (e) => {
+                state.inclination = Number(e.target.value);
+                valInc.textContent = state.inclination + "°";
+                
+                // Update Label Text
+                let viewText = `View from Earth (Angle: ${state.inclination}°)`;
+                if (state.inclination == 0) viewText = "View from Earth: Edge-on (0°)";
+                if (state.inclination == 90) viewText = "View from Earth: Face-on (90°)";
+                viewLabel.textContent = viewText;
+            });
+        }
+
+        if (btnPlay) {
+            btnPlay.addEventListener('click', () => {
+                state.isPlaying = !state.isPlaying;
+                btnPlay.innerHTML = state.isPlaying 
+                    ? '<i class="fas fa-pause"></i> Pause' 
+                    : '<i class="fas fa-play"></i> Resume';
+                
+                if (state.isPlaying) {
+                    btnPlay.classList.remove('bg-green-100', 'text-green-700', 'hover:bg-green-200');
+                    btnPlay.classList.add('bg-amber-100', 'text-amber-700', 'hover:bg-amber-200');
+                } else {
+                    btnPlay.classList.remove('bg-amber-100', 'text-amber-700', 'hover:bg-amber-200');
+                    btnPlay.classList.add('bg-green-100', 'text-green-700', 'hover:bg-green-200');
+                }
+            });
+        }
+
+        if (btnReset) {
+            btnReset.addEventListener('click', () => {
+                state.angle = 0;
+                state.time = 0;
+                state.history = [];
+                state.isPlaying = true;
+                btnPlay.innerHTML = '<i class="fas fa-pause"></i> Pause';
+                btnPlay.classList.remove('bg-green-100', 'text-green-700', 'hover:bg-green-200');
+                btnPlay.classList.add('bg-amber-100', 'text-amber-700', 'hover:bg-amber-200');
+            });
+        }
+
+        loop();
+    }
+    </script>
+<script src="../../../assets/sim.js" data-root="../../../#astronomy-and-space-science"></script>
+</body>
+</html>

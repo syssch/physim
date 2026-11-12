@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PhySim · Physics Simulations</title>
+<meta name="description" content="Interactive physics simulations for HKDSE Physics and Junior Science, Sing Yin Secondary School.">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="assets/vendor/tailwind.css">
+<link rel="stylesheet" href="assets/vendor/inter/inter.css">
+<style>
+  body { font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; }
+  html { scroll-behavior: smooth; scroll-padding-top: 72px; }
+  .card:hover img { transform: scale(1.03); }
+  .card img { transition: transform .25s ease; }
+  .chips::-webkit-scrollbar { display: none; }
+</style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen">
+<header class="bg-gradient-to-br from-blue-900 via-blue-800 to-indigo-900 text-white">
+  <div class="max-w-6xl mx-auto px-4 sm:px-6 pt-8 pb-5 sm:pt-12">
+    <div class="flex items-center gap-3">
+      <img src="favicon.svg" alt="" width="44" height="44" class="w-11 h-11">
+      <div>
+        <h1 class="text-3xl sm:text-4xl font-bold tracking-tight">PhySim</h1>
+        <p class="text-blue-200 text-sm sm:text-base">Interactive physics simulations · Sing Yin Secondary School</p>
+      </div>
+    </div>
+    <p class="mt-5 max-w-2xl text-blue-100 text-sm sm:text-base">28 simulations for HKDSE Physics and Junior Science. They work on computers, tablets and phones. Tap a card to open it.</p>
+    <div class="mt-5 relative max-w-md">
+      <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+      <input id="q" type="search" placeholder="Search simulations…" autocomplete="off" class="w-full pl-10 pr-4 py-2.5 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-4 focus:ring-blue-300">
+    </div>
+  </div>
+  <nav class="sticky top-0 z-10 bg-blue-950/95 backdrop-blur">
+    <div class="chips max-w-6xl mx-auto px-4 sm:px-6 py-2.5 flex gap-2 overflow-x-auto" style="scrollbar-width:none">
+      <a href="#force-and-motion" class="shrink-0 px-3 py-1.5 rounded-full bg-white/10 hover:bg-white/20 text-sm whitespace-nowrap">🚀 Force and Motion</a><a href="#wave-motion-and-ray-optics" class="shrink-0 px-3 py-1.5 rounded-full bg-white/10 hover:bg-white/20 text-sm whitespace-nowrap">🌊 Wave Motion and Ray Optics</a><a href="#electricity-and-magnetism" class="shrink-0 px-3 py-1.5 rounded-full bg-white/10 hover:bg-white/20 text-sm whitespace-nowrap">⚡ Electricity and Magnetism</a><a href="#radioactivity-and-nuclear-energy" class="shrink-0 px-3 py-1.5 rounded-full bg-white/10 hover:bg-white/20 text-sm whitespace-nowrap">☢️ Radioactivity and Nuclear Energy</a><a href="#astronomy-and-space-science" class="shrink-0 px-3 py-1.5 rounded-full bg-white/10 hover:bg-white/20 text-sm whitespace-nowrap">🪐 Astronomy and Space Science</a><a href="#atomic-world" class="shrink-0 px-3 py-1.5 rounded-full bg-white/10 hover:bg-white/20 text-sm whitespace-nowrap">⚛️ Atomic World</a><a href="#junior-science" class="shrink-0 px-3 py-1.5 rounded-full bg-white/10 hover:bg-white/20 text-sm whitespace-nowrap">🔬 Junior Science</a>
+    </div>
+  </nav>
+</header>
+<main class="max-w-6xl mx-auto px-4 sm:px-6 pb-16">
+  <section id="physics" class="mt-10 first:mt-6" data-section>
+    <div class="flex items-baseline gap-3 mb-1">
+      <h2 class="text-2xl sm:text-3xl font-bold text-slate-900">Physics</h2>
+      <span class="text-sm text-slate-500">HKDSE Physics</span>
+    </div>
+    <div id="force-and-motion" class="mt-6" data-topic>
+      <h3 class="text-base sm:text-lg font-semibold text-slate-700 mb-3">🚀 Force and Motion</h3>
+    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-5">
+      <a href="physics/force-and-motion/free-fall-motion/" class="card group block bg-white rounded-2xl overflow-hidden shadow-sm ring-1 ring-slate-200 hover:shadow-lg hover:ring-blue-300 transition focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-400" data-search="free fall motion force and motion">
+        <div class="aspect-video overflow-hidden bg-slate-100"><img src="assets/thumbs/physics__force-and-motion__free-fall-motion.jpg" alt="" loading="lazy" width="640" height="360" class="w-full h-full object-cover"></div>
+        <div class="p-3 sm:p-4">
+          <h3 class="font-semibold text-slate-800 leading-snug group-hover:text-blue-700">Free Fall Motion</h3>
+          <p class="text-xs text-slate-500 mt-1">Force and Motion</p>
+        </div>
+      </a>
+      <a href="physics/force-and-motion/skydiving/" class="card group block bg-white rounded-2xl overflow-hidden shadow-sm ring-1 ring-slate-200 hover:shadow-lg hover:ring-blue-300 transition focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-400" data-search="skydiving force and motion">
+        <div class="aspect-video overflow-hidden bg-slate-100"><img src="assets/thumbs/physics__force-and-motion__skydiving.jpg" alt="" loading="lazy" width="640" height="360" class="w-full h-full object-cover"></div>
+        <div class="p-3 sm:p-4">
+          <h3 class="font-semibold text-slate-800 leading-snug group-hover:text-blue-700">Skydiving</h3>
+          <p class="text-xs text-slate-500 mt-1">Force and Motion</p>
+        </div>
+      </a>
+      <a href="physics/force-and-motion/normal-reaction-and-toppling/" class="card group block bg-white rounded-2xl overflow-hidden shadow-sm ring-1 ring-slate-200 hover:shadow-lg hover:ring-blue-300 transition focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-400" data-search="normal reaction and toppling force and motion">
+        <div class="aspect-video overflow-hidden bg-slate-100"><img src="assets/thumbs/physics__force-and-motion__normal-reaction-and-toppling.jpg" alt="" loading="lazy" width="640" height="360" class="w-full h-full object-cover"></div>
+        <div class="p-3 sm:p-4">
+          <h3 class="font-semibold text-slate-800 leading-snug group-hover:text-blue-700">Normal Reaction and Toppling</h3>
+          <p class="text-xs text-slate-500 mt-1">Force and Motion</p>
+        </div>
+      </a>
+      <a href="physics/force-and-motion/conservation-of-energy/" class="card group block bg-white rounded-2xl overflow-hidden shadow-sm ring-1 ring-slate-200 hover:shadow-lg hover:ring-blue-300 transition focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-400" data-search="conservation of energy force and motion">
+        <div class="aspect-video overflow-hidden bg-slate-100"><img src="assets/thumbs/physics__force-and-motion__conservation-of-energy.jpg" alt="" loading="lazy" width="640" height="360" class="w-full h-full object-cover"></div>
+        <div class="p-3 sm:p-4">
+          <h3 class="font-semibold text-slate-800 leading-snug group-hover:text-blue-700">Conservation of Energy</h3>
+          <p class="text-xs text-slate-500 mt-1">Force and Motion</p>
+        </div>
+      </a>
+      <a href="physics/force-and-motion/conservation-of-momentum/" class="card group block bg-white rounded-2xl overflow-hidden shadow-sm ring-1 ring-slate-200 hover:shadow-lg hover:ring-blue-300 transition focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-400" data-search="conservation of momentum force and motion">
+        <div class="aspect-video overflow-hidden bg-slate-100"><img src="assets/thumbs/physics__force-and-motion__conservation-of-momentum.jpg" alt="" loading="lazy" width="640" height="360" class="w-full h-full object-cover"></div>
+        <div class="p-3 sm:p-4">
+          <h3 class="font-semibold text-slate-800 leading-snug group-hover:text-blue-700">Conservation of Momentum</h3>
+          <p class="text-xs text-slate-500 mt-1">Force and Motion</p>
+        </div>
+      </a>
+      <a href="physics/force-and-motion/horizontally-projected-motion/" class="card group block bg-white rounded-2xl overflow-hidden shadow-sm ring-1 ring-slate-200 hover:shadow-lg hover:ring-blue-300 transition focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-400" data-search="horizontally projected motion force and motion">
+        <div class="aspect-video overflow-hidden bg-slate-100"><img src="assets/thumbs/physics__force-and-motion__horizontally-projected-motion.jpg" alt="" loading="lazy" width="640" height="360" class="w-full h-full object-cover"></div>
+        <div class="p-3 sm:p-4">
+          <h3 class="font-semibold text-slate-800 leading-snug group-hover:text-blue-700">Horizontally Projected Motion</h3>
+          <p class="text-xs text-slate-500 mt-1">Force and Motion</p>
+        </div>
+      </a>
+      <a href="physics/force-and-motion/projectile-motion/" class="card group block bg-white rounded-2xl overflow-hidden shadow-sm ring-1 ring-slate-200 hover:shadow-lg hover:ring-blue-300 transition focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-400" data-search="projectile motion force and motion">
+        <div class="aspect-video overflow-hidden bg-slate-100"><img src="assets/thumbs/physics__force-and-motion__projectile-motion.jpg" alt="" loading="lazy" width="640" height="360" class="w-full h-full object-cover"></div>
+        <div class="p-3 sm:p-4">
+          <h3 class="font-semibold text-slate-800 leading-snug group-hover:text-blue-700">Projectile Motion</h3>
+          <p class="text-xs text-slate-500 mt-1">Force and Motion</p>
+        </div>
+      </a>
+      <a href="physics/force-and-motion/monkey-and-hunter/" class="card group block bg-white rounded-2xl overflow-hidden shadow-sm ring-1 ring-slate-200 hover:shadow-lg hover:ring-blue-300 transition focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-400" data-search="monkey and hunter force and motion">
+        <div class="aspect-video overflow-hidden bg-slate-100"><img src="assets/thumbs/physics__force-and-motion__monkey-and-hunter.jpg" alt="" loading="lazy" width="640" height="360" class="w-full h-full object-cover"></div>
+        <div class="p-3 sm:p-4">
+          <h3 class="font-semibold text-slate-800 leading-snug group-hover:text-blue-700">Monkey and Hunter</h3>
+          <p class="text-xs text-slate-500 mt-1">Force and Motion</p>
+        </div>
+      </a>
+      <a href="physics/force-and-motion/bomb-problem/" class="card group block bg-white rounded-2xl overflow-hidden shadow-sm ring-1 ring-slate-200 hover:shadow-lg hover:ring-blue-300 transition focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-400" data-search="bomb problem force and motion">
+        <div class="aspect-video overflow-hidden bg-slate-100"><img src="assets/thumbs/physics__force-and-motion__bomb-problem.jpg" alt="" loading="lazy" width="640" height="360" class="w-full h-full object-cover"></div>
+        <div class="p-3 sm:p-4">
+          <h3 class="font-semibold text-slate-800 leading-snug group-hover:text-blue-700">Bomb Problem</h3>
+          <p class="text-xs text-slate-500 mt-1">Force and Motion</p>
+        </div>
+      </a>
+      <a href="physics/force-and-motion/cavendish-experiment/" class="card group block bg-white rounded-2xl overflow-hidden shadow-sm ring-1 ring-slate-200 hover:shadow-lg hover:ring-blue-300 transition focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-400" data-search="cavendish experiment force and motion">
+        <div class="aspect-video overflow-hidden bg-slate-100"><img src="assets/thumbs/physics__force-and-motion__cavendish-experiment.jpg" alt="" loading="lazy" width="640" height="360" class="w-full h-full object-cover"></div>
+        <div class="p-3 sm:p-4">
+          <h3 class="font-semibold text-slate-800 leading-snug group-hover:text-blue-700">Cavendish Experiment</h3>
+          <p class="text-xs text-slate-500 mt-1">Force and Motion</p>
+        </div>
+      </a>
+      <a href="physics/force-and-motion/orbits-at-different-heights/" class="card group block bg-white rounded-2xl overflow-hidden shadow-sm ring-1 ring-slate-200 hover:shadow-lg hover:ring-blue-300 transition focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-400" data-search="orbits at different heights force and motion">
+        <div class="aspect-video overflow-hidden bg-slate-100"><img src="assets/thumbs/physics__force-and-motion__orbits-at-different-heights.jpg" alt="" loading="lazy" width="640" height="360" class="w-full h-full object-cover"></div>
+        <div class="p-3 sm:p-4">
+          <h3 class="font-semibold text-slate-800 leading-snug group-hover:text-blue-700">Orbits at Different Heights</h3>
+          <p class="text-xs text-slate-500 mt-1">Force and Motion</p>
+        </div>
+      </a>
+    </div>
+    </div>
+    <div id="wave-motion-and-ray-optics" class="mt-6" data-topic>
+      <h3 class="text-base sm:text-lg font-semibold text-slate-700 mb-3">🌊 Wave Motion and Ray Optics</h3>
+    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-5">
+      <a href="physics/wave-motion-and-ray-optics/reflections-by-a-periscope/" class="card group block bg-white rounded-2xl overflow-hidden shadow-sm ring-1 ring-slate-200 hover:shadow-lg hover:ring-blue-300 transition focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-400" data-search="reflections by a periscope wave motion and ray optics">
+        <div class="aspect-video overflow-hidden bg-slate-100"><img src="assets/thumbs/physics__wave-motion-and-ray-optics__reflections-by-a-periscope.jpg" alt="" loading="lazy" width="640" height="360" class="w-full h-full object-cover"></div>
+        <div class="p-3 sm:p-4">
+          <h3 class="font-semibold text-slate-800 leading-snug group-hover:text-blue-700">Reflections by a Periscope</h3>
+          <p class="text-xs text-slate-500 mt-1">Wave Motion and Ray Optics</p>
+        </div>
+      </a>
+      <a href="physics/wave-motion-and-ray-optics/interference-pattern/" class="card group block bg-white rounded-2xl overflow-hidden shadow-sm ring-1 ring-slate-200 hover:shadow-lg hover:ring-blue-300 transition focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-400" data-search="interference pattern wave motion and ray optics">
+        <div class="aspect-video overflow-hidden bg-slate-100"><img src="assets/thumbs/physics__wave-motion-and-ray-optics__interference-pattern.jpg" alt="" loading="lazy" width="640" height="360" class="w-full h-full object-cover"></div>
+        <div class="p-3 sm:p-4">
+          <h3 class="font-semibold text-slate-800 leading-snug group-hover:text-blue-700">Interference Pattern</h3>
+          <p class="text-xs text-slate-500 mt-1">Wave Motion and Ray Optics</p>
+        </div>
+      </a>
+      <a href="physics/wave-motion-and-ray-optics/youngs-double-slit-experiment/" class="card group block bg-white rounded-2xl overflow-hidden shadow-sm ring-1 ring-slate-200 hover:shadow-lg hover:ring-blue-300 transition focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-400" data-search="young&#x27;s double slit experiment wave motion and ray optics">
+        <div class="aspect-video overflow-hidden bg-slate-100"><img src="assets/thumbs/physics__wave-motion-and-ray-optics__youngs-double-slit-experiment.jpg" alt="" loading="lazy" width="640" height="360" class="w-full h-full object-cover"></div>
+        <div class="p-3 sm:p-4">
+          <h3 class="font-semibold text-slate-800 leading-snug group-hover:text-blue-700">Young&#x27;s Double Slit Experiment</h3>
+          <p class="text-xs text-slate-500 mt-1">Wave Motion and Ray Optics</p>
+        </div>
+      </a>
+      <a href="physics/wave-motion-and-ray-optics/diffraction-grating/" class="card group block bg-white rounded-2xl overflow-hidden shadow-sm ring-1 ring-slate-200 hover:shadow-lg hover:ring-blue-300 transition focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-400" data-search="diffraction grating wave motion and ray optics">
+        <div class="aspect-video overflow-hidden bg-slate-100"><img src="assets/thumbs/physics__wave-motion-and-ray-optics__diffraction-grating.jpg" alt="" loading="lazy" width="640" height="360" class="w-full h-full object-cover"></div>
+        <div class="p-3 sm:p-4">
+          <h3 class="font-semibold text-slate-800 leading-snug group-hover:text-blue-700">Diffraction Grating</h3>
+          <p class="text-xs text-slate-500 mt-1">Wave Motion and Ray Optics</p>
+        </div>
+      </a>
+    </div>
+    </div>
+    <div id="electricity-and-magnetism" class="mt-6" data-topic>
+      <h3 class="text-base sm:text-lg font-semibold text-slate-700 mb-3">⚡ Electricity and Magnetism</h3>
+    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-5">
+      <a href="physics/electricity-and-magnetism/truck-model-for-electric-circuit/" class="card group block bg-white rounded-2xl overflow-hidden shadow-sm ring-1 ring-slate-200 hover:shadow-lg hover:ring-blue-300 transition focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-400" data-search="truck model for electric circuit electricity and magnetism">
+        <div class="aspect-video overflow-hidden bg-slate-100"><img src="assets/thumbs/physics__electricity-and-magnetism__truck-model-for-electric-circuit.jpg" alt="" loading="lazy" width="640" height="360" class="w-full h-full object-cover"></div>
+        <div class="p-3 sm:p-4">
+          <h3 class="font-semibold text-slate-800 leading-snug group-hover:text-blue-700">Truck Model for Electric Circuit</h3>
+          <p class="text-xs text-slate-500 mt-1">Electricity and Magnetism</p>
+        </div>
+      </a>
+    </div>
+    </div>
+    <div id="radioactivity-and-nuclear-energy" class="mt-6" data-topic>
+      <h3 class="text-base sm:text-lg font-semibold text-slate-700 mb-3">☢️ Radioactivity and Nuclear Energy</h3>
+    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-5">
+      <a href="physics/radioactivity-and-nuclear-energy/half-life-dice-simulator/" class="card group block bg-white rounded-2xl overflow-hidden shadow-sm ring-1 ring-slate-200 hover:shadow-lg hover:ring-blue-300 transition focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-400" data-search="half-life dice simulator radioactivity and nuclear energy">
+        <div class="aspect-video overflow-hidden bg-slate-100"><img src="assets/thumbs/physics__radioactivity-and-nuclear-energy__half-life-dice-simulator.jpg" alt="" loading="lazy" width="640" height="360" class="w-full h-full object-cover"></div>
+        <div class="p-3 sm:p-4">
+          <h3 class="font-semibold text-slate-800 leading-snug group-hover:text-blue-700">Half-Life Dice Simulator</h3>
+          <p class="text-xs text-slate-500 mt-1">Radioactivity and Nuclear Energy</p>
+        </div>
+      </a>
+    </div>
+    </div>
+    <div id="astronomy-and-space-science" class="mt-6" data-topic>
+      <h3 class="text-base sm:text-lg font-semibold text-slate-700 mb-3">🪐 Astronomy and Space Science</h3>
+    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-5">
+      <a href="physics/astronomy-and-space-science/retrograde-motion/" class="card group block bg-white rounded-2xl overflow-hidden shadow-sm ring-1 ring-slate-200 hover:shadow-lg hover:ring-blue-300 transition focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-400" data-search="retrograde motion astronomy and space science">
+        <div class="aspect-video overflow-hidden bg-slate-100"><img src="assets/thumbs/physics__astronomy-and-space-science__retrograde-motion.jpg" alt="" loading="lazy" width="640" height="360" class="w-full h-full object-cover"></div>
+        <div class="p-3 sm:p-4">
+          <h3 class="font-semibold text-slate-800 leading-snug group-hover:text-blue-700">Retrograde Motion</h3>
+          <p class="text-xs text-slate-500 mt-1">Astronomy and Space Science</p>
+        </div>
+      </a>
+      <a href="physics/astronomy-and-space-science/phases-of-venus/" class="card group block bg-white rounded-2xl overflow-hidden shadow-sm ring-1 ring-slate-200 hover:shadow-lg hover:ring-blue-300 transition focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-400" data-search="phases of venus astronomy and space science">
+        <div class="aspect-video overflow-hidden bg-slate-100"><img src="assets/thumbs/physics__astronomy-and-space-science__phases-of-venus.jpg" alt="" loading="lazy" width="640" height="360" class="w-full h-full object-cover"></div>
+        <div class="p-3 sm:p-4">
+          <h3 class="font-semibold text-slate-800 leading-snug group-hover:text-blue-700">Phases of Venus</h3>
+          <p class="text-xs text-slate-500 mt-1">Astronomy and Space Science</p>
+        </div>
+      </a>
+      <a href="physics/astronomy-and-space-science/orbits-under-gravity/" class="card group block bg-white rounded-2xl overflow-hidden shadow-sm ring-1 ring-slate-200 hover:shadow-lg hover:ring-blue-300 transition focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-400" data-search="orbits under gravity astronomy and space science">
+        <div class="aspect-video overflow-hidden bg-slate-100"><img src="assets/thumbs/physics__astronomy-and-space-science__orbits-under-gravity.jpg" alt="" loading="lazy" width="640" height="360" class="w-full h-full object-cover"></div>
+        <div class="p-3 sm:p-4">
+          <h3 class="font-semibold text-slate-800 leading-snug group-hover:text-blue-700">Orbits under Gravity</h3>
+          <p class="text-xs text-slate-500 mt-1">Astronomy and Space Science</p>
+        </div>
+      </a>
+      <a href="physics/astronomy-and-space-science/binary-stars-doppler-effect/" class="card group block bg-white rounded-2xl overflow-hidden shadow-sm ring-1 ring-slate-200 hover:shadow-lg hover:ring-blue-300 transition focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-400" data-search="binary stars doppler effect astronomy and space science">
+        <div class="aspect-video overflow-hidden bg-slate-100"><img src="assets/thumbs/physics__astronomy-and-space-science__binary-stars-doppler-effect.jpg" alt="" loading="lazy" width="640" height="360" class="w-full h-full object-cover"></div>
+        <div class="p-3 sm:p-4">
+          <h3 class="font-semibold text-slate-800 leading-snug group-hover:text-blue-700">Binary Stars Doppler Effect</h3>
+          <p class="text-xs text-slate-500 mt-1">Astronomy and Space Science</p>
+        </div>
+      </a>
+    </div>
+    </div>
+    <div id="atomic-world" class="mt-6" data-topic>
+      <h3 class="text-base sm:text-lg font-semibold text-slate-700 mb-3">⚛️ Atomic World</h3>
+    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-5">
+      <a href="physics/atomic-world/photoelectric-effect/" class="card group block bg-white rounded-2xl overflow-hidden shadow-sm ring-1 ring-slate-200 hover:shadow-lg hover:ring-blue-300 transition focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-400" data-search="photoelectric effect atomic world">
+        <div class="aspect-video overflow-hidden bg-slate-100"><img src="assets/thumbs/physics__atomic-world__photoelectric-effect.jpg" alt="" loading="lazy" width="640" height="360" class="w-full h-full object-cover"></div>
+        <div class="p-3 sm:p-4">
+          <h3 class="font-semibold text-slate-800 leading-snug group-hover:text-blue-700">Photoelectric Effect</h3>
+          <p class="text-xs text-slate-500 mt-1">Atomic World</p>
+        </div>
+      </a>
+      <a href="physics/atomic-world/gravitational-analogue-of-rutherford-scattering/" class="card group block bg-white rounded-2xl overflow-hidden shadow-sm ring-1 ring-slate-200 hover:shadow-lg hover:ring-blue-300 transition focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-400" data-search="gravitational analogue of rutherford scattering atomic world">
+        <div class="aspect-video overflow-hidden bg-slate-100"><img src="assets/thumbs/physics__atomic-world__gravitational-analogue-of-rutherford-scattering.jpg" alt="" loading="lazy" width="640" height="360" class="w-full h-full object-cover"></div>
+        <div class="p-3 sm:p-4">
+          <h3 class="font-semibold text-slate-800 leading-snug group-hover:text-blue-700">Gravitational Analogue of Rutherford Scattering</h3>
+          <p class="text-xs text-slate-500 mt-1">Atomic World</p>
+        </div>
+      </a>
+      <a href="physics/atomic-world/energies-in-bohr-model/" class="card group block bg-white rounded-2xl overflow-hidden shadow-sm ring-1 ring-slate-200 hover:shadow-lg hover:ring-blue-300 transition focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-400" data-search="energies in bohr model atomic world">
+        <div class="aspect-video overflow-hidden bg-slate-100"><img src="assets/thumbs/physics__atomic-world__energies-in-bohr-model.jpg" alt="" loading="lazy" width="640" height="360" class="w-full h-full object-cover"></div>
+        <div class="p-3 sm:p-4">
+          <h3 class="font-semibold text-slate-800 leading-snug group-hover:text-blue-700">Energies in Bohr Model</h3>
+          <p class="text-xs text-slate-500 mt-1">Atomic World</p>
+        </div>
+      </a>
+      <a href="physics/atomic-world/bohr-model-and-spectral-lines/" class="card group block bg-white rounded-2xl overflow-hidden shadow-sm ring-1 ring-slate-200 hover:shadow-lg hover:ring-blue-300 transition focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-400" data-search="bohr model and spectral lines atomic world">
+        <div class="aspect-video overflow-hidden bg-slate-100"><img src="assets/thumbs/physics__atomic-world__bohr-model-and-spectral-lines.jpg" alt="" loading="lazy" width="640" height="360" class="w-full h-full object-cover"></div>
+        <div class="p-3 sm:p-4">
+          <h3 class="font-semibold text-slate-800 leading-snug group-hover:text-blue-700">Bohr Model and Spectral Lines</h3>
+          <p class="text-xs text-slate-500 mt-1">Atomic World</p>
+        </div>
+      </a>
+    </div>
+    </div>
+  </section>
+  <section id="junior-science" class="mt-10 first:mt-6" data-section>
+    <div class="flex items-baseline gap-3 mb-1">
+      <h2 class="text-2xl sm:text-3xl font-bold text-slate-900">Junior Science</h2>
+      <span class="text-sm text-slate-500">S1–S3 Integrated Science</span>
+    </div>
+    <div class="mt-4" data-topic>
+    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-5">
+      <a href="junior-science/ramp-racer/" class="card group block bg-white rounded-2xl overflow-hidden shadow-sm ring-1 ring-slate-200 hover:shadow-lg hover:ring-blue-300 transition focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-400" data-search="ramp racer junior science">
+        <div class="aspect-video overflow-hidden bg-slate-100"><img src="assets/thumbs/junior-science__ramp-racer.jpg" alt="" loading="lazy" width="640" height="360" class="w-full h-full object-cover"></div>
+        <div class="p-3 sm:p-4">
+          <h3 class="font-semibold text-slate-800 leading-snug group-hover:text-blue-700">Ramp Racer</h3>
+          <p class="text-xs text-slate-500 mt-1">Junior Science</p>
+        </div>
+      </a>
+      <a href="junior-science/truck-model-for-electric-circuit/" class="card group block bg-white rounded-2xl overflow-hidden shadow-sm ring-1 ring-slate-200 hover:shadow-lg hover:ring-blue-300 transition focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-400" data-search="truck model for electric circuit junior science">
+        <div class="aspect-video overflow-hidden bg-slate-100"><img src="assets/thumbs/junior-science__truck-model-for-electric-circuit.jpg" alt="" loading="lazy" width="640" height="360" class="w-full h-full object-cover"></div>
+        <div class="p-3 sm:p-4">
+          <h3 class="font-semibold text-slate-800 leading-snug group-hover:text-blue-700">Truck Model for Electric Circuit</h3>
+          <p class="text-xs text-slate-500 mt-1">Junior Science</p>
+        </div>
+      </a>
+      <a href="junior-science/elevator-net-force-and-motion/" class="card group block bg-white rounded-2xl overflow-hidden shadow-sm ring-1 ring-slate-200 hover:shadow-lg hover:ring-blue-300 transition focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-400" data-search="elevator: net force and motion junior science">
+        <div class="aspect-video overflow-hidden bg-slate-100"><img src="assets/thumbs/junior-science__elevator-net-force-and-motion.jpg" alt="" loading="lazy" width="640" height="360" class="w-full h-full object-cover"></div>
+        <div class="p-3 sm:p-4">
+          <h3 class="font-semibold text-slate-800 leading-snug group-hover:text-blue-700">Elevator: Net Force and Motion</h3>
+          <p class="text-xs text-slate-500 mt-1">Junior Science</p>
+        </div>
+      </a>
+    </div>
+    </div>
+  </section>
+  <p id="none" class="hidden mt-10 text-center text-slate-500">No simulations match your search.</p>
+</main>
+<footer class="border-t border-slate-200 py-6 text-center text-xs text-slate-500">
+  Sing Yin Secondary School · Physics Department
+</footer>
+<script>
+(function () {
+  var q = document.getElementById('q'), cards = [].slice.call(document.querySelectorAll('[data-search]'));
+  q.addEventListener('input', function () {
+    var t = q.value.trim().toLowerCase(), any = false;
+    cards.forEach(function (c) { var m = !t || c.getAttribute('data-search').indexOf(t) >= 0; c.style.display = m ? '' : 'none'; any = any || m; });
+    document.querySelectorAll('[data-topic]').forEach(function (s) { s.style.display = s.querySelector('[data-search]:not([style*="none"])') ? '' : 'none'; });
+    document.querySelectorAll('[data-section]').forEach(function (s) { s.style.display = s.querySelector('[data-topic]:not([style*="none"])') ? '' : 'none'; });
+    document.getElementById('none').classList.toggle('hidden', any);
+  });
+})();
+</script>
+</body>
+</html>

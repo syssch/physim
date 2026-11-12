@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="../../../assets/sim-early.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Skydiving · PhySim</title>
+    <link rel="stylesheet" href="../../../assets/vendor/tailwind.css">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif; display: flex; flex-direction: column;
+            align-items: center; justify-content: center; min-height: 100vh;
+            background-color: #f0f4f8; color: #334155; padding: 1rem;
+            box-sizing: border-box; margin: 0;
+        }
+        .app-wrapper {
+            position: relative; width: 100%; max-width: 1200px; 
+            height: 0; padding-bottom: 56.25%; /* 16:9 aspect ratio */
+            overflow: hidden; background-color: #ffffff;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1); border-radius: 0.75rem;
+            flex-shrink: 0;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        .container {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            display: flex; flex-direction: column; padding: 1rem; gap: 1rem; box-sizing: border-box;
+        }
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            padding: 1rem;
+            background-color: #ffffff;
+            border-radius: 0.75rem;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            align-items: center;
+            justify-content: center; 
+            width: 100%; /* MODIFIED */
+        }
+        .control-group { display: flex; flex-direction: column; gap: 0.25rem; }
+        .control-group label { 
+            font-weight: 600; 
+            font-size: 0.875rem; 
+            color: #475569; 
+        }
+        .control-group .value-display {
+            font-size: 0.875rem; 
+        }
+        .control-group input[type="range"] {
+            padding: 0.5rem; border: 1px solid #cbd5e1; border-radius: 0.375rem; width: 150px;
+        }
+        .button {
+            padding: 0.75rem 1.25rem; border-radius: 0.5rem; font-weight: 600; cursor: pointer;
+            transition: background-color 0.2s, transform 0.1s; box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .button-primary { background-color: #3b82f6; color: #ffffff; }
+        .button-primary:hover { background-color: #2563eb; transform: translateY(-1px); }
+        .button-secondary { background-color: #64748b; color: #ffffff; }
+        .button-secondary:hover { background-color: #4b5563; transform: translateY(-1px); }
+        .checkbox-group { display: flex; align-items: center; gap: 0.5rem; }
+        .checkbox-group input[type="checkbox"] { transform: scale(1.2); }
+        
+        .simulation-area {
+            display: flex;
+            flex-grow: 1; 
+            gap: 1rem;
+            flex-direction: column; 
+            min-height: 0; 
+            width: 100%; /* MODIFIED */
+        }
+        @media (min-width: 768px) { 
+            .simulation-area { 
+                flex-direction: row; 
+            } 
+        }
+        .canvas-container {
+            flex: 1; background-color: #ffffff; border-radius: 0.75rem;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: flex; justify-content: center;
+            align-items: center; overflow: hidden; position: relative; min-height: 200px;
+        }
+        canvas { display: block; width: 100%; height: 100%; border-radius: 0.75rem; }
+        .parachutist-image {
+            position: absolute; transform: translateX(-50%); width: 60px; height: auto;
+            image-rendering: crisp-edges; pointer-events: none;
+        }
+        .force-arrow {
+            position: absolute; pointer-events: none; 
+            width: 16px; 
+            background-color: currentColor;
+        }
+        .force-arrow.weight { color: #ef4444; transform-origin: top; }
+        .force-arrow.air-resistance { color: #22c55e; transform-origin: bottom; }
+        
+        .arrowhead {
+            position: absolute;
+            width: 0;
+            height: 0;
+            border-left: 12px solid transparent; 
+            border-right: 12px solid transparent;
+            pointer-events: none;
+            left: -4px; 
+        }
+        .arrowhead.down {
+            border-top: 24px solid currentColor; 
+            bottom: -24px; 
+        }
+        .arrowhead.up {
+            border-bottom: 24px solid currentColor; 
+            top: -24px; 
+        }
+        /* ---- Phone / narrow-screen layout ---- */
+        @media (max-width: 900px) {
+            body { padding: 8px; justify-content: flex-start; }
+            .app-wrapper { height: auto; padding-bottom: 0; overflow: visible; }
+            .container { position: static; height: auto; padding: 10px; gap: 10px; }
+            .controls { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px 8px; padding: 12px; box-shadow: none; border: 1px solid #e2e8f0; }
+            .control-group { min-width: 0; }
+            .control-group label { font-size: .75rem; }
+            .control-group input[type="range"] { width: 100%; padding: .35rem 0; }
+            .controls .button { padding: .7rem .4rem; font-size: .9rem; }
+            #openParachuteBtn { grid-column: span 3; padding: .85rem; font-size: 1rem; }
+            .checkbox-group { grid-column: span 3; justify-content: center; }
+            .simulation-area { flex-direction: column; }
+            .simulation-area .canvas-container:first-child { height: 380px; flex: none; }
+            .simulation-area .canvas-container:last-child { height: 280px; flex: none; }
+        }
+        @media (max-width: 480px) {
+            .controls { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+            .controls .control-group:nth-child(3) { grid-column: span 2; }
+            #openParachuteBtn, .checkbox-group { grid-column: span 2; }
+            #resetBtn { grid-column: span 2; }
+        }
+    </style>
+<link rel="icon" href="../../../favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../../../assets/sim.css">
+</head>
+<body>
+    <div class="app-wrapper">
+        <div class="container">
+            <div class="controls">
+                <div class="control-group">
+                    <label for="mass">Mass (kg):</label>
+                    <input type="range" id="mass" min="50" max="150" value="75" step="1">
+                    <span id="massValue" class="value-display text-gray-600">75 kg</span>
+                </div>
+                <div class="control-group">
+                    <label for="kClosed">Air Resist (Closed):</label>
+                    <input type="range" id="kClosed" min="0" max="1.0" value="0" step="0.1">
+                    <span id="kClosedValue" class="value-display text-gray-600">0.0</span>
+                </div>
+                <div class="control-group">
+                    <label for="kOpen">Air Resist (Open):</label>
+                    <input type="range" id="kOpen" min="5.0" max="20.0" value="15.0" step="0.1">
+                    <span id="kOpenValue" class="value-display text-gray-600">15.0</span>
+                </div>
+                <button id="startBtn" class="button button-primary">Start</button>
+                <button id="stopBtn" class="button button-secondary">Stop</button>
+                <button id="resetBtn" class="button button-secondary">Reset</button>
+                <button id="openParachuteBtn" class="button button-primary">Open Parachute</button>
+                <div class="checkbox-group">
+                    <input type="checkbox" id="showArrowsCheckbox">
+                    <label for="showArrowsCheckbox">Show Force Arrows</label>
+                </div>
+            </div>
+            <div class="simulation-area">
+                <div class="canvas-container">
+                    <canvas id="simulationCanvas"></canvas>
+                    <img id="parachutistImg" class="parachutist-image" src="" alt="Parachutist">
+                    <div id="weightArrow" class="force-arrow weight">
+                        <div class="arrowhead down"></div>
+                    </div>
+                    <div id="airResistanceArrow" class="force-arrow air-resistance">
+                        <div class="arrowhead up"></div>
+                    </div>
+                </div>
+                <div class="canvas-container">
+                    <canvas id="graphCanvas"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const PARACHUTIST_CLOSED_IMG_BASE64 = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA4MCA1MCI+CiAgPHN0eWxlPgogICAgLmxpbWIgeyBzdHJva2U6ICM2QjcyODA7IHN0cm9rZS13aWR0aDogNTsgc3Ryb2tlLWxpbmVjYXA6IHJvdW5kOyB9CiAgICAuYm9keS1maWxsIHsgZmlsbDogIzc3QUFERDsgfSAgLyogQmx1ZSBzaGlydCAqLwogICAgLmhlYWQtZmlsbCB7IGZpbGw6ICNGRkM0MDQ7IH0KICA8L3N0eWxlPgogIDxlbGxpcHNlIGNsYXNzPSJib2R5LWZpbGwiIGN4PSI0MCIgY3k9IjI1IiByeD0iMjIiIHJ5PSIxMCIvPgogIDxjaXJjbGUgY2xhc3M9ImhlYWQtZmlsbCIgY3g9IjYwIiBjeT0iMjUiIHI9IjkiLz4KICA8bGluZSBjbGFzcz0ibGltYiIgeDE9IjUwIiB5MT0iMTgiIHgyPSI3MCIgeTI9IjEwIi8+CiAgPGxpbmUgY2xhc3M9ImxpbWIiIHgxPSI1MCIgeTE9IjMyIiB4Mj0iNzAiIHkyPSI0MCIvPgogIDxsaW5lIGNsYXNzPSJsaW1iIiB4MT0iMzAiIHkyPSIxMCIgeDI9IjEwIiB5MT0iMTgiLz4KICA8bGluZSBjbGFzcz0ibGltYiIgeDE9IjMwIiB5MT0iMzIiIHgyPSIxMCIgeTI9IjQwIi8+Cjwvc3ZnPg==";
+        const PARACHUTIST_OPEN_IMG_BASE64 = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA4MCAxMDAiPgogIDxzdHlsZT4KICAgIC5saW1iIHsgc3Ryb2tlOiAjNkI3MjgwOyBzdHJva2Utd2lkdGg6IDU7IHN0cm9rZS1saW5lY2FwOiByb3VuZDsgfQogICAgLmJvZHktZmlsbCB7IGZpbGw6ICM3N0FBREQ7IH0KICAgIC5oZWFkLWZpbGwgeyBmaWxsOiAjRkZDNDA0OyB9CiAgICAuY2Fub3B5IHsgZmlsbDogIzNCODJGNTsgc3Ryb2tlOiAjMUU0OTcyOyBzdHJva2Utd2lkdGg6IDEuNTsgfQogICAgLmNvcmQgeyBzdHJva2U6ICM1NTU1NTU7IHN0cm9rZS13aWR0aDogMTsgfQogIDwvc3R5bGU+CiAgPHBhdGggY2xhc3M9ImNhbm9weSIgZD0iTTEwIDQwIFE0MCAwIDcwIDQwIFoiLz4KICA8bGluZSBjbGFzcz0iY29yZCIgeDE9IjIwIiB5MT0iNDAiIHgyPSIzNSIgeTI9IjUwIi8+CiAgPGxpbmUgY2xhc3M9ImNvcmQiIHgxPSI2MCIgeTE9IjQwIiB4Mj0iNDUiIHkyPSI1MCIvPgogIDxnIHRyYW5zZm9ybT0idHJhbnNsYXRlKDAsIDUwKSI+CiAgICA8ZWxsaXBzZSBjbGFzcz0iYm9keS1maWxsIiBjeD0iNDAiIGN5PSIyNSIgcng9IjIyIiByeT0iMTAiLz4KICAgIDxjaXJjbGUgY2xhc3M9ImhlYWQtZmlsbCIgY3g9IjYwIiBjeT0iMjUiIHI9IjkiLz4KICAgIDxsaW5lIGNsYXNzPSJsaW1iIiB4MT0iNTAiIHkxPSIxOCIgeDI9IjcwIiB5Mj0iMTAiLz4KICAgIDxsaW5lIGNsYXNzPSJsaW1iIiB4MT0iNTAiIHkxPSIzMiIgeDI9IjcwIiB5Mj0iNDAiLz4KICAgIDxsaW5lIGNsYXNzPSJsaW1iIiB4MT0iMzAiIHkxPSIxOCIgeDI9IjEwIiB5Mj0iMTAiLz4KICAgIDxsaW5lIGNsYXNzPSJsaW1iIiB4MT0iMzAiIHkxPSIzMiIgeDI9IjEwIiB5Mj0iNDAiLz4KICA8L2c+Cjwvc3ZnPg==";
+
+        const simulationCanvas = document.getElementById('simulationCanvas');
+        const simCtx = simulationCanvas.getContext('2d');
+        const graphCanvas = document.getElementById('graphCanvas');
+        const graphCtx = graphCanvas.getContext('2d');
+        const massInput = document.getElementById('mass');
+        const massValueSpan = document.getElementById('massValue');
+        const kClosedInput = document.getElementById('kClosed');
+        const kClosedValueSpan = document.getElementById('kClosedValue');
+        const kOpenInput = document.getElementById('kOpen');
+        const kOpenValueSpan = document.getElementById('kOpenValue');
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        const openParachuteBtn = document.getElementById('openParachuteBtn');
+        const parachutistImg = document.getElementById('parachutistImg');
+        const showArrowsCheckbox = document.getElementById('showArrowsCheckbox');
+        const weightArrow = document.getElementById('weightArrow');
+        const airResistanceArrow = document.getElementById('airResistanceArrow');
+
+        const G = 9.81;
+        let mass = parseFloat(massInput.value);
+        let kClosed = parseFloat(kClosedInput.value);
+        let kOpen = parseFloat(kOpenInput.value);
+        let k = kClosed;
+        let altitude = 3000; 
+        let velocity = 0;
+        let time = 0;
+        let dt = 0.05;
+        let isRunning = false;
+        let animationFrameId;
+        let parachuteOpened = false;
+        const graphData = [];
+        const MAX_TIME_ON_GRAPH = 100;
+
+        const ARROW_SCALE_FACTOR = 0.08; 
+        const MAX_ARROW_LENGTH_PX = 150;  
+        const MIN_ARROW_LENGTH_PX = 15;    
+
+        const BELLY_CLOSED_VIEWBOX_W = 80;
+        const BELLY_CLOSED_VIEWBOX_H = 50;
+        const BELLY_CLOSED_MAN_ANCHOR_Y_UNITS = 25; 
+        const BELLY_OPEN_VIEWBOX_W = 80;
+        const BELLY_OPEN_VIEWBOX_H = 100;
+        const BELLY_OPEN_MAN_GROUP_TRANSLATE_Y = 50;
+        const BELLY_OPEN_MAN_ANCHOR_Y_IN_GROUP_UNITS = 25;
+        const BELLY_OPEN_MAN_ANCHOR_Y_UNITS = BELLY_OPEN_MAN_GROUP_TRANSLATE_Y + BELLY_OPEN_MAN_ANCHOR_Y_IN_GROUP_UNITS;
+
+        parachutistImg.src = PARACHUTIST_CLOSED_IMG_BASE64;
+
+        massInput.addEventListener('input', () => {
+            mass = parseFloat(massInput.value);
+            massValueSpan.textContent = `${mass} kg`;
+            if (!isRunning) resetSimulation();
+        });
+        kClosedInput.addEventListener('input', () => {
+            kClosed = parseFloat(kClosedInput.value);
+            kClosedValueSpan.textContent = kClosed.toFixed(2);
+            if (!parachuteOpened) k = kClosed;
+            if (!isRunning) resetSimulation();
+        });
+        kOpenInput.addEventListener('input', () => {
+            kOpen = parseFloat(kOpenInput.value);
+            kOpenValueSpan.textContent = kOpen.toFixed(1);
+            if (parachuteOpened && isRunning) k = kOpen; 
+        });
+        startBtn.addEventListener('click', startSimulation);
+        stopBtn.addEventListener('click', stopSimulation);
+        resetBtn.addEventListener('click', resetSimulation);
+        openParachuteBtn.addEventListener('click', openParachute);
+        showArrowsCheckbox.addEventListener('change', toggleForceArrows);
+
+        function startSimulation() {
+            if (!isRunning) {
+                isRunning = true;
+                if (parachuteOpened) { 
+                    k = kOpen;
+                } else {
+                    k = kClosed;
+                }
+                animate();
+            }
+        }
+        function stopSimulation() {
+            isRunning = false; cancelAnimationFrame(animationFrameId);
+        }
+        function resetSimulation() {
+            stopSimulation(); 
+            altitude = 3000; 
+            velocity = 0; time = 0; parachuteOpened = false; 
+            k = kClosed; 
+            parachutistImg.src = PARACHUTIST_CLOSED_IMG_BASE64; 
+            openParachuteBtn.disabled = false; 
+            graphData.length = 0;
+            
+            const initialWeightForce = mass * G;
+            const initialAirResistanceForce = 0; 
+            drawSimulation(initialWeightForce, initialAirResistanceForce);
+            drawGraph(); 
+            toggleForceArrows(); 
+        }
+
+        function openParachute() {
+            if (!parachuteOpened) { 
+                parachuteOpened = true;
+                parachutistImg.src = PARACHUTIST_OPEN_IMG_BASE64; 
+                openParachuteBtn.disabled = true;
+
+                if (isRunning) { 
+                    k = kOpen;
+                }
+                
+                if (showArrowsCheckbox.checked) {
+                    requestAnimationFrame(() => {
+                        let currentKForArrow = kOpen; 
+                        let currentVelForArrow = isRunning ? velocity : 0;
+                        let currentAirResistance = currentKForArrow * currentVelForArrow * currentVelForArrow;
+                        updateForceArrowsVisibilityAndPosition(mass * G, currentAirResistance);
+                    });
+                }
+            }
+        }
+
+        function toggleForceArrows() { 
+            let wF = mass * G;
+            let currentKForDisplay = k; 
+            if (!isRunning) { 
+                currentKForDisplay = parachuteOpened ? kOpen : kClosed;
+            }
+            
+            let currentVelocityForDisplay = isRunning ? velocity : 0;
+            let aRF = currentKForDisplay * currentVelocityForDisplay * currentVelocityForDisplay;
+            
+            updateForceArrowsVisibilityAndPosition(wF, aRF);
+        }
+        
+        function hideForceArrows() { 
+            weightArrow.style.display = 'none'; 
+            airResistanceArrow.style.display = 'none';
+        }
+
+        function updateForceArrowsVisibilityAndPosition(weightForce, airResistanceForce) {
+            const checkboxIsChecked = showArrowsCheckbox.checked;
+
+            if (!checkboxIsChecked) {
+                hideForceArrows();
+                return;
+            }
+
+            const imgRect = parachutistImg.getBoundingClientRect();
+            const canvasRect = simulationCanvas.getBoundingClientRect();
+
+            if (imgRect.width === 0 && imgRect.height === 0 && parachutistImg.src) {
+                hideForceArrows(); 
+                return;
+            }
+
+            const parachutistCanvasX = imgRect.left - canvasRect.left + imgRect.width / 2;
+            
+            let manAnchorY_svgUnits_forArrowOrigin;
+            let currentViewBoxH_svgUnits_forArrowOrigin;
+            let imgActualDisplayHeight_forArrowOrigin = imgRect.height;
+
+            let currentSrcIsOpened = (parachutistImg.getAttribute('src') === PARACHUTIST_OPEN_IMG_BASE64);
+
+            if (currentSrcIsOpened) { 
+                manAnchorY_svgUnits_forArrowOrigin = BELLY_OPEN_MAN_ANCHOR_Y_UNITS;
+                currentViewBoxH_svgUnits_forArrowOrigin = BELLY_OPEN_VIEWBOX_H;
+            } else { 
+                manAnchorY_svgUnits_forArrowOrigin = BELLY_CLOSED_MAN_ANCHOR_Y_UNITS;
+                currentViewBoxH_svgUnits_forArrowOrigin = BELLY_CLOSED_VIEWBOX_H;
+            }
+            
+            let manAnchorPxOffsetFromImgTop = 0;
+            if(imgActualDisplayHeight_forArrowOrigin > 0 && currentViewBoxH_svgUnits_forArrowOrigin > 0){
+                manAnchorPxOffsetFromImgTop = (manAnchorY_svgUnits_forArrowOrigin / currentViewBoxH_svgUnits_forArrowOrigin) * imgActualDisplayHeight_forArrowOrigin;
+            }
+            const arrowOriginY = imgRect.top - canvasRect.top + manAnchorPxOffsetFromImgTop;
+
+            weightArrow.style.display = 'block'; 
+            const finalWeightArrowLength = Math.min(Math.max(weightForce * ARROW_SCALE_FACTOR, MIN_ARROW_LENGTH_PX), MAX_ARROW_LENGTH_PX);
+            weightArrow.style.height = `${finalWeightArrowLength}px`;
+            weightArrow.style.left = `${parachutistCanvasX - (weightArrow.offsetWidth / 2)}px`; 
+            weightArrow.style.top = `${arrowOriginY}px`;
+
+            let currentGlobalVelocity = velocity; 
+            if (airResistanceForce < 0.01 && currentGlobalVelocity < 0.01) { 
+                airResistanceArrow.style.display = 'none';
+                airResistanceArrow.style.height = `0px`;
+            } else {
+                airResistanceArrow.style.display = 'block'; 
+                let scaledLength = airResistanceForce * ARROW_SCALE_FACTOR;
+                let finalLength = Math.min(Math.max(0, scaledLength), MAX_ARROW_LENGTH_PX); 
+                
+                if (finalLength < 1 && currentGlobalVelocity < 0.01) { 
+                    airResistanceArrow.style.height = `0px`;
+                    airResistanceArrow.style.display = 'none'; 
+                } else if (finalLength < 1) { 
+                     airResistanceArrow.style.height = `0px`;
+                     airResistanceArrow.style.display = 'none';
+                }
+                else {
+                    airResistanceArrow.style.height = `${finalLength}px`;
+                }
+            }
+            airResistanceArrow.style.left = `${parachutistCanvasX - (airResistanceArrow.offsetWidth / 2)}px`;
+            airResistanceArrow.style.top = `${arrowOriginY - parseFloat(airResistanceArrow.style.height || "0")}px`;
+        }
+
+        function animate() {
+            if (!isRunning) return;
+            const currentWeightForce = mass * G;
+            const currentAirResistanceForce = k * velocity * velocity; 
+            const netForce = currentWeightForce - currentAirResistanceForce;
+            const acceleration = netForce / mass;
+            velocity += acceleration * dt; 
+            altitude -= velocity * dt; 
+            time += dt;
+
+            if (altitude <= 0) {
+                altitude = 0;
+                velocity = 0;
+                stopSimulation();
+                drawSimulation(currentWeightForce, 0);
+            } else {
+                drawSimulation(currentWeightForce, currentAirResistanceForce); 
+            }
+            
+            graphData.push({ time: time, velocity: Math.max(0, velocity) });
+            const maxGraphPoints = (MAX_TIME_ON_GRAPH / dt) * 2;
+            if (graphData.length > maxGraphPoints) graphData.shift();
+            
+            drawGraph();
+            animationFrameId = requestAnimationFrame(animate);
+        }
+
+        function drawSimulation(currentWeightForce, currentAirResistanceForce) {
+            simCtx.clearRect(0, 0, simulationCanvas.width, simulationCanvas.height);
+            const skyGradient = simCtx.createLinearGradient(0, 0, 0, simulationCanvas.height);
+            skyGradient.addColorStop(0, '#87CEEB'); skyGradient.addColorStop(0.8, '#ADD8E6');
+            skyGradient.addColorStop(1, '#C1E1EC');
+            simCtx.fillStyle = skyGradient; simCtx.fillRect(0, 0, simulationCanvas.width, simulationCanvas.height);
+
+            const groundHeightRatio = 0.05;
+            const groundHeight = simulationCanvas.height * groundHeightRatio;
+            simCtx.fillStyle = '#2E8B57';
+            simCtx.fillRect(0, simulationCanvas.height - groundHeight, simulationCanvas.width, groundHeight);
+
+            const cssImgWidth = parseFloat(getComputedStyle(parachutistImg).width) || 60;
+            const REFERENCE_IMAGE_HEIGHT = (BELLY_CLOSED_VIEWBOX_H / BELLY_CLOSED_VIEWBOX_W) * cssImgWidth;
+
+            const minCanvasY_ref = REFERENCE_IMAGE_HEIGHT * 0.1; 
+            const maxCanvasY_ref = simulationCanvas.height - groundHeight - REFERENCE_IMAGE_HEIGHT * 0.9; 
+            const trackHeight_ref = Math.max(1, maxCanvasY_ref - minCanvasY_ref); 
+
+            const maxSimAltitude = 4000; 
+            let parachutistYFraction = (altitude / maxSimAltitude);
+            parachutistYFraction = Math.max(0, Math.min(1, parachutistYFraction));
+            
+            const targetManAnchorY_onCanvas = maxCanvasY_ref - (parachutistYFraction * trackHeight_ref);
+            
+            const currentImgRect = parachutistImg.getBoundingClientRect();
+            const imgDisplayHeight = currentImgRect.height;
+            const parachutistX = (simulationCanvas.width / 2);
+
+            let manAnchorY_svgUnits;
+            let currentViewBoxHeight_svgUnits;
+            
+            let currentSrcIsOpenedForPositioning = (parachutistImg.getAttribute('src') === PARACHUTIST_OPEN_IMG_BASE64);
+
+            if (currentSrcIsOpenedForPositioning) {
+                manAnchorY_svgUnits = BELLY_OPEN_MAN_ANCHOR_Y_UNITS;
+                currentViewBoxHeight_svgUnits = BELLY_OPEN_VIEWBOX_H;
+            } else {
+                manAnchorY_svgUnits = BELLY_CLOSED_MAN_ANCHOR_Y_UNITS;
+                currentViewBoxHeight_svgUnits = BELLY_CLOSED_VIEWBOX_H;
+            }
+
+            let manAnchorOffsetFromImgTop_pixels = 0;
+            if (imgDisplayHeight > 0 && currentViewBoxHeight_svgUnits > 0) {
+                manAnchorOffsetFromImgTop_pixels = (manAnchorY_svgUnits / currentViewBoxHeight_svgUnits) * imgDisplayHeight;
+            }
+            
+            parachutistImg.style.left = `${parachutistX}px`;
+            parachutistImg.style.top = `${targetManAnchorY_onCanvas - manAnchorOffsetFromImgTop_pixels}px`;
+            
+            updateForceArrowsVisibilityAndPosition(currentWeightForce, currentAirResistanceForce); 
+
+            simCtx.fillStyle = '#1E293B';
+            simCtx.font = '16px Inter, system-ui, sans-serif'; 
+            simCtx.fillText(`Altitude: ${altitude.toFixed(1)} m`, 10, 25);
+            simCtx.fillText(`Velocity: ${velocity.toFixed(1)} m/s`, 10, 50);
+            simCtx.fillText(`Time: ${time.toFixed(1)} s`, 10, 75);
+        }
+
+        function drawGraph() {
+            graphCtx.clearRect(0,0,graphCanvas.width,graphCanvas.height); graphCtx.fillStyle='#F8FAFC';
+            graphCtx.fillRect(0,0,graphCanvas.width,graphCanvas.height);
+            const p={top:40,right:30,bottom:60,left:70}; 
+            const gw=graphCanvas.width-p.left-p.right;
+            const gh=graphCanvas.height-p.top-p.bottom; if(gw<=0||gh<=0)return; const maxV=100;
+            graphCtx.strokeStyle='#94A3B8'; graphCtx.lineWidth=1; graphCtx.beginPath();
+            graphCtx.moveTo(p.left,p.top); graphCtx.lineTo(p.left,p.top+gh);
+            graphCtx.lineTo(p.left+gw,p.top+gh); graphCtx.stroke(); 
+            
+            graphCtx.fillStyle='#334155';
+            graphCtx.textAlign='center';
+            graphCtx.font='16px Inter, system-ui, sans-serif'; 
+            graphCtx.fillText('Time (s)',p.left+gw/2,graphCanvas.height-p.bottom + 35);
+            graphCtx.save();
+            graphCtx.translate(p.left - 50, p.top+gh/2); 
+            graphCtx.rotate(-Math.PI/2);
+            graphCtx.fillText('Velocity (m/s)',0,0); graphCtx.restore();
+            
+            graphCtx.font='14px Inter, system-ui, sans-serif'; 
+            const currT=time; const startT=Math.max(0,currT-MAX_TIME_ON_GRAPH); const numXT=10;
+            for(let i=0;i<=numXT;i++){ const tValAx=(i/numXT)*MAX_TIME_ON_GRAPH;
+            const tDispVal=startT+tValAx; const x=p.left+(tValAx/MAX_TIME_ON_GRAPH)*gw;
+            graphCtx.beginPath(); graphCtx.moveTo(x,p.top+gh); graphCtx.lineTo(x,p.top+gh+5);
+            graphCtx.stroke(); 
+            graphCtx.textAlign='center';
+            graphCtx.fillText(tDispVal.toFixed(0),x,p.top+gh+25);
+            }
+            const numYT=10; for(let i=0;i<=numYT;i++){ const v=(i/numYT)*maxV;
+            const y=p.top+gh-(v/maxV)*gh; graphCtx.beginPath(); graphCtx.moveTo(p.left,y);
+            graphCtx.lineTo(p.left-5,y); graphCtx.stroke(); graphCtx.textAlign='right';
+            graphCtx.fillText(v.toFixed(0),p.left-10,y+5);
+            } 
+            graphCtx.textAlign='center';
+            
+            graphCtx.strokeStyle='#3B82F6'; graphCtx.lineWidth=2; graphCtx.beginPath();
+            let firstPt=true; graphData.forEach(pt=>{ if(pt.time>=startT && pt.time<=startT+MAX_TIME_ON_GRAPH){
+            const x=p.left+((pt.time-startT)/MAX_TIME_ON_GRAPH)*gw;
+            const yV=Math.min(pt.velocity,maxV); const y=p.top+gh-(yV/maxV)*gh;
+            if(x>=p.left&&x<=p.left+gw){if(firstPt){graphCtx.moveTo(x,y);firstPt=false;}else{graphCtx.lineTo(x,y);}}}
+            }); graphCtx.stroke();
+        }
+
+        window.onload = function () {
+            const setCanvasDimensions=()=>{ const simC=simulationCanvas.parentElement; const graphC=graphCanvas.parentElement;
+            if(simC.clientWidth>0&&simC.clientHeight>0){simulationCanvas.width=simC.clientWidth;simulationCanvas.height=simC.clientHeight;}
+            if(graphC.clientWidth>0&&graphC.clientHeight>0){graphCanvas.width=graphC.clientWidth;graphCanvas.height=graphC.clientHeight;}
+            resetSimulation(); 
+            };
+            massValueSpan.textContent=`${massInput.value} kg`; kClosedValueSpan.textContent=parseFloat(kClosedInput.value).toFixed(2);
+            kOpenValueSpan.textContent=parseFloat(kOpenInput.value).toFixed(1);
+            setCanvasDimensions(); window.addEventListener('resize',setCanvasDimensions);
+        };
+    </script>
+<script src="../../../assets/sim.js" data-root="../../../#force-and-motion"></script>
+</body>
+</html>

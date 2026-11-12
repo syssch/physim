@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="../../../assets/sim-early.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Free Fall Motion · PhySim</title>
+    <link rel="stylesheet" href="../../../assets/vendor/tailwind.css">
+    <link rel="stylesheet" href="../../../assets/vendor/inter/inter.css">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            overflow: hidden; /* Prevent scrollbars from flashing during layout shifts */
+        }
+        .panel-title { text-align: center; font-size: 1.125rem; font-weight: 700; color: #374151; margin-bottom: .5rem; }
+        /* ---- Phone / narrow-screen layout ---- */
+        @media (max-width: 900px) {
+            body { overflow: auto !important; height: auto !important; min-height: 100%; display: block !important; padding: 8px !important; }
+            #infoPanel { height: 140px !important; }
+            #leftPanel > div:first-child { bottom: 152px !important; }
+            #mainCard { aspect-ratio: auto !important; max-height: none !important; padding: 14px; }
+            #headerRow { height: auto; flex-direction: column; gap: 12px; margin-bottom: 12px; }
+            #headerRow h1 { font-size: 1.5rem; }
+            #headerRow .flex-shrink-0 { width: 100%; gap: 12px; align-items: flex-end; }
+            #startButton { flex: 1; padding: 12px 10px; }
+            #simArea { height: auto; grid-template-columns: 1fr; gap: 12px; }
+            #leftPanel { border-right: 0; padding-right: 0; height: 430px; }
+            #leftPanel > div { right: 0 !important; }
+            #graphPanel { height: 300px; }
+            #sliderContainer { height: auto; padding: 16px 4px 4px; }
+        }
+    </style>
+<link rel="icon" href="../../../favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../../../assets/sim.css">
+</head>
+<body class="bg-gray-100 flex items-center justify-center h-screen p-4">
+
+    <div id="mainCard" class="w-full max-w-7xl bg-white rounded-xl shadow-lg p-6 flex flex-col" style="aspect-ratio: 16 / 9; max-height: 95vh;">
+        
+        <!-- Header: Titles and Controls (15% height) -->
+        <div id="headerRow" class="flex justify-between items-start h-[15%]">
+            <!-- Left Side: Titles -->
+            <div>
+                <h1 class="text-3xl font-bold text-gray-800 mb-2 text-left">Free Fall Motion Simulation</h1>
+                <p class="text-gray-600 text-left">Observe the basketball's motion and its corresponding velocity-time graph.</p>
+            </div>
+            <!-- Right Side: Buttons -->
+            <div class="flex items-center gap-6 flex-shrink-0">
+                <button id="startButton" class="px-8 py-3 bg-blue-600 text-white font-bold rounded-lg shadow-md hover:bg-blue-700 active:scale-95 transition-transform duration-150 ease-in-out">
+                    Start Simulation
+                </button>
+                <div class="flex flex-col items-center">
+                    <label for="signConventionButton" class="text-sm text-gray-600 mb-1">Sign Convention</label>
+                    <button id="signConventionButton" class="px-4 py-2 bg-gray-200 text-gray-800 font-semibold rounded-lg shadow-sm hover:bg-gray-300 transition-colors w-32">
+                        Upward is (+)
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Simulation Area (70% height) -->
+        <div id="simArea" class="grid grid-cols-1 md:grid-cols-10 gap-6 h-[70%] min-h-0">
+            <!-- Left Panel: Animation + Info (Fixed Layout) -->
+            <div id="leftPanel" class="border-r border-gray-200 pr-6 md:col-span-3 h-full relative">
+                
+                <!-- Animation Container -->
+                <div class="w-full bg-gray-50 rounded-lg border border-gray-200 absolute left-0" style="top: 0; bottom: 148px; right: 24px;">
+                    <canvas id="animationCanvas" class="w-full h-full"></canvas>
+                    <div id="height-markers" class="absolute top-0 left-2 h-full text-xs text-gray-500"></div>
+                </div>
+                
+                <!-- Info Panel -->
+                <div id="infoPanel" class="w-full p-3 bg-gray-100 rounded-lg border border-gray-200 text-sm absolute bottom-0 left-0" style="right: 24px; height: 132px;">
+                    <h3 class="font-bold text-center mb-2 text-gray-700">Real-Time Data</h3>
+                    <div class="grid grid-cols-2 gap-x-4 gap-y-1">
+                        <span class="font-medium text-gray-600">Time:</span>
+                        <span id="info-time" class="font-mono text-right">0.00 s</span>
+                        
+                        <span class="font-medium text-gray-600">Displacement:</span>
+                        <span id="info-displacement" class="font-mono text-right">0.00 m</span>
+    
+                        <span class="font-medium text-gray-600">Velocity:</span>
+                        <span id="info-velocity" class="font-mono text-right">0.00 m/s</span>
+    
+                        <span class="font-medium text-gray-600">Acceleration:</span>
+                        <span id="info-acceleration" class="font-mono text-right">-9.81 m/s²</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Panel: Graph -->
+            <div id="graphPanel" class="flex flex-col items-center md:col-span-7 h-full">
+                <div class="w-full bg-gray-50 rounded-lg border border-gray-200 h-full">
+                    <canvas id="graphCanvas" class="w-full h-full"></canvas>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Time Slider (15% height) -->
+        <div id="sliderContainer" class="px-6 h-[15%] flex items-center justify-center gap-4 opacity-0 transition-opacity duration-300 pt-6">
+            <label for="timeSlider" class="text-sm font-medium text-gray-700 whitespace-nowrap">Time: <span id="timeValue" class="font-bold">0.00</span>s</label>
+            <input type="range" id="timeSlider" min="0" max="5" step="0.01" value="0" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer" disabled>
+        </div>
+
+    </div>
+
+    <script>
+        // Get canvas elements and contexts
+        const animationCanvas = document.getElementById('animationCanvas');
+        const animCtx = animationCanvas.getContext('2d');
+        const graphCanvas = document.getElementById('graphCanvas');
+        const graphCtx = graphCanvas.getContext('2d');
+        const startButton = document.getElementById('startButton');
+        const signConventionButton = document.getElementById('signConventionButton');
+        const heightMarkersDiv = document.getElementById('height-markers');
+        const sliderContainer = document.getElementById('sliderContainer');
+        const timeSlider = document.getElementById('timeSlider');
+        const timeValue = document.getElementById('timeValue');
+        const infoTime = document.getElementById('info-time');
+        const infoDisplacement = document.getElementById('info-displacement');
+        const infoVelocity = document.getElementById('info-velocity');
+        const infoAcceleration = document.getElementById('info-acceleration');
+
+
+        // --- Simulation Parameters ---
+        const g_ms2 = 9.81; // Gravity in m/s^2
+        const initialHeightMeters = 2.0;
+        const worldHeightMeters = 2.5; // Visual height of the animation panel in meters
+        const restitution = 0.8; // Coefficient of restitution (bounciness)
+        const ballRadius = 15; // Ball radius in pixels for consistent look
+        const groundMargin = 10; // Margin from the bottom in pixels
+
+        // --- Conversion & Pixel-based variables ---
+        let pixelsPerMeter;
+        let g_pixels;
+
+        // --- State Variables ---
+        let ballY, velocityY; // These will be in pixels and pixels/s
+        let simulationTime;
+        let isRunning = false;
+        let lastTime;
+        let graphPoints;
+        let initialY_pixels;
+        let isUpwardPositive = true;
+
+        // --- Graph Parameters ---
+        let maxTime = 5; // seconds
+        let maxVelocity_ms; // in m/s
+
+        // Function to handle canvas resizing and initialization
+        function setupCanvases() {
+            // Set canvas dimensions based on parent container size
+            const animRect = animationCanvas.parentElement.getBoundingClientRect();
+            animationCanvas.width = animRect.width;
+            animationCanvas.height = animRect.height;
+            
+            const graphRect = graphCanvas.parentElement.getBoundingClientRect();
+            graphCanvas.width = graphRect.width;
+            graphCanvas.height = graphRect.height;
+            
+            // Establish the scale between meters and pixels
+            pixelsPerMeter = (animationCanvas.height - 2 * groundMargin) / worldHeightMeters;
+            g_pixels = g_ms2 * pixelsPerMeter;
+
+            // Determine initial position in pixels
+            const groundPixelY = animationCanvas.height - groundMargin;
+            initialY_pixels = groundPixelY - ballRadius - (initialHeightMeters * pixelsPerMeter);
+            
+            // Calculate max velocity for graph scaling (in m/s)
+            maxVelocity_ms = Math.sqrt(2 * g_ms2 * initialHeightMeters) * 1.1; // 10% buffer
+
+            generateHeightMarkers();
+            resetSimulation();
+        }
+
+        function generateHeightMarkers() {
+            heightMarkersDiv.innerHTML = '';
+            const groundPixelY = animationCanvas.height - groundMargin;
+            for (let h = 0; h <= worldHeightMeters; h += 0.5) {
+                const markerPixelY = groundPixelY - (h * pixelsPerMeter);
+                const marker = document.createElement('div');
+                marker.style.position = 'absolute';
+                marker.style.top = `${markerPixelY - 7}px`;
+                marker.style.width = '100%';
+                marker.innerHTML = `<span class="bg-gray-100 px-1">${h.toFixed(1)}m</span>`;
+                heightMarkersDiv.appendChild(marker);
+            }
+        }
+
+        // Reset the simulation to its initial state
+        function resetSimulation() {
+            isRunning = false;
+            ballY = initialY_pixels;
+            velocityY = 0;
+            simulationTime = 0;
+            lastTime = null;
+            graphPoints = [{ time: 0, vel: 0, y: initialY_pixels, vy_pixels: 0 }];
+            
+            // Reset sign convention
+            isUpwardPositive = true;
+            signConventionButton.textContent = 'Upward is (+)';
+
+            // Reset and hide slider
+            sliderContainer.style.opacity = '0';
+            timeSlider.disabled = true;
+            timeSlider.value = 0;
+            timeValue.textContent = '0.00';
+
+            draw();
+            startButton.textContent = 'Start Simulation';
+            startButton.classList.remove('bg-red-600', 'hover:bg-red-700');
+            startButton.classList.add('bg-blue-600', 'hover:bg-blue-700');
+            updateInfoPanel(0, initialY_pixels, 0);
+        }
+
+        // --- Drawing Functions ---
+
+        function drawBall() {
+            animCtx.clearRect(0, 0, animationCanvas.width, animationCanvas.height);
+
+            // Draw ground
+            const groundY = animationCanvas.height - groundMargin;
+            animCtx.beginPath();
+            animCtx.moveTo(0, groundY);
+            animCtx.lineTo(animationCanvas.width, groundY);
+            animCtx.strokeStyle = '#4A5568';
+            animCtx.lineWidth = 2;
+            animCtx.stroke();
+            
+            // Draw ball
+            animCtx.beginPath();
+            animCtx.arc(animationCanvas.width / 2, ballY, ballRadius, 0, Math.PI * 2);
+            const gradient = animCtx.createRadialGradient(
+                animationCanvas.width / 2 - 5, ballY - 5, 2,
+                animationCanvas.width / 2, ballY, ballRadius * 1.2
+            );
+            gradient.addColorStop(0, '#FFA500'); // Orange
+            gradient.addColorStop(1, '#E57300'); // Darker Orange
+            animCtx.fillStyle = gradient;
+            animCtx.fill();
+            animCtx.closePath();
+        }
+
+        function drawGraph(pointsToDraw, highlightIndex = -1) {
+            graphCtx.clearRect(0, 0, graphCanvas.width, graphCanvas.height);
+            
+            const padding = 40;
+            const plotWidth = graphCanvas.width - padding * 1.5;
+            const plotHeight = graphCanvas.height - padding * 2;
+            const originX = padding;
+            const originY = graphCanvas.height / 2;
+
+            // Draw axes
+            graphCtx.beginPath();
+            graphCtx.strokeStyle = '#718096';
+            graphCtx.lineWidth = 1;
+            // X-axis (Time)
+            graphCtx.moveTo(originX, originY);
+            graphCtx.lineTo(originX + plotWidth, originY);
+            // Y-axis (Velocity)
+            graphCtx.moveTo(originX, padding);
+            graphCtx.lineTo(originX, padding + plotHeight);
+            graphCtx.stroke();
+
+            // Draw axis labels and ticks
+            graphCtx.fillStyle = '#4A5568';
+            graphCtx.font = '12px Inter, system-ui, sans-serif';
+            graphCtx.textAlign = 'center';
+            graphCtx.textBaseline = 'top';
+            graphCtx.fillText('Time (s)', originX + plotWidth / 2, originY + 15);
+            
+            graphCtx.save();
+            graphCtx.translate(15, originY);
+            graphCtx.rotate(-Math.PI / 2);
+            graphCtx.fillText('Velocity (m/s)', 0, 0);
+            graphCtx.restore();
+
+            // Draw Y-axis ticks
+            graphCtx.textAlign = 'right';
+            graphCtx.textBaseline = 'middle';
+            graphCtx.fillText('0', originX - 8, originY);
+
+            const topLabel = isUpwardPositive ? maxVelocity_ms.toFixed(1) : (-maxVelocity_ms).toFixed(1);
+            const bottomLabel = isUpwardPositive ? (-maxVelocity_ms).toFixed(1) : maxVelocity_ms.toFixed(1);
+
+            graphCtx.fillText(topLabel, originX - 8, padding);
+            graphCtx.fillText(bottomLabel, originX - 8, padding + plotHeight);
+
+            // Draw X-axis ticks
+            for (let t = 0; t <= maxTime; t += 1) {
+                const x = originX + (t / maxTime) * plotWidth;
+                graphCtx.fillText(t, x, originY + 5);
+            }
+            
+            // Plot the data
+            graphCtx.beginPath();
+            graphCtx.strokeStyle = '#3B82F6';
+            graphCtx.lineWidth = 2;
+            
+            pointsToDraw.forEach((point, index) => {
+                const x = originX + (point.time / maxTime) * plotWidth;
+                const y = originY - (point.vel / maxVelocity_ms) * (plotHeight / 2);
+                if (index === 0) {
+                    graphCtx.moveTo(x, y);
+                } else {
+                    graphCtx.lineTo(x, y);
+                }
+            });
+            graphCtx.stroke();
+
+            // Draw current point
+            const indexToHighlight = highlightIndex === -1 ? pointsToDraw.length - 1 : highlightIndex;
+            const pointToHighlight = pointsToDraw[indexToHighlight];
+
+            if (pointToHighlight) {
+                 const x = originX + (pointToHighlight.time / maxTime) * plotWidth;
+                 const y = originY - (pointToHighlight.vel / maxVelocity_ms) * (plotHeight / 2);
+                 graphCtx.beginPath();
+                 graphCtx.arc(x, y, 4, 0, Math.PI * 2);
+                 graphCtx.fillStyle = '#EF4444';
+                 graphCtx.fill();
+            }
+        }
+        
+        function draw() {
+            drawBall();
+            drawGraph(graphPoints);
+            updateInfoPanel(simulationTime, ballY, velocityY);
+        }
+
+        function updateInfoPanel(time, y_pixels, v_pixels) {
+            infoTime.textContent = `${time.toFixed(2)} s`;
+
+            // Calculate metrics in real-world units (with upward as positive convention)
+            const displacement_m_up = (initialY_pixels - y_pixels) / pixelsPerMeter;
+            const velocity_ms_up = -v_pixels / pixelsPerMeter;
+            const acceleration_ms2_up = -g_ms2;
+            
+            // Display based on the currently selected sign convention
+            const sign = isUpwardPositive ? 1 : -1;
+            
+            infoDisplacement.textContent = `${(displacement_m_up * sign).toFixed(2)} m`;
+            infoVelocity.textContent = `${(velocity_ms_up * sign).toFixed(2)} m/s`;
+            infoAcceleration.innerHTML = `${(acceleration_ms2_up * sign).toFixed(2)} m/s<sup>2</sup>`;
+        }
+
+
+        // --- Simulation Loop ---
+        function update(dt) {
+            // Update velocity due to gravity (in pixels/s)
+            velocityY += g_pixels * dt;
+            
+            // Update position (in pixels)
+            ballY += velocityY * dt;
+            
+            // Update time
+            simulationTime += dt;
+
+            if (simulationTime >= maxTime) {
+                const timeOver = simulationTime - maxTime;
+                ballY -= velocityY * timeOver; 
+                simulationTime = maxTime; 
+                stopSimulation();
+            }
+
+            // Collision detection
+            const groundY = animationCanvas.height - groundMargin - ballRadius;
+            if (ballY >= groundY && velocityY > 0) {
+                ballY = groundY; 
+                velocityY *= -restitution; 
+                
+                if (Math.abs(velocityY / pixelsPerMeter) < 0.1) {
+                    stopSimulation();
+                }
+            }
+            
+            // Add new data point for the graph (in m/s)
+            const upward_velocity_ms = -velocityY / pixelsPerMeter;
+            graphPoints.push({ 
+                time: simulationTime, 
+                vel: isUpwardPositive ? upward_velocity_ms : -upward_velocity_ms,
+                y: ballY, // Store pixel position for scrubbing
+                vy_pixels: velocityY // Store pixel velocity for scrubbing
+            });
+        }
+        
+        function gameLoop(timestamp) {
+            if (!isRunning) return;
+            
+            if (!lastTime) {
+                lastTime = timestamp;
+            }
+            
+            const dt = (timestamp - lastTime) / 1000; // delta time in seconds
+            lastTime = timestamp;
+
+            update(dt);
+            draw();
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        function startSimulation() {
+             if (isRunning) return;
+             resetSimulation();
+             isRunning = true;
+             lastTime = performance.now();
+             requestAnimationFrame(gameLoop);
+             startButton.textContent = 'Reset Simulation';
+             startButton.classList.remove('bg-blue-600', 'hover:bg-blue-700');
+             startButton.classList.add('bg-red-600', 'hover:bg-red-700');
+        }
+
+        function stopSimulation() {
+            isRunning = false;
+            startButton.textContent = 'Start Simulation';
+            startButton.classList.remove('bg-red-600', 'hover:bg-red-700');
+            startButton.classList.add('bg-blue-600', 'hover:bg-blue-700');
+
+            // Show and configure slider
+            if (graphPoints.length > 1) {
+                sliderContainer.style.opacity = '1';
+                timeSlider.disabled = false;
+                timeSlider.max = simulationTime;
+                timeSlider.value = simulationTime;
+                timeValue.textContent = simulationTime.toFixed(2);
+            }
+        }
+
+        // --- Scrubber/Slider Logic ---
+        function handleScrub() {
+            if (isRunning) return;
+
+            const targetTime = parseFloat(timeSlider.value);
+            timeValue.textContent = targetTime.toFixed(2);
+
+            let pointIndex = -1;
+            // Find the index of the last data point at or before the target time
+            for (let i = 0; i < graphPoints.length; i++) {
+                if (graphPoints[i].time <= targetTime) {
+                    pointIndex = i;
+                } else {
+                    break;
+                }
+            }
+
+            if (pointIndex === -1 && graphPoints.length > 0) {
+                pointIndex = 0;
+            }
+            
+            if (pointIndex !== -1) {
+                const currentPoint = graphPoints[pointIndex];
+                ballY = currentPoint.y; // Update ball's vertical position
+                
+                drawBall();
+                // Redraw the full graph, but tell it which point index to highlight
+                drawGraph(graphPoints, pointIndex);
+                updateInfoPanel(currentPoint.time, currentPoint.y, currentPoint.vy_pixels);
+            }
+        }
+
+        // --- Event Handlers ---
+        function handleStartButtonClick(event) {
+            event.preventDefault(); // Prevents double-tap zoom and ghost clicks on touch devices
+            if (isRunning) {
+                resetSimulation();
+            } else {
+                startSimulation();
+            }
+        }
+
+        function handleSignConventionClick(event) {
+            event.preventDefault(); // Prevents ghost clicks
+            isUpwardPositive = !isUpwardPositive;
+            signConventionButton.textContent = isUpwardPositive ? 'Upward is (+)' : 'Downward is (+)';
+            
+            // Invert all existing velocity points to reflect the new convention
+            graphPoints.forEach(p => {
+                p.vel = -p.vel;
+            });
+
+            // Redraw the graph immediately with the new convention
+            drawGraph(graphPoints);
+            // Update the info panel using the current slider state
+            handleScrub(); 
+        }
+
+        // Event Listeners
+        startButton.addEventListener('click', handleStartButtonClick);
+        startButton.addEventListener('touchstart', handleStartButtonClick);
+
+        signConventionButton.addEventListener('click', handleSignConventionClick);
+        signConventionButton.addEventListener('touchstart', handleSignConventionClick);
+
+        timeSlider.addEventListener('input', handleScrub);
+
+        window.addEventListener('resize', setupCanvases);
+
+        // Initial setup
+        window.onload = setupCanvases;
+
+    </script>
+<script src="../../../assets/sim.js" data-root="../../../#force-and-motion"></script>
+</body>
+</html>
+

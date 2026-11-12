@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="../../../assets/sim-early.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Orbits at Different Heights · PhySim</title>
+    <link rel="stylesheet" href="../../../assets/vendor/tailwind.css">
+    <link rel="stylesheet" href="../../../assets/vendor/inter/inter.css">
+    <style>
+        body {
+            margin: 0;
+            font-family: 'Inter', sans-serif;
+            background-color: #111827; /* bg-gray-900 */
+            color: #f3f4f6; /* text-gray-100 */
+            overflow: hidden; /* Prevent scrollbars from appearing */
+        }
+        #container {
+            width: 100vw;
+            height: 100vh;
+            position: fixed;
+            top: 0;
+            left: 0;
+        }
+        .label {
+            color: #fff;
+            font-size: 12px;
+            text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
+        }
+    </style>
+<link rel="icon" href="../../../favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../../../assets/sim.css">
+</head>
+<body>
+    <!-- Container for the 3D scene -->
+    <div id="container"></div>
+
+    <!-- UI Controls and Information Panel -->
+    <div data-physim-panel="Controls" class="absolute top-4 left-4 bg-gray-800 bg-opacity-80 p-4 rounded-lg shadow-lg text-white max-w-xs z-10">
+        <h1 class="text-xl font-bold mb-2">Orbit Simulation</h1>
+        <p class="text-sm text-gray-300 mb-4">View from above the North Pole.</p>
+        
+        <div class="flex space-x-2 mb-4">
+            <button id="playPauseBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded w-full transition-colors">Pause</button>
+            <button id="resetBtn" class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded w-full transition-colors">Reset</button>
+        </div>
+
+        <div class="mb-4">
+            <input type="checkbox" id="toggleSat5Line" checked class="mr-2">
+            <label for="toggleSat5Line" class="text-sm">Show Earth-Sat 5 Line</label>
+        </div>
+
+        <div>
+            <h2 class="text-lg font-semibold mb-2">Time Elapsed</h2>
+            <p id="timeDisplay" class="text-2xl font-mono bg-gray-900 p-2 rounded text-center">0d 00h 00m</p>
+        </div>
+        
+        <div class="mt-4 pt-4 border-t border-gray-600">
+             <h2 class="text-lg font-semibold mb-2">Legend</h2>
+             <ul class="space-y-2 text-sm" id="legendList">
+                <!-- Legend items will be dynamically added here -->
+             </ul>
+        </div>
+    </div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "../../../assets/vendor/three-0.160/three.module.js",
+                "three/addons/": "../../../assets/vendor/three-0.160/addons/"
+            }
+        }
+    </script>
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
+
+        // --- SCENE SETUP ---
+        let scene, camera, renderer, labelRenderer, controls;
+        let clock = new THREE.Clock();
+        let isPaused = false;
+        let totalElapsedTime = 0;
+        let earthToSat5Line; // Declare the line variable
+
+        // --- OBJECTS ---
+        let earth;
+        const satellites = [];
+        const orbits = [];
+        // Renamed satellites from inner to outer as Sat 1 to Sat 5
+        const satelliteData = [
+            { name: 'Sat 1', color: 0xff0000, labelColor: 'red' },
+            { name: 'Sat 2', color: 0x00ffff, labelColor: 'cyan' },
+            { name: 'Sat 3', color: 0xffff00, labelColor: 'yellow' },
+            { name: 'Sat 4', color: 0xff00ff, labelColor: 'magenta' },
+            { name: 'Sat 5 (GEO)', color: 0x00ff00, labelColor: 'lime' }
+        ];
+
+        // --- CONSTANTS & SCALING ---
+        const REAL_EARTH_RADIUS = 6371; // km
+        const SIM_EARTH_RADIUS = 10; // 10 units in simulation
+        const SCALE = SIM_EARTH_RADIUS / REAL_EARTH_RADIUS;
+
+        const SIM_DAY_DURATION = 30; // 30 seconds for 24 hours
+        const EARTH_ANGULAR_VELOCITY = (2 * Math.PI) / SIM_DAY_DURATION;
+
+        // --- SATELLITE ORBIT PARAMETERS ---
+        // Original LEO altitude
+        const ORIGINAL_LEO_ALTITUDE = 500; // km
+
+        // Satellite 1: Doubled altitude (now Sat 1)
+        const r1_real = REAL_EARTH_RADIUS + (ORIGINAL_LEO_ALTITUDE * 2); // 6371 + 1000 = 7371 km
+        const r1_sim = r1_real * SCALE;
+
+        // Satellite 5: Geostationary (original value, now Sat 5)
+        const r5_real = 42164; // Geostationary radius in km
+        const r5_sim = r5_real * SCALE;
+        
+        // Satellite 3: Mid-point radius for visual separation (original value, now Sat 3)
+        const r3_sim_original = (REAL_EARTH_RADIUS + 500) * SCALE + ((42164 * SCALE) - ((REAL_EARTH_RADIUS + 500) * SCALE)) / 2;
+        const r3_real = r3_sim_original / SCALE; // Convert back to real for Kepler's law if needed
+        const r3_sim = r3_real * SCALE; // Ensure consistency
+
+        // Satellite 2: Midway between Sat 1 and Sat 3 (previously Sat 4)
+        const r2_real = r1_real + (r3_real - r1_real) / 2;
+        const r2_sim = r2_real * SCALE;
+
+        // Satellite 4: Midway between Sat 3 and Sat 5 (previously Sat 5)
+        const r4_real = r3_real + (r5_real - r3_real) / 2;
+        const r4_sim = r4_real * SCALE;
+
+        const radii = [r1_sim, r2_sim, r3_sim, r4_sim, r5_sim]; // Order matters for iteration
+
+        // Calculate angular velocities based on Kepler's Third Law (T² ∝ r³)
+        // which implies ω ∝ 1/sqrt(r³) or ω = k * r^(-1.5)
+        // We use the geostationary satellite (Sat 5) as the reference for original speeds.
+        const OMEGA_REFERENCE_REAL_RADIUS = r5_real; // 42164 km
+        const OMEGA_REFERENCE_SIM_SPEED = EARTH_ANGULAR_VELOCITY; // Speed of original GEO in simulation terms
+
+        const OMEGA_1 = OMEGA_REFERENCE_SIM_SPEED * Math.pow(OMEGA_REFERENCE_REAL_RADIUS / r1_real, 1.5);
+        const OMEGA_2 = OMEGA_REFERENCE_SIM_SPEED * Math.pow(OMEGA_REFERENCE_REAL_RADIUS / r2_real, 1.5);
+        const OMEGA_3 = OMEGA_REFERENCE_SIM_SPEED * Math.pow(OMEGA_REFERENCE_REAL_RADIUS / r3_real, 1.5);
+        const OMEGA_4 = OMEGA_REFERENCE_SIM_SPEED * Math.pow(OMEGA_REFERENCE_REAL_RADIUS / r4_real, 1.5);
+        const OMEGA_5 = OMEGA_REFERENCE_SIM_SPEED * Math.pow(OMEGA_REFERENCE_REAL_RADIUS / r5_real, 1.5);
+
+        // Negate angular velocities for counter-clockwise rotation
+        const angularVelocities = [OMEGA_1 * -1, OMEGA_2 * -1, OMEGA_3 * -1, OMEGA_4 * -1, OMEGA_5 * -1];
+        const initialAngles = [0, Math.PI / 4, Math.PI / 2, (3 * Math.PI) / 4, Math.PI]; // Start at different positions
+
+        // --- UI ELEMENTS ---
+        const playPauseBtn = document.getElementById('playPauseBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        const timeDisplay = document.getElementById('timeDisplay');
+        const legendList = document.getElementById('legendList');
+        const toggleSat5LineCheckbox = document.getElementById('toggleSat5Line'); // Get checkbox reference
+
+        // --- INITIALIZATION ---
+        function init() {
+            // Scene
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x111827); // Dark blue space
+
+            // Camera (Orthographic, top-down view)
+            const aspect = window.innerWidth / window.innerHeight;
+            const frustumSize = 80;
+            camera = new THREE.OrthographicCamera(frustumSize * aspect / -2, frustumSize * aspect / 2, frustumSize / 2, frustumSize / -2, 1, 1000);
+            camera.position.set(0, 100, 0); // Positioned directly above
+            camera.lookAt(scene.position);
+            scene.add(camera);
+
+            // Renderer
+            const container = document.getElementById('container');
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            container.appendChild(renderer.domElement);
+            
+            // Label Renderer
+            labelRenderer = new CSS2DRenderer();
+            labelRenderer.setSize(window.innerWidth, window.innerHeight);
+            labelRenderer.domElement.style.position = 'absolute';
+            labelRenderer.domElement.style.top = '0px';
+            labelRenderer.domElement.style.pointerEvents = 'none'; // So controls can work underneath
+            container.appendChild(labelRenderer.domElement);
+
+            // Controls
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableRotate = false; // We are in a top-down view, panning is better
+            controls.mouseButtons = {
+                MIDDLE: THREE.MOUSE.DOLLY, // Zoom with middle mouse
+                RIGHT: THREE.MOUSE.PAN // Pan with right mouse
+            };
+            controls.touches = {
+                ONE: THREE.TOUCH.PAN,
+                TWO: THREE.TOUCH.DOLLY_PAN
+            }
+            controls.update();
+
+            // Lighting
+            const ambientLight = new THREE.AmbientLight(0xcccccc, 0.5);
+            scene.add(ambientLight);
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 1.5);
+            directionalLight.position.set(15, 25, 10);
+            scene.add(directionalLight);
+
+            // Create Objects
+            createEarth();
+            createSatellitesAndOrbits();
+            createEarthToSat5Line(); // Call to create the line
+            earthToSat5Line.visible = toggleSat5LineCheckbox.checked; // Set initial visibility
+
+            // Populate legend
+            populateLegend();
+
+            // Event Listeners
+            window.addEventListener('resize', onWindowResize);
+            playPauseBtn.addEventListener('click', togglePause);
+            resetBtn.addEventListener('click', resetSimulation);
+            toggleSat5LineCheckbox.addEventListener('change', () => {
+                if (earthToSat5Line) {
+                    earthToSat5Line.visible = toggleSat5LineCheckbox.checked;
+                }
+            });
+        }
+
+        // --- OBJECT CREATION ---
+        function createEarth() {
+            const geometry = new THREE.SphereGeometry(SIM_EARTH_RADIUS, 64, 64);
+            
+            // Create a texture loader
+            const textureLoader = new THREE.TextureLoader();
+            
+            // Load textures
+            const earthTexture = textureLoader.load('../../../assets/img/earth_map_1k.jpg', () => {
+                renderer.render(scene, camera);
+            });
+            const earthNormalMap = textureLoader.load('../../../assets/img/earth_normal_1k.jpg');
+            const earthSpecularMap = textureLoader.load('../../../assets/img/earth_spec_1k.jpg');
+
+            // Create material with texture
+            const material = new THREE.MeshPhongMaterial({
+                map: earthTexture,
+                normalMap: earthNormalMap,
+                normalScale: new THREE.Vector2(0.6, 0.6),
+                specularMap: earthSpecularMap,
+                specular: new THREE.Color('grey')
+            });
+            
+            earth = new THREE.Mesh(geometry, material);
+            // No initial rotation needed. Default orientation has North Pole on the Y-axis.
+            scene.add(earth);
+        }
+
+        function createSatellitesAndOrbits() {
+            for (let i = 0; i < satelliteData.length; i++) { // Loop through all satellites
+                // Orbit Path
+                const orbitGeometry = new THREE.BufferGeometry().setFromPoints(
+                    new THREE.Path().absarc(0, 0, radii[i], 0, Math.PI * 2, false).getSpacedPoints(128)
+                );
+                const orbitMaterial = new THREE.LineDashedMaterial({ 
+                    color: 0xaaaaaa, 
+                    dashSize: 0.5, 
+                    gapSize: 0.5,
+                    transparent: true,
+                    opacity: 0.7
+                });
+                const orbit = new THREE.Line(orbitGeometry, orbitMaterial);
+                orbit.computeLineDistances();
+                orbit.rotation.x = Math.PI / 2; // Lay it flat on the XZ plane
+                scene.add(orbit);
+                orbits.push(orbit);
+
+                // Satellite
+                const satGeometry = new THREE.SphereGeometry(0.5, 16, 16);
+                const satMaterial = new THREE.MeshStandardMaterial({ color: satelliteData[i].color, emissive: satelliteData[i].color, emissiveIntensity: 0.5 });
+                const satellite = new THREE.Mesh(satGeometry, satMaterial);
+                
+                // Label
+                const labelDiv = document.createElement('div');
+                labelDiv.className = 'label';
+                labelDiv.textContent = satelliteData[i].name;
+                labelDiv.style.color = satelliteData[i].labelColor;
+                const label = new CSS2DObject(labelDiv);
+                label.position.set(0, 1, 0); // Offset label above satellite
+                satellite.add(label);
+
+                satellites.push({
+                    mesh: satellite,
+                    angle: initialAngles[i],
+                    radius: radii[i],
+                    omega: angularVelocities[i]
+                });
+                scene.add(satellite);
+            }
+        }
+
+        function createEarthToSat5Line() {
+            const points = [];
+            points.push(new THREE.Vector3(0, 0, 0)); // Earth's center
+            points.push(new THREE.Vector3(0, 0, 0)); // Initial position, will be updated
+
+            const geometry = new THREE.BufferGeometry().setFromPoints(points);
+            const material = new THREE.LineDashedMaterial({
+                color: 0x00ff00, // Green color for the line
+                dashSize: 1,
+                gapSize: 0.5,
+                linewidth: 1,
+                transparent: true,
+                opacity: 0.7
+            });
+            earthToSat5Line = new THREE.Line(geometry, material);
+            earthToSat5Line.computeLineDistances(); // Required for dashed lines
+            scene.add(earthToSat5Line);
+        }
+
+        // --- LEGEND POPULATION ---
+        function populateLegend() {
+            legendList.innerHTML = ''; // Clear existing legend items
+
+            // Calculate real orbital periods for display
+            const realPeriods = [
+                (2 * Math.PI / Math.abs(angularVelocities[0])) * (24 / (2 * Math.PI / EARTH_ANGULAR_VELOCITY)), // Sat 1
+                (2 * Math.PI / Math.abs(angularVelocities[1])) * (24 / (2 * Math.PI / EARTH_ANGULAR_VELOCITY)), // Sat 2
+                (2 * Math.PI / Math.abs(angularVelocities[2])) * (24 / (2 * Math.PI / EARTH_ANGULAR_VELOCITY)), // Sat 3
+                (2 * Math.PI / Math.abs(angularVelocities[3])) * (24 / (2 * Math.PI / EARTH_ANGULAR_VELOCITY)), // Sat 4
+                (2 * Math.PI / Math.abs(angularVelocities[4])) * (24 / (2 * Math.PI / EARTH_ANGULAR_VELOCITY))  // Sat 5
+            ];
+
+            satelliteData.forEach((data, i) => {
+                const listItem = document.createElement('li');
+                listItem.className = 'flex items-center';
+                listItem.innerHTML = `
+                    <span class="w-3 h-3 rounded-full mr-2" style="background-color: #${data.color.toString(16).padStart(6, '0')};"></span>
+                    ${data.name} (Orbital Period: ${realPeriods[i].toFixed(2)} hours)
+                `;
+                legendList.appendChild(listItem);
+            });
+        }
+        
+        // --- EVENT HANDLERS ---
+        function onWindowResize() {
+            const aspect = window.innerWidth / window.innerHeight;
+            const frustumSize = 80;
+            camera.left = frustumSize * aspect / -2;
+            camera.right = frustumSize * aspect / 2;
+            camera.top = frustumSize / 2;
+            camera.bottom = frustumSize / -2;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            labelRenderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function togglePause() {
+            isPaused = !isPaused;
+            playPauseBtn.textContent = isPaused ? 'Play' : 'Pause';
+            playPauseBtn.classList.toggle('bg-blue-600', !isPaused);
+            playPauseBtn.classList.toggle('hover:bg-blue-700', !isPaused);
+            playPauseBtn.classList.toggle('bg-green-600', isPaused);
+            playPauseBtn.classList.toggle('hover:bg-green-700', isPaused);
+        }
+
+        function resetSimulation() {
+            totalElapsedTime = 0;
+            clock.stop();
+            clock.start();
+            satellites.forEach((sat, i) => {
+                sat.angle = initialAngles[i];
+            });
+            if (isPaused) {
+                togglePause();
+            }
+        }
+        
+        // --- ANIMATION LOOP ---
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const deltaTime = clock.getDelta();
+
+            if (!isPaused && earth) { // Ensure earth is loaded
+                totalElapsedTime += deltaTime;
+
+                // Update Earth's rotation around the Y-axis (polar axis)
+                earth.rotation.y += EARTH_ANGULAR_VELOCITY * deltaTime;
+
+                // Update satellite positions
+                satellites.forEach(sat => {
+                    sat.angle += sat.omega * deltaTime;
+                    sat.mesh.position.x = sat.radius * Math.cos(sat.angle);
+                    sat.mesh.position.z = sat.radius * Math.sin(sat.angle);
+                });
+
+                // Update the line connecting Earth to Sat 5
+                if (earthToSat5Line && satellites[4]) { // Check if line and Sat 5 exist
+                    const positions = earthToSat5Line.geometry.attributes.position.array;
+                    positions[3] = satellites[4].mesh.position.x;
+                    positions[4] = satellites[4].mesh.position.y;
+                    positions[5] = satellites[4].mesh.position.z;
+                    earthToSat5Line.geometry.attributes.position.needsUpdate = true;
+                    earthToSat5Line.computeLineDistances(); // Recalculate for dashed lines
+                }
+                
+                // Update time display
+                const totalHours = (totalElapsedTime / SIM_DAY_DURATION) * 24;
+                const days = Math.floor(totalHours / 24);
+                const hours = Math.floor(totalHours % 24);
+                const minutes = Math.floor((totalHours * 60) % 60);
+                timeDisplay.textContent = `${String(days).padStart(1,'0')}d ${String(hours).padStart(2,'0')}h ${String(minutes).padStart(2,'0')}m`;
+            }
+
+            controls.update();
+            renderer.render(scene, camera);
+            labelRenderer.render(scene, camera);
+        }
+
+        // --- START ---
+        init();
+        animate();
+
+    </script>
+<script src="../../../assets/sim.js" data-root="../../../#force-and-motion"></script>
+</body>
+</html>

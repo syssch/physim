@@ -1,0 +1,1190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="../../../assets/sim-early.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Horizontally Projected Motion · PhySim</title>
+    <link rel="stylesheet" href="../../../assets/vendor/tailwind.css">
+    <link rel="stylesheet" href="../../../assets/vendor/fontawesome/css/all.min.css">
+    <style>
+        /* Force 16:9 Aspect Ratio Container */
+        .app-container {
+            width: 100%;
+            max-width: 1400px;
+            aspect-ratio: 16 / 9;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            background-color: #f8fafc;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* Custom Range Slider Styling */
+        input[type=range] {
+            -webkit-appearance: none;
+            background: transparent;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 20px;
+            width: 20px;
+            border-radius: 50%;
+            background: #3b82f6;
+            margin-top: -8px;
+            cursor: pointer;
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 6px;
+            cursor: pointer;
+            background: #cbd5e1;
+            border-radius: 3px;
+        }
+        
+        .panel-border {
+            border-right: 1px solid #cbd5e1;
+        }
+        
+        canvas {
+            display: block;
+        }
+
+        /* Checkbox toggle style */
+        .toggle-checkbox:checked {
+            right: 0;
+            border-color: #3b82f6;
+        }
+        .toggle-checkbox:checked + .toggle-label {
+            background-color: #3b82f6;
+        }
+        /* ---- Phone / narrow-screen layout ---- */
+        @media (max-width: 900px) {
+            body { padding: 6px !important; display: block !important; }
+            .app-container { aspect-ratio: auto; height: auto; overflow: visible; }
+            #topPanel { height: auto; flex-direction: column; padding: 12px; gap: 10px; }
+            #settingsCol { width: 100%; padding-right: 0; border-right: 0; }
+            #settingsCol > div:first-child { flex-direction: column; align-items: stretch; gap: 12px; }
+            #settingsCol > div:first-child > div:nth-child(3) { display: none; }
+            #settingsCol > div:nth-child(2) { flex-wrap: wrap; gap: 8px; justify-content: flex-start; }
+            #settingsCol > div:nth-child(2) > .h-6, #settingsCol > div:nth-child(2) > .flex-1 { display: none; }
+            #settingsCol label { padding-top: 6px; padding-bottom: 6px; }
+            #settingsCol .ml-2 { margin-left: 0; }
+            #btnStrobe { padding: 8px 14px; }
+            #playCol { width: 100%; flex-direction: row; justify-content: center; margin-left: 0; padding: 6px; gap: 16px; }
+            #playCol > div { width: auto; }
+            #btnClear { margin-top: 0; padding: 8px 12px; }
+            #bottomArea { flex-direction: column; height: auto; overflow: visible; }
+            #simCol { width: 100%; height: 380px; border-right: 0; }
+            #simCol > .absolute.top-4.right-4 { top: 8px; right: 8px; padding: 6px 10px; font-size: 12px; }
+            #simCol > .absolute.top-4.right-4 .grid { column-gap: 12px; row-gap: 2px; }
+            #simCol > .absolute.top-4.right-4 > div:first-child { font-size: 13px; margin-bottom: 4px; }
+            #simCol > .absolute.bottom-4 { bottom: 6px; left: 8px; font-size: 10px; }
+            #strobeInfo { top: auto; bottom: 26px; left: 8px; font-size: 12px; padding: 4px 8px; }
+            #analysisCol { width: 100%; height: 560px; border-left: 0; border-top: 1px solid #e5e7eb; }
+        }
+    </style>
+<link rel="icon" href="../../../favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../../../assets/sim.css">
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen p-4 font-sans text-slate-800">
+
+    <div class="app-container rounded-lg">
+        
+        <!-- TOP CONTROL PANEL -->
+        <div id="topPanel" class="h-[25%] bg-white border-b border-gray-200 p-4 flex flex-row shadow-sm z-10 relative">
+            
+            <!-- Left: Settings (Sliders & Options) -->
+            <div id="settingsCol" class="flex flex-col w-[80%] gap-2 pr-6 border-r border-gray-200 justify-center">
+                
+                <!-- Row 1: Sliders -->
+                <div class="flex flex-row items-end gap-6">
+                    <!-- Speed Slider -->
+                    <div class="flex-1">
+                        <div class="flex items-center justify-between mb-1">
+                            <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">Horizontal Speed (Vx)</span>
+                            <span class="text-sm font-bold text-blue-600 font-mono"><span id="speedVal">10</span> m/s</span>
+                        </div>
+                        <input type="range" id="speedSlider" min="0" max="30" value="10" class="w-full">
+                    </div>
+                    
+                    <!-- Gravity Slider -->
+                    <div class="flex-1">
+                        <div class="flex items-center justify-between mb-1">
+                            <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">Gravity (g)</span>
+                            <span class="text-sm font-bold text-blue-600 font-mono"><span id="gravityVal">9.81</span> m/s²</span>
+                        </div>
+                        <input type="range" id="gravitySlider" min="1" max="20" step="0.1" value="9.81" class="w-full">
+                    </div>
+
+                    <!-- Placeholder for alignment -->
+                    <div class="flex-1 opacity-50 pointer-events-none">
+                         <div class="flex items-end justify-between mb-1">
+                            <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Angle</span>
+                            <span class="text-sm font-bold text-slate-400 font-mono">0° (Fixed)</span>
+                        </div>
+                        <input type="range" disabled value="0" class="w-full bg-slate-100">
+                    </div>
+                </div>
+
+                <!-- Row 2: Options -->
+                <div class="flex flex-row items-center justify-between pt-2">
+                    
+                    <!-- Vector Options -->
+                    <div class="flex items-center gap-4">
+                        <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Vectors:</span>
+                        <div class="flex gap-3">
+                            <label class="inline-flex items-center cursor-pointer hover:bg-slate-50 rounded px-1">
+                                <input type="checkbox" id="chkVelocity" class="form-checkbox h-4 w-4 text-green-600 rounded">
+                                <span class="ml-1.5 text-xs text-green-700 font-bold">v</span>
+                            </label>
+                            <label class="inline-flex items-center cursor-pointer hover:bg-slate-50 rounded px-1">
+                                <input type="checkbox" id="chkComponents" class="form-checkbox h-4 w-4 text-blue-600 rounded">
+                                <span class="ml-1.5 text-xs text-blue-700 font-bold">v<sub>xy</sub></span>
+                            </label>
+                            <label class="inline-flex items-center cursor-pointer hover:bg-slate-50 rounded px-1">
+                                <input type="checkbox" id="chkAccel" class="form-checkbox h-4 w-4 text-amber-500 rounded">
+                                <span class="ml-1.5 text-xs text-amber-600 font-bold">a</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="h-6 w-px bg-gray-200 mx-2"></div>
+
+                    <!-- Independence Option -->
+                    <label class="inline-flex items-center cursor-pointer hover:bg-slate-50 rounded px-2 py-1 bg-purple-50 border border-purple-100">
+                        <input type="checkbox" id="chkIndependence" class="form-checkbox h-4 w-4 text-purple-600 rounded">
+                        <span class="ml-2 text-xs text-purple-700 font-bold">Show Hori. Lines</span>
+                    </label>
+
+                    <!-- Vertical Lines Option -->
+                    <label class="inline-flex items-center cursor-pointer hover:bg-slate-50 rounded px-2 py-1 bg-cyan-50 border border-cyan-100 ml-2">
+                        <input type="checkbox" id="chkVerticalLines" class="form-checkbox h-4 w-4 text-cyan-600 rounded">
+                        <span class="ml-2 text-xs text-cyan-700 font-bold">Show Vert. Lines</span>
+                    </label>
+
+                    <div class="flex-1"></div> <!-- Spacer -->
+
+                    <!-- Strobes Button -->
+                    <button id="btnStrobe" class="px-4 py-1.5 text-xs font-bold text-white bg-purple-600 hover:bg-purple-700 rounded-full cursor-pointer transition whitespace-nowrap shadow-sm hover:shadow">
+                        Show Strobes
+                    </button>
+                </div>
+            </div>
+
+            <!-- Right: Playback Controls -->
+            <div id="playCol" class="w-[20%] flex flex-col items-center justify-center gap-2 pl-4 bg-slate-50/50 rounded-lg ml-2">
+                <div class="flex items-center justify-center gap-3 w-full">
+                    <button id="btnReset" class="flex flex-col items-center justify-center w-12 h-12 rounded-full hover:bg-slate-200 text-slate-500 hover:text-slate-700 transition" title="Save & Reset">
+                        <i class="fas fa-plus text-lg"></i>
+                        <span class="text-[9px] font-bold mt-0.5 uppercase">New Run</span>
+                    </button>
+                    <button id="btnStartPause" class="flex items-center justify-center w-16 h-16 rounded-full bg-blue-600 hover:bg-blue-700 text-white shadow-xl transition transform hover:scale-105 active:scale-95" title="Start/Pause">
+                        <i class="fas fa-play text-2xl ml-1" id="playIcon"></i>
+                    </button>
+                </div>
+                <button id="btnClear" class="text-[10px] font-bold text-red-400 hover:text-red-600 uppercase tracking-wider mt-1 border border-red-200 hover:border-red-400 px-3 py-1 rounded-full transition">
+                    Clear All Trials
+                </button>
+            </div>
+        </div>
+
+        <!-- BOTTOM AREA -->
+        <div id="bottomArea" class="flex-1 flex flex-row overflow-hidden h-[75%]">
+            
+            <!-- LEFT: SIMULATION CANVAS -->
+            <div id="simCol" class="relative w-[65%] h-full bg-white panel-border group">
+                <canvas id="simCanvas" class="w-full h-full block cursor-grab active:cursor-grabbing"></canvas>
+                <!-- Labels overlay -->
+                <div class="absolute top-4 right-4 bg-white/90 backdrop-blur px-4 py-3 rounded border border-slate-200 text-sm shadow-md pointer-events-none select-none">
+                    <div class="font-bold text-slate-900 mb-2 text-base">Live Data</div>
+                    <div class="grid grid-cols-2 gap-x-6 gap-y-2">
+                        <div class="text-slate-600 font-medium">Time:</div>
+                        <div class="font-mono text-slate-900 font-bold"><span id="liveTime">0.00</span> s</div>
+                        <div class="text-slate-600 font-medium">Height:</div>
+                        <div class="font-mono text-slate-900 font-bold"><span id="liveY">0.00</span> m</div>
+                        <div class="text-slate-600 font-medium">Range:</div>
+                        <div class="font-mono text-slate-900 font-bold"><span id="liveX">0.00</span> m</div>
+                    </div>
+                </div>
+                <!-- Zoom Hint -->
+                <div class="absolute bottom-4 left-4 text-slate-400 text-xs italic pointer-events-none">
+                    Tip: Set Speed to 0 to drop the ball straight down.
+                </div>
+                <!-- Strobe Info Overlay -->
+                <div id="strobeInfo" class="absolute top-4 left-4 text-purple-700 text-sm font-bold bg-purple-50/90 backdrop-blur px-3 py-2 rounded border border-purple-200 shadow-sm pointer-events-none hidden transition-opacity duration-300">
+                    <i class="fas fa-stopwatch mr-1"></i> Strobes are taken every 0.5 s
+                </div>
+            </div>
+
+            <!-- RIGHT: ANALYSIS CANVAS & TRIALS -->
+            <div id="analysisCol" class="relative w-[35%] h-full bg-slate-50 flex flex-col group border-l border-gray-200">
+                <!-- Header with Analysis Selector -->
+                <div class="bg-white border-b border-gray-200 px-4 py-3 flex justify-between items-center gap-2 flex-none">
+                    <div class="flex items-center gap-3 flex-1">
+                        <span class="text-sm font-bold text-slate-700 uppercase tracking-wider hidden md:inline">Analysis:</span>
+                        <select id="analysisMode" class="bg-white border border-slate-300 rounded text-sm font-medium px-3 py-1.5 text-slate-700 focus:outline-none cursor-pointer flex-1 shadow-sm">
+                            <option value="none" selected>None</option>
+                            <option value="vertical">Vertical Velocity (Vy)</option>
+                            <option value="common">Velocity Vector (V)</option>
+                        </select>
+                    </div>
+                    <span class="text-xs text-slate-500 font-bold whitespace-nowrap bg-slate-200 px-2 py-1 rounded">dt = 0.5s</span>
+                </div>
+                
+                <!-- Canvas Area -->
+                <div class="flex-1 relative w-full overflow-hidden">
+                    <canvas id="analysisCanvas" class="w-full h-full block cursor-grab active:cursor-grabbing"></canvas>
+                </div>
+
+                <!-- Trial List Area (New) -->
+                <div class="h-[25%] min-h-[120px] bg-white border-t border-gray-200 flex flex-col">
+                    <div class="flex flex-col bg-slate-50 border-b border-gray-200">
+                        <div class="px-4 py-1.5 flex justify-between items-center border-b border-slate-100">
+                            <span class="text-xs font-extrabold text-slate-500 uppercase tracking-wider">Trial History</span>
+                            <span id="trialCount" class="text-[10px] font-bold text-white bg-slate-400 px-2 py-0.5 rounded-full">0</span>
+                        </div>
+                        <div class="grid grid-cols-[40%_30%_30%] px-3 py-1 gap-1 text-[9px] font-bold text-slate-400 uppercase tracking-wide">
+                            <div class="pl-6">Trial</div>
+                            <div class="text-center">Vx</div>
+                            <div class="text-center">g</div>
+                        </div>
+                    </div>
+                    
+                    <div id="trialsList" class="flex-1 overflow-y-auto p-1 space-y-0.5">
+                        <!-- Items injected here -->
+                        <div id="emptyTrialsMsg" class="text-center text-xs text-slate-400 italic mt-4 px-4">
+                            Run simulation & reset to save trials.
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        // --- CONSTANTS & CONFIG ---
+        const CONSTANTS = {
+            scale: 15,        // pixels per meter (Zoomed in a bit more for horizontal)
+            dt: 1/60,         // Time step (seconds)
+            analysisInterval: 0.5, // Capture vector every 0.5 seconds
+            vectorScale: 2.5,  // Visual scale for velocity vectors
+            accelScale: 10,    // Visual scale for accel vectors
+            minZoom: 0.5,
+            maxZoom: 4.0,
+            launchHeight: 20   // Meters
+        };
+
+        const TRIAL_COLORS = [
+            '#2563eb', // Blue
+            '#dc2626', // Red
+            '#16a34a', // Green
+            '#d97706', // Amber
+            '#9333ea', // Purple
+            '#0891b2'  // Cyan
+        ];
+
+        const COLORS = {
+            ball: '#1e293b',       // Slate 800
+            trail: '#94a3b8',      // Slate 400
+            vx: '#2563eb',         // Blue 600
+            vy: '#dc2626',         // Red 600
+            v: '#16a34a',          // Green 600
+            accel: '#d97706',      // Amber 600
+            deltaV: '#9333ea',     // Purple 600
+            ground: '#e2e8f0',     // Slate 200
+            grid: '#f1f5f9',       // Slate 100
+            analysisGrid: '#e2e8f0',
+            trajectory: '#a855f7'  // Purple 500 for prediction
+        };
+
+        // --- STATE ---
+        let state = {
+            running: false,
+            finished: false,
+            paused: false,
+            t: 0,
+            x: 0,
+            y: CONSTANTS.launchHeight,
+            vx: 0,
+            vy: 0,
+            v0: 10,
+            g: 9.81,   
+            // Data for Current Run
+            path: [],  
+            strobePoints: [], 
+            analysisPoints: [], 
+            lastAnalysisTime: 0,
+            // History
+            trials: [], // Array of {path, strobes, analysis, color, g, visible, v0}
+            showStrobe: false,
+            analysisMode: 'none',
+            options: {
+                showV: false,
+                showComponents: false,
+                showAccel: false,
+                showIndependence: false,
+                showVerticalLines: false
+            },
+            view: { zoom: 1, panX: 0, panY: 0, isDragging: false, lastMouseX: 0, lastMouseY: 0 },
+            analysisView: { zoom: 1, panX: 0, panY: 0, isDragging: false, lastMouseX: 0, lastMouseY: 0 }
+        };
+
+        // --- DOM ELEMENTS ---
+        const canvasSim = document.getElementById('simCanvas');
+        const ctxSim = canvasSim.getContext('2d');
+        const canvasAnl = document.getElementById('analysisCanvas');
+        const ctxAnl = canvasAnl.getContext('2d');
+        const selectMode = document.getElementById('analysisMode');
+
+        const sliderSpeed = document.getElementById('speedSlider');
+        const sliderGravity = document.getElementById('gravitySlider');
+        const valSpeed = document.getElementById('speedVal');
+        const valGravity = document.getElementById('gravityVal');
+        
+        const btnStartPause = document.getElementById('btnStartPause');
+        const iconPlay = document.getElementById('playIcon');
+        const btnReset = document.getElementById('btnReset');
+        const btnClear = document.getElementById('btnClear');
+        const btnStrobe = document.getElementById('btnStrobe');
+        
+        const chkVelocity = document.getElementById('chkVelocity');
+        const chkComponents = document.getElementById('chkComponents');
+        const chkAccel = document.getElementById('chkAccel');
+        const chkIndependence = document.getElementById('chkIndependence');
+        const chkVerticalLines = document.getElementById('chkVerticalLines');
+
+        const uiTime = document.getElementById('liveTime');
+        const uiX = document.getElementById('liveX');
+        const uiY = document.getElementById('liveY');
+        
+        const trialsList = document.getElementById('trialsList');
+        const emptyTrialsMsg = document.getElementById('emptyTrialsMsg');
+        const trialCountBadge = document.getElementById('trialCount');
+        const strobeInfo = document.getElementById('strobeInfo');
+
+        // --- RESIZE LOGIC ---
+        function resizeCanvases() {
+            const rectSim = canvasSim.parentElement.getBoundingClientRect();
+            canvasSim.width = rectSim.width;
+            canvasSim.height = rectSim.height;
+
+            // Use parent element of canvas container to determine analysis canvas size
+            const rectAnl = canvasAnl.parentElement.getBoundingClientRect();
+            canvasAnl.width = rectAnl.width;
+            canvasAnl.height = rectAnl.height;
+
+            drawSimulation();
+            drawAnalysis();
+        }
+        window.addEventListener('resize', resizeCanvases);
+
+        // --- VIEWPORT INTERACTION ---
+        function setupViewport(cvs, viewObj, drawFn) {
+            cvs.addEventListener('mousedown', e => {
+                viewObj.isDragging = true;
+                viewObj.lastMouseX = e.clientX;
+                viewObj.lastMouseY = e.clientY;
+                cvs.style.cursor = 'grabbing';
+            });
+            window.addEventListener('mouseup', () => {
+                viewObj.isDragging = false;
+                cvs.style.cursor = 'grab';
+            });
+            cvs.addEventListener('mouseleave', () => {
+                viewObj.isDragging = false;
+                cvs.style.cursor = 'grab';
+            });
+            cvs.addEventListener('mousemove', e => {
+                if (!viewObj.isDragging) return;
+                const dx = e.clientX - viewObj.lastMouseX;
+                const dy = e.clientY - viewObj.lastMouseY;
+                viewObj.panX += dx;
+                viewObj.panY += dy;
+                viewObj.lastMouseX = e.clientX;
+                viewObj.lastMouseY = e.clientY;
+                drawFn();
+            });
+            cvs.addEventListener('wheel', e => {
+                e.preventDefault();
+                const zoomSensitivity = 0.001;
+                const delta = -e.deltaY * zoomSensitivity;
+                const newZoom = Math.min(Math.max(viewObj.zoom + delta, CONSTANTS.minZoom), CONSTANTS.maxZoom);
+                viewObj.zoom = newZoom;
+                drawFn();
+            }, { passive: false });
+        }
+        setupViewport(canvasSim, state.view, drawSimulation);
+        setupViewport(canvasAnl, state.analysisView, drawAnalysis);
+        // Touch: one-finger pan, pinch to zoom
+        [[canvasSim, state.view, drawSimulation], [canvasAnl, state.analysisView, drawAnalysis]].forEach(([cvs, v, fn]) => {
+            if (window.PhySim) PhySim.touchPanZoom(cvs,
+                (dx, dy) => { v.panX += dx; v.panY += dy; fn(); },
+                (f) => { v.zoom = Math.min(Math.max(v.zoom * f, CONSTANTS.minZoom), CONSTANTS.maxZoom); fn(); });
+        });
+
+
+        // --- PHYSICS ENGINE ---
+        function addTrialToUI(trial, index) {
+            if (state.trials.length === 1) {
+                emptyTrialsMsg.style.display = 'none';
+            }
+            
+            const div = document.createElement('div');
+            div.className = "grid grid-cols-[40%_30%_30%] items-center px-2 py-1.5 rounded hover:bg-slate-50 border border-transparent hover:border-slate-100 transition-colors group/item text-xs";
+            
+            // Col 1: Checkbox + Name
+            const leftDiv = document.createElement('div');
+            leftDiv.className = "flex items-center gap-2 overflow-hidden";
+            
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.checked = trial.visible;
+            checkbox.className = "w-3.5 h-3.5 rounded border-gray-300 focus:ring-offset-0 focus:ring-1 cursor-pointer flex-shrink-0";
+            checkbox.style.accentColor = trial.color;
+            
+            checkbox.addEventListener('change', (e) => {
+                trial.visible = e.target.checked;
+                drawSimulation();
+                drawAnalysis();
+            });
+            
+            const title = document.createElement('span');
+            title.className = "font-bold truncate";
+            title.textContent = `Trial ${index}`;
+            title.style.color = trial.color;
+            
+            leftDiv.appendChild(checkbox);
+            leftDiv.appendChild(title);
+            
+            // Col 2: Vx
+            const vxDiv = document.createElement('div');
+            vxDiv.className = "text-center font-mono text-slate-600";
+            vxDiv.textContent = trial.v0;
+
+            // Col 3: g
+            const gDiv = document.createElement('div');
+            gDiv.className = "text-center font-mono text-slate-600";
+            gDiv.textContent = trial.g;
+            
+            div.appendChild(leftDiv);
+            div.appendChild(vxDiv);
+            div.appendChild(gDiv);
+            
+            trialsList.prepend(div);
+            
+            trialCountBadge.textContent = state.trials.length;
+        }
+
+        function clearTrials() {
+            state.trials = [];
+            trialsList.innerHTML = '';
+            trialsList.appendChild(emptyTrialsMsg);
+            emptyTrialsMsg.style.display = 'block';
+            trialCountBadge.textContent = '0';
+            resetSimulation(false); // Pass false to skip saving the current trial
+        }
+
+        function resetSimulation(saveCurrent = true) {
+            // Check if saveCurrent is explicitly false (to handle Event objects passed by click listeners)
+            const shouldSave = saveCurrent !== false;
+
+            // Save current run if requested, and if it has meaningful data
+            if (shouldSave && state.t > 0 && state.path.length > 1) {
+                const color = TRIAL_COLORS[state.trials.length % TRIAL_COLORS.length];
+                const newTrial = {
+                    path: [...state.path],
+                    strobePoints: [...state.strobePoints],
+                    analysisPoints: [...state.analysisPoints],
+                    color: color,
+                    v0: state.v0,
+                    g: state.g,
+                    visible: true
+                };
+                state.trials.push(newTrial);
+                addTrialToUI(newTrial, state.trials.length);
+            }
+
+            // Reset Current State
+            state.running = false;
+            state.paused = false;
+            state.finished = false;
+            state.t = 0;
+            state.x = 0;
+            state.y = CONSTANTS.launchHeight;
+            
+            state.vx = state.v0; // Horizontal launch
+            state.vy = 0;
+
+            state.path = [{x: 0, y: CONSTANTS.launchHeight}];
+            state.strobePoints = [];
+            state.analysisPoints = [];
+            state.lastAnalysisTime = -CONSTANTS.analysisInterval; 
+            
+            // Store initial state
+            captureStrobePoint();
+            
+            // Reset controls
+            btnStrobe.textContent = state.showStrobe ? "Hide Strobes" : "Show Strobes";
+            // Update Info visibility
+            if (state.showStrobe) strobeInfo.classList.remove('hidden');
+            else strobeInfo.classList.add('hidden');
+
+            // Button is always active now
+            btnStrobe.disabled = false;
+            btnStrobe.className = "px-4 py-1.5 text-xs font-bold text-white bg-purple-600 hover:bg-purple-700 rounded-full cursor-pointer transition whitespace-nowrap shadow-sm hover:shadow";
+
+            updateUI();
+            drawSimulation();
+            drawAnalysis();
+        }
+
+        function updatePhysics() {
+            if (!state.running || state.paused || state.finished) return;
+
+            state.t += CONSTANTS.dt;
+            
+            // Horizontal: Constant velocity
+            state.x = state.v0 * state.t;
+            
+            // Vertical: Accelerated
+            state.y = CONSTANTS.launchHeight - (0.5 * state.g * state.t * state.t);
+            
+            state.vx = state.v0;
+            state.vy = -(state.g * state.t);
+
+            // Ground collision
+            if (state.y < 0) {
+                state.y = 0;
+                state.finished = true;
+                state.running = false;
+                captureStrobePoint(); 
+                updateUI();
+                drawSimulation();
+                return;
+            }
+
+            state.path.push({x: state.x, y: state.y});
+
+            if (state.t % CONSTANTS.analysisInterval < CONSTANTS.dt * 1.5) {
+                captureStrobePoint();
+                captureAnalysisPoint();
+            }
+
+            updateUI();
+            drawSimulation();
+            drawAnalysis();
+            requestAnimationFrame(updatePhysics);
+        }
+
+        function captureStrobePoint() {
+            if (state.strobePoints.length > 0) {
+                const last = state.strobePoints[state.strobePoints.length - 1];
+                if (Math.abs(last.t - state.t) < 0.05) return;
+            }
+            state.strobePoints.push({
+                x: state.x,
+                y: state.y,
+                vx: state.vx,
+                vy: state.vy,
+                t: state.t
+            });
+        }
+
+        function captureAnalysisPoint() {
+            if (state.t - state.lastAnalysisTime >= CONSTANTS.analysisInterval - 0.01) {
+                state.analysisPoints.push({
+                    vx: state.vx,
+                    vy: state.vy,
+                    t: state.t
+                });
+                state.lastAnalysisTime = state.t;
+            }
+        }
+
+        // --- DRAWING: SIMULATION ---
+        function worldToScreen(x, y, cvs) {
+            const paddingLeft = 50;
+            const paddingBottom = 50;
+            const zoom = state.view.zoom;
+            
+            return {
+                x: paddingLeft + state.view.panX + (x * CONSTANTS.scale * zoom),
+                y: cvs.height - paddingBottom + state.view.panY - (y * CONSTANTS.scale * zoom)
+            };
+        }
+
+        function drawArrow(ctx, fromX, fromY, vecX, vecY, color, scale = 1, width = 2) {
+            const zoom = state.view.zoom;
+            const finalScale = scale * zoom;
+            const headLen = 8 * Math.sqrt(zoom);
+            const safeHeadLen = 10;
+            const toX = fromX + vecX * finalScale;
+            const toY = fromY - vecY * finalScale; 
+            const angle = Math.atan2(-vecY, vecX);
+
+            ctx.beginPath(); ctx.moveTo(fromX, fromY); ctx.lineTo(toX, toY);
+            ctx.strokeStyle = color; ctx.lineWidth = width * Math.sqrt(zoom); ctx.stroke();
+
+            ctx.beginPath(); ctx.moveTo(toX, toY);
+            ctx.lineTo(toX - headLen * Math.cos(angle - Math.PI / 6), toY - safeHeadLen * Math.sin(angle - Math.PI / 6));
+            ctx.lineTo(toX - safeHeadLen * Math.cos(angle + Math.PI / 6), toY - safeHeadLen * Math.sin(angle + Math.PI / 6));
+            ctx.lineTo(toX, toY); ctx.fillStyle = color; ctx.fill();
+        }
+        
+        function drawVectorGroup(ctx, worldX, worldY, vx, vy) {
+            const pos = worldToScreen(worldX, worldY, ctx.canvas);
+            const vs = CONSTANTS.vectorScale;
+
+            if (state.options.showAccel) {
+                // Gravity
+                const toY = pos.y + state.g * CONSTANTS.accelScale * state.view.zoom;
+                ctx.beginPath(); ctx.moveTo(pos.x, pos.y); ctx.lineTo(pos.x, toY);
+                ctx.strokeStyle = COLORS.accel; ctx.lineWidth = 2 * Math.sqrt(state.view.zoom); ctx.stroke();
+                // Head
+                ctx.beginPath(); ctx.moveTo(pos.x, toY);
+                ctx.lineTo(pos.x - 5, toY - 8); ctx.lineTo(pos.x + 5, toY - 8);
+                ctx.fillStyle = COLORS.accel; ctx.fill();
+            }
+
+            if (state.options.showComponents) {
+                // Vx
+                const vxEnd = pos.x + vx * vs * state.view.zoom;
+                ctx.beginPath(); ctx.moveTo(pos.x, pos.y); ctx.lineTo(vxEnd, pos.y);
+                ctx.strokeStyle = '#2563eb'; ctx.lineWidth = 2; ctx.stroke();
+                // Head
+                ctx.beginPath(); ctx.moveTo(vxEnd, pos.y); 
+                ctx.lineTo(vxEnd - 6, pos.y - 4); ctx.lineTo(vxEnd - 6, pos.y + 4); 
+                ctx.fillStyle = '#2563eb'; ctx.fill();
+
+                // Vy (pointing down usually)
+                const vyEnd = pos.y - vy * vs * state.view.zoom; // Canvas Y inverted, vy is negative
+                ctx.beginPath(); ctx.moveTo(pos.x, pos.y); ctx.lineTo(pos.x, vyEnd);
+                ctx.strokeStyle = '#dc2626'; ctx.lineWidth = 2; ctx.stroke();
+                // Head
+                ctx.beginPath(); ctx.moveTo(pos.x, vyEnd);
+                const vyAngle = Math.atan2(pos.y - vyEnd, 0); // Straight down
+                if (Math.abs(vy) > 0.1) {
+                    ctx.lineTo(pos.x - 4, vyEnd - 6); ctx.lineTo(pos.x + 4, vyEnd - 6);
+                    ctx.fillStyle = '#dc2626'; ctx.fill();
+                }
+            }
+
+            if (state.options.showV) {
+                // Total V
+                const vEnd = {
+                    x: pos.x + vx * vs * state.view.zoom,
+                    y: pos.y - vy * vs * state.view.zoom
+                };
+                ctx.beginPath(); ctx.moveTo(pos.x, pos.y); ctx.lineTo(vEnd.x, vEnd.y);
+                ctx.strokeStyle = COLORS.v; ctx.lineWidth = 3; ctx.stroke();
+                // Head
+                const angle = Math.atan2(pos.y - vEnd.y, vEnd.x - pos.x);
+                ctx.beginPath(); ctx.moveTo(vEnd.x, vEnd.y);
+                ctx.lineTo(vEnd.x - 8 * Math.cos(angle - Math.PI/6), vEnd.y + 8 * Math.sin(angle - Math.PI/6));
+                ctx.lineTo(vEnd.x - 8 * Math.cos(angle + Math.PI/6), vEnd.y + 8 * Math.sin(angle + Math.PI/6));
+                ctx.fillStyle = COLORS.v; ctx.fill();
+            }
+        }
+
+        function drawTrail(ctx, path, color, isDashed=false) {
+            if (path.length < 2) return;
+            ctx.beginPath();
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 2 * Math.sqrt(state.view.zoom);
+            if(isDashed) ctx.setLineDash([5, 5]);
+            else ctx.setLineDash([]);
+            
+            const start = worldToScreen(path[0].x, path[0].y, ctx.canvas);
+            ctx.moveTo(start.x, start.y);
+            for(let i=1; i<path.length; i++) {
+                const p = worldToScreen(path[i].x, path[i].y, ctx.canvas);
+                ctx.lineTo(p.x, p.y);
+            }
+            ctx.stroke();
+            ctx.setLineDash([]);
+        }
+
+        function drawSimulation() {
+            const w = canvasSim.width;
+            const h = canvasSim.height;
+            const zoom = state.view.zoom;
+            ctxSim.clearRect(0, 0, w, h);
+
+            // Draw Environment (Cliff)
+            const cliffTop = worldToScreen(0, CONSTANTS.launchHeight, canvasSim).y;
+            const origin = worldToScreen(0, 0, canvasSim);
+            
+            // Ground
+            ctxSim.fillStyle = COLORS.ground;
+            ctxSim.fillRect(0, origin.y, w, h - origin.y);
+            ctxSim.strokeStyle = '#cbd5e1';
+            ctxSim.beginPath(); ctxSim.moveTo(0, origin.y); ctxSim.lineTo(w, origin.y); ctxSim.stroke();
+
+            // Cliff Wall (Left of x=0)
+            ctxSim.fillStyle = '#94a3b8';
+            ctxSim.fillRect(0, cliffTop, origin.x, origin.y - cliffTop);
+            
+            // Grid
+            ctxSim.strokeStyle = COLORS.grid;
+            ctxSim.lineWidth = 1;
+            ctxSim.beginPath();
+            // ... (Simplified grid logic) ...
+            const gridStep = 5;
+            const startX = -state.view.panX / (CONSTANTS.scale * zoom);
+            const endX = (w - state.view.panX) / (CONSTANTS.scale * zoom);
+            const iStartX = Math.floor(startX / gridStep) * gridStep;
+            const iEndX = Math.ceil(endX / gridStep) * gridStep;
+            for(let x=Math.max(0, iStartX); x<=iEndX; x+=gridStep) { 
+                const s = worldToScreen(x, 0, canvasSim);
+                ctxSim.moveTo(s.x, 0); ctxSim.lineTo(s.x, h); 
+            }
+            // Horizontal lines
+            for(let y=0; y<=CONSTANTS.launchHeight+10; y+=gridStep) {
+                const s = worldToScreen(0, y, canvasSim);
+                ctxSim.moveTo(0, s.y); ctxSim.lineTo(w, s.y);
+            }
+            ctxSim.stroke();
+
+            // --- DRAW HISTORY ---
+            state.trials.forEach(trial => {
+                if (!trial.visible) return; // Only draw if visible
+                drawTrail(ctxSim, trial.path, trial.color, true); // Dashed history
+                
+                // History Strobes
+                if (state.showStrobe) {
+                    trial.strobePoints.forEach(pt => {
+                        // REMOVED TIME CHECK: Always draw history strobes if enabled
+                        const pos = worldToScreen(pt.x, pt.y, canvasSim);
+                        ctxSim.fillStyle = trial.color;
+                        ctxSim.globalAlpha = 0.6;
+                        ctxSim.beginPath(); ctxSim.arc(pos.x, pos.y, 6*zoom, 0, Math.PI*2); ctxSim.fill();
+                        ctxSim.globalAlpha = 1.0;
+                    });
+                }
+            });
+
+            // --- INDEPENDENCE LINES (Horizontal Dotted Lines) ---
+            if (state.options.showIndependence && state.showStrobe) {
+                // Collect all trials including current if running/finished
+                const allTrials = state.trials.filter(t => t.visible); // Filter for visible trials only
+                if (state.path.length > 0) {
+                    allTrials.push({strobePoints: state.strobePoints, color: COLORS.ball});
+                }
+
+                // Determine max number of strobes
+                let maxStrobes = 0;
+                allTrials.forEach(t => maxStrobes = Math.max(maxStrobes, t.strobePoints.length));
+
+                for(let i=0; i<maxStrobes; i++) {
+                    // REMOVED TIME CHECK: Lines from history should remain visible
+                    
+                    // For strobe index i
+                    let yPositions = [];
+                    allTrials.forEach(t => {
+                        if (t.strobePoints[i]) yPositions.push(t.strobePoints[i].y);
+                    });
+
+                    // Draw line at these Y positions
+                    const uniqueYs = [...new Set(yPositions.map(y => y.toFixed(3)))]; // dedupe close values
+                    
+                    uniqueYs.forEach(yVal => {
+                        const sy = worldToScreen(0, parseFloat(yVal), canvasSim).y;
+                        ctxSim.beginPath();
+                        ctxSim.strokeStyle = '#a855f7'; // Purple
+                        ctxSim.lineWidth = 2;
+                        ctxSim.setLineDash([5, 5]);
+                        ctxSim.moveTo(0, sy);
+                        ctxSim.lineTo(w, sy);
+                        ctxSim.stroke();
+                        ctxSim.setLineDash([]);
+                    });
+                }
+            }
+
+            // --- VERTICAL LINES (Vertical Dotted Lines) ---
+            if (state.options.showVerticalLines && state.showStrobe) {
+                const allTrials = state.trials.filter(t => t.visible);
+                if (state.path.length > 0) {
+                    allTrials.push({strobePoints: state.strobePoints});
+                }
+
+                // Collect all X positions from all visible strobes
+                let xPositions = [];
+                allTrials.forEach(t => {
+                    t.strobePoints.forEach(pt => xPositions.push(pt.x));
+                });
+
+                const uniqueXs = [...new Set(xPositions.map(x => x.toFixed(3)))];
+
+                uniqueXs.forEach(xVal => {
+                    const sx = worldToScreen(parseFloat(xVal), 0, canvasSim).x;
+                    ctxSim.beginPath();
+                    ctxSim.strokeStyle = '#06b6d4'; // Cyan-500
+                    ctxSim.lineWidth = 2;
+                    ctxSim.setLineDash([5, 5]);
+                    ctxSim.moveTo(sx, 0);
+                    ctxSim.lineTo(sx, h);
+                    ctxSim.stroke();
+                    ctxSim.setLineDash([]);
+                });
+            }
+
+            // --- CURRENT RUN ---
+            if (state.path.length > 0) {
+                drawTrail(ctxSim, state.path, COLORS.ball);
+                
+                // Current Strobe
+                if (state.showStrobe) {
+                    state.strobePoints.forEach(pt => {
+                        const pos = worldToScreen(pt.x, pt.y, canvasSim);
+                        ctxSim.fillStyle = COLORS.ball;
+                        ctxSim.globalAlpha = 0.5;
+                        ctxSim.beginPath(); ctxSim.arc(pos.x, pos.y, 8*zoom, 0, Math.PI*2); ctxSim.fill();
+                        ctxSim.globalAlpha = 1.0;
+                    });
+                }
+
+                // Current Ball
+                const currentPos = worldToScreen(state.x, state.y, canvasSim);
+                ctxSim.fillStyle = COLORS.ball;
+                ctxSim.beginPath(); ctxSim.arc(currentPos.x, currentPos.y, 10*zoom, 0, Math.PI*2); ctxSim.fill();
+                
+                drawVectorGroup(ctxSim, state.x, state.y, state.vx, state.vy);
+            } else {
+                // Draw Ball at Start
+                const startPos = worldToScreen(0, CONSTANTS.launchHeight, canvasSim);
+                ctxSim.fillStyle = COLORS.ball;
+                ctxSim.beginPath(); ctxSim.arc(startPos.x, startPos.y, 10*zoom, 0, Math.PI*2); ctxSim.fill();
+            }
+        }
+
+        // --- DRAWING: ANALYSIS (Adapted) ---
+        function drawAnalysis() {
+            const w = canvasAnl.width;
+            const h = canvasAnl.height;
+            ctxAnl.setTransform(1, 0, 0, 1, 0, 0);
+            ctxAnl.clearRect(0, 0, w, h);
+
+            if (state.analysisMode === 'none') return;
+
+            ctxAnl.save();
+            ctxAnl.translate(state.analysisView.panX, state.analysisView.panY);
+            ctxAnl.scale(state.analysisView.zoom, state.analysisView.zoom);
+
+            if (state.analysisMode === 'vertical') {
+                // Vertical Velocity vs Time
+                // Compare trials!
+                const midY = h * 0.4;
+                const startX = 60;
+                const gap = 50;
+                
+                ctxAnl.strokeStyle = '#94a3b8'; ctxAnl.lineWidth = 1;
+                ctxAnl.beginPath(); ctxAnl.moveTo(-1000, midY); ctxAnl.lineTo(w+1000, midY); ctxAnl.stroke();
+
+                const vs = CONSTANTS.vectorScale * 1.5;
+
+                // Function to draw data for a single trial set
+                const drawSet = (points, color, isCurrent) => {
+                    points.forEach((pt, i) => {
+                        const x = startX + i * gap;
+                        
+                        // Vector
+                        const arrowHeight = pt.vy * vs; 
+                        const tipY = midY - arrowHeight;
+                        
+                        ctxAnl.strokeStyle = color;
+                        ctxAnl.lineWidth = isCurrent ? 4 : 2;
+                        ctxAnl.globalAlpha = isCurrent ? 1.0 : 0.5;
+                        
+                        ctxAnl.beginPath(); ctxAnl.moveTo(x, midY); ctxAnl.lineTo(x, tipY); ctxAnl.stroke();
+                        
+                        // Head
+                        const yDir = pt.vy >= 0 ? 1 : -1;
+                        ctxAnl.beginPath(); ctxAnl.moveTo(x, tipY);
+                        ctxAnl.lineTo(x - 4, tipY + (6 * yDir)); ctxAnl.lineTo(x + 4, tipY + (6 * yDir));
+                        ctxAnl.fillStyle = color; ctxAnl.fill();
+                        
+                        // Time Label (only once for current)
+                        if (isCurrent && (gap > 35 || i === 0 || i === points.length - 1)) {
+                            ctxAnl.save();
+                            ctxAnl.translate(x, h - 50);
+                            ctxAnl.scale(1/state.analysisView.zoom, 1/state.analysisView.zoom);
+                            ctxAnl.fillStyle = '#64748b';
+                            ctxAnl.font = 'bold 12px sans-serif';
+                            ctxAnl.textAlign = 'center';
+                            ctxAnl.fillText(`${pt.t.toFixed(1)}s`, 0, 0);
+                            ctxAnl.restore();
+                        }
+
+                        // --- DELTA V (Acceleration) - CURRENT TRIAL ONLY ---
+                        if (isCurrent && i > 0) {
+                            const prevPt = points[i-1];
+                            const prevTipY = midY - (prevPt.vy * vs);
+                            const xMid = x - (gap / 2);
+                            
+                            // Guide lines
+                            ctxAnl.strokeStyle = '#cbd5e1';
+                            ctxAnl.setLineDash([2, 2]);
+                            ctxAnl.lineWidth = 1;
+                            ctxAnl.beginPath(); ctxAnl.moveTo(x - gap, prevTipY); ctxAnl.lineTo(xMid, prevTipY); ctxAnl.stroke();
+                            ctxAnl.beginPath(); ctxAnl.moveTo(x, tipY); ctxAnl.lineTo(xMid, tipY); ctxAnl.stroke();
+                            ctxAnl.setLineDash([]);
+
+                            const arrowStart = prevTipY;
+                            const arrowEnd = tipY;
+
+                            if (Math.abs(arrowEnd - arrowStart) > 5) {
+                                // Shaft
+                                ctxAnl.beginPath();
+                                ctxAnl.moveTo(xMid, arrowStart);
+                                ctxAnl.lineTo(xMid, arrowEnd);
+                                ctxAnl.strokeStyle = COLORS.deltaV;
+                                ctxAnl.lineWidth = 2;
+                                ctxAnl.stroke();
+                                
+                                // Head
+                                ctxAnl.fillStyle = COLORS.deltaV;
+                                ctxAnl.beginPath();
+                                ctxAnl.moveTo(xMid, arrowEnd);
+                                if (arrowEnd > arrowStart) {
+                                     ctxAnl.lineTo(xMid - 4, arrowEnd - 6);
+                                     ctxAnl.lineTo(xMid + 4, arrowEnd - 6);
+                                } else {
+                                     ctxAnl.lineTo(xMid - 4, arrowEnd + 6);
+                                     ctxAnl.lineTo(xMid + 4, arrowEnd + 6);
+                                }
+                                ctxAnl.fill();
+                                
+                                // Label (All vectors now)
+                                ctxAnl.save();
+                                ctxAnl.translate(xMid - 8, (arrowStart + arrowEnd)/2 + 4);
+                                ctxAnl.scale(1/state.analysisView.zoom, 1/state.analysisView.zoom);
+                                ctxAnl.fillStyle = COLORS.deltaV;
+                                ctxAnl.font = 'bold 12px sans-serif';
+                                ctxAnl.textAlign = 'right';
+                                ctxAnl.fillText("Δv", 0, 0);
+                                ctxAnl.restore();
+                            }
+                        }
+                    });
+                    ctxAnl.globalAlpha = 1.0;
+                };
+
+                // Draw History - REMOVED per request
+                // state.trials.forEach(t => {
+                //    if (t.visible) drawSet(t.analysisPoints, t.color, false);
+                // });
+
+                // Draw Current
+                drawSet(state.analysisPoints, COLORS.ball, true);
+                
+                // Live Vector (Current only)
+                if (state.path.length > 0) {
+                    const liveX = 30;
+                    const arrowHeight = state.vy * vs; 
+                    const tipY = midY - arrowHeight;
+                    const yDir = state.vy >= 0 ? 1 : -1; 
+                    
+                    ctxAnl.strokeStyle = '#ef4444'; ctxAnl.lineWidth = 4;
+                    ctxAnl.beginPath(); ctxAnl.moveTo(liveX, midY); ctxAnl.lineTo(liveX, tipY); ctxAnl.stroke();
+                    ctxAnl.beginPath(); ctxAnl.moveTo(liveX, tipY); ctxAnl.lineTo(liveX - 5, tipY + 6*yDir); ctxAnl.lineTo(liveX + 5, tipY + 6*yDir);
+                    ctxAnl.fillStyle = '#ef4444'; ctxAnl.fill();
+                    
+                    ctxAnl.save();
+                    ctxAnl.translate(liveX, tipY - 15*yDir);
+                    ctxAnl.scale(1/state.analysisView.zoom, 1/state.analysisView.zoom);
+                    ctxAnl.font = 'bold 12px sans-serif'; ctxAnl.textAlign = 'center';
+                    ctxAnl.fillText("Vy(t)", 0, 0);
+                    ctxAnl.restore();
+                }
+            } else if (state.analysisMode === 'common') {
+                // Common Origin Mode
+                const originX = 50; 
+                // MOVED UP: Use fixed top margin instead of h/2 to show full downward vectors
+                const originY = 60; 
+                const vs = CONSTANTS.vectorScale * 4.0;
+                
+                // Axes
+                ctxAnl.strokeStyle = '#94a3b8'; ctxAnl.lineWidth = 1;
+                ctxAnl.beginPath(); ctxAnl.moveTo(originX, -1000); ctxAnl.lineTo(originX, h+1000); 
+                ctxAnl.moveTo(-1000, originY); ctxAnl.lineTo(w+1000, originY); ctxAnl.stroke();
+
+                const drawVecs = (points, color, isCurrent) => {
+                    ctxAnl.globalAlpha = isCurrent ? 1.0 : 0.4;
+                    
+                    // Offset for Delta V to right
+                    const deltaVOffset = 40; 
+                    const gap = 4; // Gap to make arrows distinct
+
+                    points.forEach((pt, i) => {
+                        const tipX = originX + pt.vx * vs;
+                        const tipY = originY - pt.vy * vs;
+                        const deltaVX = tipX + deltaVOffset;
+
+                        // Velocity Vector
+                        ctxAnl.strokeStyle = color; ctxAnl.lineWidth = isCurrent ? 3 : 1;
+                        ctxAnl.beginPath(); ctxAnl.moveTo(originX, originY); ctxAnl.lineTo(tipX, tipY); ctxAnl.stroke();
+                        // Small head
+                        const angle = Math.atan2(originY - tipY, tipX - originX);
+                        ctxAnl.beginPath(); ctxAnl.moveTo(tipX, tipY);
+                        ctxAnl.lineTo(tipX - 6*Math.cos(angle-0.5), tipY + 6*Math.sin(angle-0.5));
+                        ctxAnl.lineTo(tipX - 6*Math.cos(angle+0.5), tipY + 6*Math.sin(angle+0.5));
+                        ctxAnl.fillStyle = color; ctxAnl.fill();
+
+                        // --- DELTA V (Acceleration) - CURRENT TRIAL ONLY ---
+                        if (isCurrent && i > 0) {
+                            const prevPt = points[i-1];
+                            // prevTipX should equal tipX for horizontal motion (vx constant), but calculated generic
+                            const prevTipX = originX + prevPt.vx * vs; 
+                            const prevTipY = originY - prevPt.vy * vs;
+                            
+                            // Guide lines from tips to offset line
+                            ctxAnl.strokeStyle = '#cbd5e1';
+                            ctxAnl.lineWidth = 1;
+                            ctxAnl.setLineDash([2, 2]);
+                            ctxAnl.beginPath(); ctxAnl.moveTo(prevTipX, prevTipY); ctxAnl.lineTo(deltaVX, prevTipY); ctxAnl.stroke();
+                            ctxAnl.beginPath(); ctxAnl.moveTo(tipX, tipY); ctxAnl.lineTo(deltaVX, tipY); ctxAnl.stroke();
+                            ctxAnl.setLineDash([]);
+
+                            // Shortened Delta Vector (Gap at top and bottom)
+                            const arrowStart = prevTipY + gap;
+                            const arrowEnd = tipY - gap;
+
+                            if (Math.abs(arrowEnd - arrowStart) > 5) {
+                                // Shaft
+                                ctxAnl.strokeStyle = COLORS.deltaV;
+                                ctxAnl.lineWidth = 2;
+                                ctxAnl.beginPath();
+                                ctxAnl.moveTo(deltaVX, arrowStart);
+                                ctxAnl.lineTo(deltaVX, arrowEnd);
+                                ctxAnl.stroke();
+                                
+                                // Arrow Head for Delta V
+                                const dAngle = Math.PI / 2; // Always down in canvas coords
+                                ctxAnl.beginPath();
+                                ctxAnl.moveTo(deltaVX, arrowEnd);
+                                ctxAnl.lineTo(deltaVX - 4, arrowEnd - 6);
+                                ctxAnl.lineTo(deltaVX + 4, arrowEnd - 6);
+                                ctxAnl.fillStyle = COLORS.deltaV;
+                                ctxAnl.fill();
+
+                                // Label (All vectors now)
+                                ctxAnl.save();
+                                ctxAnl.translate(deltaVX + 12, (arrowStart + arrowEnd)/2 + 4);
+                                ctxAnl.scale(1/state.analysisView.zoom, 1/state.analysisView.zoom);
+                                ctxAnl.fillStyle = COLORS.deltaV;
+                                ctxAnl.font = 'bold 12px sans-serif';
+                                ctxAnl.textAlign = 'left';
+                                ctxAnl.fillText("Δv", 0, 0);
+                                ctxAnl.restore();
+                            }
+                        }
+                    });
+                    ctxAnl.globalAlpha = 1.0;
+                };
+
+                // Draw History - REMOVED per request
+                // state.trials.forEach(t => {
+                //    if (t.visible) drawVecs(t.analysisPoints, t.color, false);
+                // });
+
+                drawVecs(state.analysisPoints, COLORS.ball, true);
+                
+                // Live Vector (Current only) - Common Mode
+                if (state.path.length > 0) {
+                    const tipX = originX + state.vx * vs;
+                    const tipY = originY - state.vy * vs;
+                    
+                    ctxAnl.strokeStyle = '#16a34a'; ctxAnl.lineWidth = 4;
+                    ctxAnl.beginPath(); ctxAnl.moveTo(originX, originY); ctxAnl.lineTo(tipX, tipY); ctxAnl.stroke();
+                    
+                    const angle = Math.atan2(originY - tipY, tipX - originX);
+                    ctxAnl.beginPath(); ctxAnl.moveTo(tipX, tipY);
+                    ctxAnl.lineTo(tipX - 8*Math.cos(angle-0.5), tipY + 8*Math.sin(angle-0.5));
+                    ctxAnl.lineTo(tipX - 8*Math.cos(angle+0.5), tipY + 8*Math.sin(angle+0.5));
+                    ctxAnl.fillStyle = '#16a34a'; ctxAnl.fill();
+                    
+                    ctxAnl.save();
+                    ctxAnl.translate(tipX, tipY - 15);
+                    ctxAnl.scale(1/state.analysisView.zoom, 1/state.analysisView.zoom);
+                    ctxAnl.font = 'bold 14px sans-serif'; ctxAnl.textAlign = 'center';
+                    ctxAnl.fillStyle = '#16a34a';
+                    ctxAnl.fillText("v(t)", 0, 0);
+                    ctxAnl.restore();
+                }
+            }
+
+            ctxAnl.restore();
+        }
+
+        // --- UI & LOGIC ---
+        function updateUI() {
+            valSpeed.textContent = state.v0;
+            valGravity.textContent = state.g;
+            uiTime.textContent = state.t.toFixed(2);
+            uiX.textContent = state.x.toFixed(2);
+            uiY.textContent = state.y.toFixed(2);
+
+            if (state.running && !state.paused) {
+                iconPlay.className = "fas fa-pause text-2xl";
+                btnStartPause.title = "Pause";
+                sliderSpeed.disabled = true; sliderGravity.disabled = true;
+                sliderSpeed.parentElement.classList.add('opacity-50');
+                sliderGravity.parentElement.classList.add('opacity-50');
+            } else {
+                iconPlay.className = "fas fa-play text-2xl ml-1";
+                btnStartPause.title = "Start";
+                if (!state.finished) {
+                    sliderSpeed.disabled = false; sliderGravity.disabled = false;
+                    sliderSpeed.parentElement.classList.remove('opacity-50');
+                    sliderGravity.parentElement.classList.remove('opacity-50');
+                }
+            }
+            
+            // Removed Strobe Button logic here as it is handled by click/reset and is always active
+        }
+
+        // Listeners
+        sliderSpeed.addEventListener('input', e => { state.v0 = parseInt(e.target.value); if(!state.running) resetSimulation(); });
+        sliderGravity.addEventListener('input', e => { state.g = parseFloat(e.target.value); if(!state.running) resetSimulation(); });
+        
+        btnStartPause.addEventListener('click', () => {
+            if (state.finished) { resetSimulation(); state.running = true; requestAnimationFrame(updatePhysics); }
+            else if (state.running) { state.paused = !state.paused; if(!state.paused) requestAnimationFrame(updatePhysics); updateUI(); }
+            else { state.running = true; requestAnimationFrame(updatePhysics); updateUI(); }
+        });
+
+        btnReset.addEventListener('click', resetSimulation);
+        btnClear.addEventListener('click', clearTrials);
+        
+        btnStrobe.addEventListener('click', () => {
+            state.showStrobe = !state.showStrobe;
+            drawSimulation();
+            drawAnalysis(); // Ensure analysis (independence lines logic usually shared) is refreshed if needed
+            btnStrobe.textContent = state.showStrobe ? "Hide Strobes" : "Show Strobes";
+            
+            // Toggle Info Text
+            if (state.showStrobe) strobeInfo.classList.remove('hidden');
+            else strobeInfo.classList.add('hidden');
+        });
+
+        selectMode.addEventListener('change', e => { state.analysisMode = e.target.value; drawAnalysis(); });
+        
+        chkVelocity.addEventListener('change', e => { state.options.showV = e.target.checked; drawSimulation(); });
+        chkComponents.addEventListener('change', e => { state.options.showComponents = e.target.checked; drawSimulation(); });
+        chkAccel.addEventListener('change', e => { state.options.showAccel = e.target.checked; drawSimulation(); });
+        chkIndependence.addEventListener('change', e => { state.options.showIndependence = e.target.checked; drawSimulation(); });
+        chkVerticalLines.addEventListener('change', e => { state.options.showVerticalLines = e.target.checked; drawSimulation(); });
+
+        resizeCanvases();
+        resetSimulation();
+
+    </script>
+<script src="../../../assets/sim.js" data-root="../../../#force-and-motion"></script>
+</body>
+</html>

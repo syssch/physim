@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="../../../assets/sim-early.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Diffraction Grating · PhySim</title>
+    <link rel="stylesheet" href="../../../assets/vendor/tailwind.css">
+    <script src="../../../assets/vendor/three.min.js"></script>
+    <script src="../../../assets/vendor/OrbitControls.js"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; margin: 0; overflow: hidden; }
+        .slider-label {
+            display: flex;
+            align-items: center;
+        }
+        /* Custom styling for slider thumb */
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            background: #4A90E2; /* Blue thumb */
+            cursor: pointer;
+            border-radius: 50%;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+        }
+        input[type="range"]::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            background: #4A90E2;
+            cursor: pointer;
+            border-radius: 50%;
+            border: none;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+        }
+        /* Ensure canvas takes up space and is responsive */
+        #schematicContainer canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            border-radius: 0.75rem; /* rounded-xl */
+        }
+        #patternCanvas {
+            width: 100%; /* Make pattern canvas responsive */
+            max-width: 200px; /* Limit max width for better aspect ratio */
+            height: auto; /* Maintain aspect ratio */
+        }
+        .info-text {
+            font-size: 0.875rem; /* text-sm */
+            color: #CBD5E0; /* gray-300 */
+            margin-bottom: 0.5rem;
+            text-align: left; /* Ensure info text is also left-aligned */
+        }
+        /* ---- Phone / narrow-screen layout ---- */
+        @media (max-width: 900px) {
+            body { overflow: auto; padding: 8px !important; display: block !important; }
+            #wrapOuter { padding-bottom: 0 !important; }
+            #wrapInner { position: static; flex-direction: column; gap: 12px; }
+            #wrapInner > * { margin: 0 !important; width: 100%; }
+            #wrapInner h2 { font-size: 1.25rem; margin-bottom: .75rem; }
+            #panelPattern { order: 1; padding: 14px; }
+            #panelControls { order: 2; padding: 16px; overflow: visible; }
+            #panelControls > * + * { margin-top: 1.1rem; }
+            #panelSchematic { order: 3; padding: 10px; }
+            #schematicContainer { height: 300px; flex: none; }
+            #patternCanvas { max-width: 240px; }
+        }
+    </style>
+<link rel="icon" href="../../../favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../../../assets/sim.css">
+</head>
+<body class="bg-gray-900 text-gray-100 flex items-center justify-center min-h-screen p-4">
+
+    <div id="wrapOuter" class="relative w-full max-w-screen-2xl" style="padding-bottom: 56.25%;">
+        <div id="wrapInner" class="absolute inset-0 flex flex-col md:flex-row space-y-4 md:space-y-0 md:space-x-4">
+            <div id="panelControls" class="w-full md:w-1/4 p-6 bg-gray-800 shadow-xl rounded-xl overflow-y-auto space-y-6">
+                <h2 class="text-3xl font-extrabold mb-6 text-center text-blue-400">Controls</h2>
+
+                <div class="mb-4">
+                    <label for="wavelength" class="block text-sm font-medium text-gray-300 slider-label">
+                        <span>Wavelength (λ):</span>
+                        <span id="wavelengthValue" class="font-semibold text-blue-300 ml-2">550 nm</span>
+                    </label>
+                    <input type="range" id="wavelength" name="wavelength" min="400" max="700" value="550" class="w-full h-3 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500 shadow-inner">
+                </div>
+
+                <div class="info-text mb-4">
+                    Total Grating Width (w): <span class="font-semibold text-blue-300">5 cm</span>
+                </div>
+
+                <div class="mb-4">
+                    <label for="numSlits" class="block text-sm font-medium text-gray-300 slider-label">
+                        <span>Number of Slits (N):</span>
+                        <span id="numSlitsValue" class="font-semibold text-blue-300 ml-2">15000</span>
+                    </label>
+                    <input type="range" id="numSlits" name="numSlits" min="15000" max="25000" value="15000" step="1000" class="w-full h-3 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500 shadow-inner">
+                    
+                    <div class="info-text mt-2">
+                        <span>Calculated Grating Spacing (d):</span>
+                    </div>
+                    <div class="info-text mt-0">
+                        <span id="gratingSpacingValue" class="font-semibold text-blue-300"></span>
+                    </div>
+                </div>
+
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-300 mb-2">Screen Type:</label>
+                    <div class="flex items-center space-x-4">
+                        <input type="radio" id="screenTypeFlat" name="screenType" value="flat" checked class="form-radio text-blue-500">
+                        <label for="screenTypeFlat" class="text-gray-300">Flat</label>
+                        <input type="radio" id="screenTypeSemicircular" name="screenType" value="semicircular" class="form-radio text-blue-500">
+                        <label for="screenTypeSemicircular" class="text-gray-300">Semi-circular</label>
+                    </div>
+                </div>
+
+                <div id="flatScreenControls" class="mb-4">
+                    <label for="screenDistance" class="block text-sm font-medium text-gray-300 slider-label">
+                        <span>Slit-to-screen Distance (D):</span>
+                        <span id="screenDistanceValue" class="font-semibold text-blue-300 ml-2">1.00 m</span>
+                    </label>
+                    <input type="range" id="screenDistance" name="screenDistance" min="0.5" max="2.5" value="1.0" step="0.01" class="w-full h-3 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500 shadow-inner">
+                </div>
+
+                <div id="semicircularScreenControls" class="mb-4 hidden">
+                    <label for="semiCircleRadius" class="block text-sm font-medium text-gray-300 slider-label">
+                        <span>Semi-circular Screen Radius (R):</span>
+                        <span id="semiCircleRadiusValue" class="font-semibold text-blue-300 ml-2">1.00 m</span>
+                    </label>
+                    <input type="range" id="semiCircleRadius" name="semiCircleRadius" min="0.5" max="2.5" value="1.0" step="0.01" class="w-full h-3 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500 shadow-inner">
+                </div>
+
+            </div>
+
+            <div id="panelSchematic" class="w-full md:w-1/2 flex flex-col items-center justify-center bg-gray-800 rounded-xl shadow-xl p-2">
+                <h2 class="text-3xl font-extrabold mb-4 text-center text-blue-400">Experiment Schematic</h2>
+                <div class="info-text mb-4">
+                    <p>Conceptual representation (not to exact physical scale)</p>
+                </div>
+                <div id="schematicContainer" class="w-full h-full rounded-xl overflow-hidden bg-gray-700 shadow-inner"></div>
+            </div>
+
+            <div id="panelPattern" class="w-full md:w-1/4 p-6 bg-gray-800 shadow-xl rounded-xl flex flex-col items-center relative">
+                <h2 class="text-2xl font-extrabold mb-6 text-center text-blue-400">Diffraction Grating Pattern</h2>
+                <canvas id="patternCanvas" class="bg-black rounded-xl shadow-inner border border-gray-700"></canvas>
+
+                <div class="pt-4 text-sm text-gray-400 bg-gray-700 p-4 rounded-lg shadow-inner w-full mt-4">
+                    <h3 class="text-base font-bold mb-1 text-blue-300 text-center">Angular Positions of Maxima</h3>
+                    <ul id="maximaPositions" class="list-disc list-inside text-sm">
+                        </ul>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- Global Variables & Parameters ---
+        let lambda = 550e-9; // meters (initial: 550 nm)
+        const W_GRATING = 0.05; // meters (5 cm) - Fixed total grating width
+        const W_GRATING_VISUAL = 0.5; // Three.js units - Fixed visual width of the grating in 3D scene
+        let d;               // Grating spacing (calculated: W_GRATING / N)
+        let N = 15000;         // Number of slits in the grating (initial: 15000)
+        let D_screen = 1.0;  // meters (initial: 1.0 m) (for flat screen)
+        let semiCircleRadius = 1.0; // meters (initial: 1.0 m) (for semi-circular screen)
+        let screenType = 'flat'; // 'flat' or 'semicircular'
+
+        // Define the physical width of the pattern displayed on the 2D canvas (e.g., 10 meters)
+        const physicalPatternDisplayWidth = 10; 
+
+        // --- DOM Elements ---
+        const wavelengthSlider = document.getElementById('wavelength');
+        const numSlitsSlider = document.getElementById('numSlits');
+        const screenDistanceSlider = document.getElementById('screenDistance');
+        const semiCircleRadiusSlider = document.getElementById('semiCircleRadius');
+
+        const wavelengthValueDisplay = document.getElementById('wavelengthValue');
+        const numSlitsValueDisplay = document.getElementById('numSlitsValue');
+        const gratingSpacingValueDisplay = document.getElementById('gratingSpacingValue'); // For displaying calculated d
+        const screenDistanceValueDisplay = document.getElementById('screenDistanceValue');
+        const semiCircleRadiusValueDisplay = document.getElementById('semiCircleRadiusValue');
+        const maximaPositionsList = document.getElementById('maximaPositions'); // New: Reference to the list for maxima
+
+        const screenTypeFlatRadio = document.getElementById('screenTypeFlat');
+        const screenTypeSemicircularRadio = document.getElementById('screenTypeSemicircular');
+        const flatScreenControls = document.getElementById('flatScreenControls');
+        const semicircularScreenControls = document.getElementById('semicircularScreenControls');
+
+        const patternCanvas = document.getElementById('patternCanvas');
+        const patternCtx = patternCanvas.getContext('2d');
+        patternCanvas.width = 200;
+        patternCanvas.height = 100; // Halved height
+        
+        // Offscreen canvas for generating texture for Three.js screen
+        const patternTextureCanvas = document.createElement('canvas');
+        const patternTextureCtx = patternTextureCanvas.getContext('2d');
+        patternTextureCanvas.width = 512;
+        patternTextureCanvas.height = 256; // Halved height
+
+        // --- Three.js Setup ---
+        let scene, camera, renderer, controls;
+        let sourceMesh, slitBarrierMesh;
+        const schematicContainer = document.getElementById('schematicContainer');
+        let screenMesh;
+        let screenTexture;
+
+        // --- Helper: Map Range ---
+        function mapRange(value, inMin, inMax, outMin, outMax) {
+            return (value - inMin) * (outMax - outMin) / (inMax - inMin) + outMin;
+        }
+
+        // --- Helper: Wavelength to HSL Color ---
+        function wavelengthToHSL(nm, intensity = 1) {
+            if (nm < 380) nm = 380;
+            if (nm > 700) nm = 700;
+
+            let hue;
+            if (nm <= 439) hue = mapRange(nm, 380, 439, 270, 250);
+            else if (nm <= 489) hue = mapRange(nm, 440, 489, 250, 180);
+            else if (nm <= 559) hue = mapRange(nm, 490, 559, 180, 70);
+            else if (nm <= 579) hue = mapRange(nm, 560, 579, 70, 55);
+            else if (nm <= 624) hue = mapRange(nm, 580, 624, 55, 30);
+            else hue = mapRange(nm, 625, 700, 30, 0);
+
+            const lightness = 50 * intensity;
+            return `hsl(${hue}, 100%, ${lightness}%)`;
+        }
+
+        // --- Helper: Wavelength to Three.js Color ---
+        function wavelengthToThreeColor(nm, intensity = 1) {
+            const hslColor = wavelengthToHSL(nm, intensity);
+            return new THREE.Color(hslColor);
+        }
+
+        // --- Initialize Three.js Scene ---
+        function initThreeJS() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x334155);
+
+            const aspect = schematicContainer.clientWidth / schematicContainer.clientHeight;
+            camera = new THREE.PerspectiveCamera(50, aspect, 0.1, 100);
+            camera.position.set(0, 0.2, -1.8);
+            camera.lookAt(0, 0, 0.5);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(schematicContainer.clientWidth, schematicContainer.clientHeight);
+            schematicContainer.appendChild(renderer.domElement);
+
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.1;
+            controls.screenSpacePanning = false;
+            controls.minDistance = 0.5;
+            controls.maxDistance = 10;
+            controls.target.set(0, 0, 0.5);
+
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+            scene.add(ambientLight);
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(1, 1, 1);
+            scene.add(directionalLight);
+
+            sourceMesh = new THREE.Mesh(new THREE.SphereGeometry(0.03, 16, 16), new THREE.MeshStandardMaterial({ emissive: 0xffffff, emissiveIntensity: 1 }));
+            sourceMesh.position.z = -0.5;
+            scene.add(sourceMesh);
+
+            const barrierMaterial = new THREE.MeshStandardMaterial({ color: 0x6B7280, transparent: true, opacity: 0.8 });
+            slitBarrierMesh = new THREE.Mesh(new THREE.BoxGeometry(W_GRATING_VISUAL, 0.4, 0.02), barrierMaterial);
+            scene.add(slitBarrierMesh);
+
+            // Initial screen setup (will be updated by update3DScene)
+            screenMesh = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 0.6), new THREE.MeshStandardMaterial({ color: 0xFFFFFF, side: THREE.DoubleSide }));
+            scene.add(screenMesh);
+
+            screenTexture = new THREE.CanvasTexture(patternTextureCanvas);
+            screenMesh.material.map = screenTexture;
+            screenMesh.material.needsUpdate = true;
+
+            update3DScene();
+            animateThreeJS();
+        }
+
+        // --- Update 3D Scene Elements ---
+        function update3DScene() {
+            if (!scene) return;
+
+            sourceMesh.material.emissive = wavelengthToThreeColor(lambda * 1e9);
+
+            // Remove existing screenMesh
+            if (screenMesh) {
+                scene.remove(screenMesh);
+                screenMesh.geometry.dispose();
+                screenMesh.material.dispose();
+            }
+
+            if (screenType === 'flat') {
+                const D_3D = mapRange(D_screen, parseFloat(screenDistanceSlider.min), parseFloat(screenDistanceSlider.max), 0.8, 2.0);
+                screenMesh = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 0.6), new THREE.MeshStandardMaterial({ color: 0xFFFFFF, side: THREE.DoubleSide }));
+                screenMesh.position.z = D_3D;
+            } else { // semicircular
+                const radius3D = mapRange(semiCircleRadius, parseFloat(semiCircleRadiusSlider.min), parseFloat(semiCircleRadiusSlider.max), 0.8, 2.0);
+                // Create a thin semi-cylinder to represent the screen
+                screenMesh = new THREE.Mesh(
+                    new THREE.CylinderGeometry(radius3D, radius3D, 0.6, 64, 1, true, 0, Math.PI),
+                    new THREE.MeshStandardMaterial({ color: 0xFFFFFF, side: THREE.DoubleSide })
+                );
+                screenMesh.rotation.y = -Math.PI / 2; // Rotate to face the source
+                screenMesh.position.z = 0; // Centered at the grating
+            }
+            
+            scene.add(screenMesh);
+            screenMesh.material.map = screenTexture;
+            screenMesh.material.needsUpdate = true;
+
+            slitBarrierMesh.position.x = 0; // Ensure barrier is centered
+
+            drawPatternOnScreenTexture();
+        }
+
+        // --- Animation Loop for Three.js ---
+        function animateThreeJS() {
+            requestAnimationFrame(animateThreeJS);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        // --- Handle Window Resize ---
+        window.addEventListener('resize', () => {
+            if (camera && renderer && schematicContainer.clientWidth > 0 && schematicContainer.clientHeight > 0) {
+                camera.aspect = schematicContainer.clientWidth / schematicContainer.clientHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(schematicContainer.clientWidth, schematicContainer.clientHeight);
+            }
+        }, false);
+
+        // --- Draw Diffraction Pattern on 2D Canvas and Offscreen Canvas ---
+        function drawInterferencePattern() {
+            patternCtx.clearRect(0, 0, patternCanvas.width, patternCanvas.height);
+            patternTextureCtx.clearRect(0, 0, patternTextureCanvas.width, patternTextureCanvas.height);
+
+            // Calculate d based on W_GRATING and N
+            d = W_GRATING / N;
+
+            // Determine maximum possible order m
+            const max_m_order = Math.floor(d / lambda);
+
+            const lineWidth = 1; // 1 pixel wide vertical line for each maximum
+
+            for (let m = -max_m_order; m <= max_m_order; m++) {
+                const sin_theta = (m * lambda) / d;
+                
+                if (Math.abs(sin_theta) <= 1) {
+                    const theta_rad = Math.asin(sin_theta);
+                    
+                    let px_center;
+
+                    if (screenType === 'flat') {
+                        const y_screen = D_screen * Math.tan(theta_rad);
+                        const metersPerPixel = physicalPatternDisplayWidth / patternCanvas.width;
+                        const pixelsPerMeter = 1 / metersPerPixel;
+                        px_center = (y_screen * pixelsPerMeter) + (patternCanvas.width / 2);
+                    } else { // semicircular
+                        // For semicircular screen, map angle directly to canvas width
+                        // Assuming the pattern canvas represents an angular range from -PI/2 to +PI/2
+                        const max_display_angle_rad = Math.PI / 2; 
+                        const pixelsPerRadian = patternCanvas.width / (2 * max_display_angle_rad);
+                        px_center = (theta_rad * pixelsPerRadian) + (patternCanvas.width / 2);
+                    }
+
+                    // Only draw if the fringe is within the canvas bounds
+                    if (px_center >= 0 && px_center <= patternCanvas.width) {
+                        // Draw vertical line on main canvas
+                        patternCtx.fillStyle = wavelengthToHSL(lambda * 1e9, 1.0);
+                        patternCtx.fillRect(px_center - lineWidth / 2, 0, lineWidth, patternCanvas.height);
+                    }
+
+                    // For the texture canvas, apply the same logic
+                    const textureWidth = patternTextureCanvas.width;
+                    const textureHeight = patternTextureCanvas.height;
+                    let texturePxCenter;
+                    let texturePixelsPerMeter;
+
+                    if (screenType === 'flat') {
+                        const y_screen = D_screen * Math.tan(theta_rad);
+                        texturePixelsPerMeter = textureWidth / physicalPatternDisplayWidth;
+                        texturePxCenter = (y_screen * texturePixelsPerMeter) + (textureWidth / 2);
+                    } else { // semicircular
+                        const max_display_angle_rad = Math.PI / 2;
+                        const texturePixelsPerRadian = textureWidth / (2 * max_display_angle_rad);
+                        texturePxCenter = (theta_rad * texturePixelsPerRadian) + (textureWidth / 2);
+                    }
+                    
+                    const textureLineWidth = lineWidth * (textureWidth / patternCanvas.width);
+
+                    // Only draw if the fringe is within the texture canvas bounds
+                    if (texturePxCenter >= 0 && texturePxCenter <= textureWidth) {
+                        patternTextureCtx.fillStyle = wavelengthToHSL(lambda * 1e9, 1.0);
+                        patternTextureCtx.fillRect(texturePxCenter - textureLineWidth / 2, 0, textureLineWidth, textureHeight);
+                    }
+                }
+            }
+        }
+
+        // --- Draw Pattern onto 3D Screen Mesh as a Texture ---
+        function drawPatternOnScreenTexture() {
+            if (screenTexture) {
+                screenTexture.needsUpdate = true;
+            }
+        }
+
+        // --- Update and Display Angular Positions of Maxima ---
+        function updateMaximaPositionsDisplay() {
+            maximaPositionsList.innerHTML = ''; // Clear previous list items
+
+            // Calculate d based on current N
+            d = W_GRATING / N;
+
+            // Determine maximum possible order m
+            const max_m_order = Math.floor(d / lambda);
+
+            if (max_m_order < 0) {
+                maximaPositionsList.innerHTML = '<li>No maxima visible.</li>';
+                return;
+            }
+
+            for (let m = -max_m_order; m <= max_m_order; m++) {
+                const sin_theta = (m * lambda) / d;
+                
+                if (Math.abs(sin_theta) <= 1) {
+                    const theta_rad = Math.asin(sin_theta);
+                    const theta_deg = theta_rad * (180 / Math.PI);
+
+                    const listItem = document.createElement('li');
+                    listItem.textContent = `m = ${m}: θ = ${theta_deg.toFixed(2)}°`; 
+                    maximaPositionsList.appendChild(listItem);
+                }
+            }
+
+            if (maximaPositionsList.children.length === 0) {
+                maximaPositionsList.innerHTML = '<li>No maxima visible for current parameters.</li>';
+            }
+        }
+
+
+        // --- Event Listeners for Controls ---
+        wavelengthSlider.addEventListener('input', (e) => {
+            lambda = parseFloat(e.target.value) * 1e-9;
+            wavelengthValueDisplay.textContent = `${e.target.value} nm`;
+            updateSimulation();
+        });
+
+        numSlitsSlider.addEventListener('input', (e) => {
+            N = parseInt(e.target.value);
+            numSlitsValueDisplay.textContent = `${e.target.value}`;
+            
+            // Update calculated d display
+            d = W_GRATING / N;
+            const d_um = d * 1e6;
+            const linesPerMm = (1 / d) / 1000;
+            gratingSpacingValueDisplay.textContent = `${d_um.toFixed(2)} µm (${linesPerMm.toFixed(1)} lines/mm)`;
+
+            updateSimulation();
+        });
+
+        screenDistanceSlider.addEventListener('input', (e) => {
+            D_screen = parseFloat(e.target.value);
+            screenDistanceValueDisplay.textContent = `${parseFloat(e.target.value).toFixed(2)} m`;
+            updateSimulation();
+        });
+
+        semiCircleRadiusSlider.addEventListener('input', (e) => {
+            semiCircleRadius = parseFloat(e.target.value);
+            semiCircleRadiusValueDisplay.textContent = `${parseFloat(e.target.value).toFixed(2)} m`;
+            updateSimulation();
+        });
+
+        screenTypeFlatRadio.addEventListener('change', (e) => {
+            if (e.target.checked) {
+                screenType = 'flat';
+                flatScreenControls.classList.remove('hidden');
+                semicircularScreenControls.classList.add('hidden');
+                updateSimulation();
+            }
+        });
+
+        screenTypeSemicircularRadio.addEventListener('change', (e) => {
+            if (e.target.checked) {
+                screenType = 'semicircular';
+                flatScreenControls.classList.add('hidden');
+                semicircularScreenControls.classList.remove('hidden');
+                updateSimulation();
+            }
+        });
+
+
+        // --- Update All Simulation Components ---
+        function updateSimulation() {
+            drawInterferencePattern();
+            update3DScene();
+            updateMaximaPositionsDisplay();
+        }
+
+        // --- Initial Setup ---
+        const observer = new ResizeObserver(entries => {
+            for (let entry of entries) {
+                if (entry.contentRect.width > 0 && entry.contentRect.height > 0) {
+                    initThreeJS();
+                    // Initial update for all elements
+                    updateSimulation();
+
+                    // Manually trigger initial update for calculated d display
+                    d = W_GRATING / N;
+                    const initialD_um = d * 1e6;
+                    const initialLinesPerMm = (1 / d) / 1000;
+                    gratingSpacingValueDisplay.textContent = `${initialD_um.toFixed(2)} µm (${initialLinesPerMm.toFixed(1)} lines/mm)`;
+
+                    // Ensure correct controls are shown on initial load
+                    if (screenType === 'flat') {
+                        flatScreenControls.classList.remove('hidden');
+                        semicircularScreenControls.classList.add('hidden');
+                    } else {
+                        flatScreenControls.classList.add('hidden');
+                        semicircularScreenControls.classList.remove('hidden');
+                    }
+
+
+                    observer.disconnect();
+                    break;
+                }
+            }
+        });
+        observer.observe(schematicContainer);
+    </script>
+<script src="../../../assets/sim.js" data-root="../../../#wave-motion-and-ray-optics"></script>
+</body>
+</html>

@@ -1,0 +1,781 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="../../assets/sim-early.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Elevator: Net Force and Motion · PhySim</title>
+    <style>
+        :root {
+            --bg-color: #f4f4f9;
+            --panel-bg: #ffffff;
+            --border-color: #cccccc;
+            --primary: #4a90e2;
+            --text-dark: #333333;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #e0e5ec;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        /* 16:9 Container */
+        #app-container {
+            width: 95vw;
+            max-width: 1200px;
+            aspect-ratio: 16 / 9;
+            background-color: var(--panel-bg);
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* Top Panel: Controls */
+        #top-panel {
+            height: 10%;
+            background-color: #2c3e50;
+            color: white;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 2%;
+        }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        button {
+            padding: 8px 16px;
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+            border: none;
+            border-radius: 6px;
+            background-color: var(--primary);
+            color: white;
+            transition: background 0.2s;
+        }
+
+        button:hover { background-color: #357abd; }
+        button:active { transform: scale(0.98); }
+        .btn-danger { background-color: #e74c3c; }
+        .btn-danger:hover { background-color: #c0392b; }
+
+        #tension-display {
+            font-size: 1.1rem;
+            font-weight: bold;
+            min-width: 140px;
+            text-align: center;
+            background: rgba(255,255,255,0.1);
+            padding: 6px 12px;
+            border-radius: 6px;
+        }
+
+        /* Main Panel: Split Left/Right */
+        #main-panel {
+            height: 70%;
+            display: flex;
+            border-bottom: 2px solid var(--border-color);
+        }
+
+        /* Left Panel: Graph */
+        #left-panel {
+            width: 45%;
+            border-right: 2px solid var(--border-color);
+            position: relative;
+        }
+
+        #graphCanvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        .panel-title {
+            position: absolute;
+            top: 10px;
+            right: 15px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            color: #555;
+            background: rgba(255,255,255,0.8);
+            padding: 4px 8px;
+            border-radius: 4px;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        /* Right Panel: Simulation */
+        #right-panel {
+            width: 35%;
+            border-right: 2px solid var(--border-color);
+            position: relative;
+            background-color: #f9fbfd;
+        }
+
+        #simCanvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        /* Score Panel */
+        #score-panel {
+            width: 20%;
+            background-color: #ecf0f1;
+            padding: 15px;
+            box-sizing: border-box;
+            overflow-y: auto;
+            font-size: 0.9rem;
+        }
+
+        #score-panel h3 {
+            margin-top: 0;
+            color: #2c3e50;
+            font-size: 0.95rem;
+            text-align: center;
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 10px;
+        }
+
+        .score-card {
+            background: #fff;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 10px;
+            margin-bottom: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        /* Bottom Panel: Concept Check */
+        #bottom-panel {
+            height: 20%;
+            background-color: #fff8e1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0 3%;
+            box-sizing: border-box;
+        }
+
+        .concept-question {
+            font-size: 0.8rem;
+            color: #d35400;
+            font-weight: 600;
+            text-align: center;
+            line-height: 1.4;
+        }
+
+        /* Modal Styles */
+        #name-modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        #name-modal {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            text-align: center;
+            max-width: 400px;
+            width: 90%;
+        }
+
+        #name-modal h2 {
+            margin-top: 0;
+            color: #2c3e50;
+        }
+
+        #name-modal input {
+            width: 80%;
+            padding: 10px;
+            margin: 15px 0;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            font-size: 1.1rem;
+            text-align: center;
+        }
+        /* ---- Phone / narrow-screen layout ---- */
+        @media (max-width: 900px) {
+            body { height: auto; display: block; padding: 6px; }
+            #app-container { width: 100%; aspect-ratio: auto; }
+            #top-panel { height: auto; flex-direction: column; gap: 10px; padding: 12px; }
+            #top-panel .control-group { width: 100%; justify-content: center; flex-wrap: wrap; gap: 8px; }
+            #top-panel .control-group:first-child button { flex: 1; padding: 11px; }
+            #top-panel .control-group:last-child > span { width: 100%; text-align: center; font-size: .9rem; }
+            #top-panel .control-group:last-child button { padding: 11px 12px; }
+            #tension-display { min-width: 110px; }
+            #main-panel { height: auto; flex-direction: column; }
+            #right-panel { order: 1; width: 100%; height: 380px; border-right: 0; border-bottom: 2px solid var(--border-color); }
+            #left-panel { order: 2; width: 100%; height: 280px; border-right: 0; border-bottom: 2px solid var(--border-color); }
+            #score-panel { order: 3; width: 100%; max-height: 260px; }
+            #bottom-panel { height: auto; padding: 14px 14px 60px; }
+            #bottom-panel .concept-question > div:last-child { flex-direction: column; gap: 4px !important; }
+            #name-modal { width: 88%; box-sizing: border-box; padding: 22px; }
+        }
+    </style>
+<link rel="icon" href="../../favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../../assets/sim.css">
+</head>
+<body>
+
+<!-- Name Input Modal -->
+<div id="name-modal-overlay">
+    <div id="name-modal">
+        <h2>Elevator Gamified!</h2>
+        <p>Please enter your name to start recording your score:</p>
+        <input type="text" id="player-name-input" placeholder="Your Name" />
+        <br>
+        <button onclick="saveNameAndStart()" style="margin-top: 10px;">Start Game</button>
+    </div>
+</div>
+
+<div id="app-container">
+    <!-- Top Panel: Controls -->
+    <div id="top-panel">
+        <div class="control-group">
+            <button id="btn-start" onclick="toggleSim()">Start</button>
+            <button id="btn-reset" class="btn-danger" onclick="resetSim()">Reset</button>
+        </div>
+        <div class="control-group">
+            <span style="font-weight: bold;">Cable Tension (Upward Force):</span>
+            <button onclick="changeTension(-100)">- 100 N</button>
+            <div id="tension-display">10000 N</div>
+            <button onclick="changeTension(100)">+ 100 N</button>
+        </div>
+    </div>
+
+    <!-- Main Panel: Graph and Simulation -->
+    <div id="main-panel">
+        <!-- Left: Velocity-Time Graph -->
+        <div id="left-panel">
+            <div class="panel-title">Real-Time Velocity-Time Graph</div>
+            <canvas id="graphCanvas"></canvas>
+        </div>
+        
+        <!-- Right: Elevator Diagram -->
+        <div id="right-panel">
+            <div class="panel-title">Elevator Shaft & Zoom-in View</div>
+            <canvas id="simCanvas"></canvas>
+        </div>
+        
+        <!-- Score Panel -->
+        <div id="score-panel">
+            <h3>Scoreboard</h3>
+            <div id="score-list"></div>
+        </div>
+    </div>
+
+    <!-- Bottom Panel: Concept Check -->
+    <div id="bottom-panel">
+        <div class="concept-question" style="text-align: left; width: 100%; max-width: 950px;">
+            <div style="text-align: center; margin-bottom: 5px; font-size: 0.9rem;">💡 Concept Check Discussion</div>
+            <div style="display: flex; gap: 40px; justify-content: space-between;">
+                <ol style="margin: 0; padding-left: 20px; flex: 1; display: flex; flex-direction: column; gap: 4px;">
+                    <li>What happens when net force and motion has same direction?</li>
+                    <li>What happens when net force and motion has opposite direction?</li>
+                    <li>Can a zero net force stop a moving elevator?</li>
+                </ol>
+                <ol start="4" style="margin: 0; padding-left: 20px; flex: 1; display: flex; flex-direction: column; gap: 4px;">
+                    <li>What is required to speed up the elevator?</li>
+                    <li>What is required to slow down the elevator?</li>
+                </ol>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Physics Constants and State
+    const MASS = 1000; // kg
+    const GRAVITY = 10; // N/kg (using 10 for junior science simplicity)
+    const WEIGHT = MASS * GRAVITY; // 10000 N Downward
+    
+    // Player details
+    let playerName = "Anonymous Player";
+    
+    function saveNameAndStart() {
+        const input = document.getElementById('player-name-input').value.trim();
+        if (input) {
+            playerName = input;
+        }
+        document.getElementById('name-modal-overlay').style.display = 'none';
+    }
+
+    // Allow pressing "Enter" in the input field
+    document.getElementById('player-name-input').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            saveNameAndStart();
+        }
+    });
+    
+    let tension = 10000; // Starting Tension
+    let position = 0; // 0m = G/F, 21m = 7/F
+    let velocity = 0; // m/s
+    let acceleration = 0; // m/s^2
+    let time = 0; // seconds
+    let isRunning = false;
+    
+    // Game State variables
+    let gameState = 'idle'; // 'idle', 'ascending', 'descending', 'ended'
+    let peakPosition = 0;
+    let roundNumber = 1;
+    
+    const MAX_HEIGHT = 300; // 100 floors * 3m per floor
+    let history = []; // Array to store {t, v} for the graph
+    let lastTimestamp = 0;
+
+    // Canvas Setup
+    const graphCanvas = document.getElementById('graphCanvas');
+    const graphCtx = graphCanvas.getContext('2d');
+    const simCanvas = document.getElementById('simCanvas');
+    const simCtx = simCanvas.getContext('2d');
+
+    // Resize canvases to fit container
+    function resizeCanvases() {
+        graphCanvas.width = graphCanvas.parentElement.clientWidth;
+        graphCanvas.height = graphCanvas.parentElement.clientHeight;
+        simCanvas.width = simCanvas.parentElement.clientWidth;
+        simCanvas.height = simCanvas.parentElement.clientHeight;
+    }
+    window.addEventListener('resize', () => { resizeCanvases(); draw(); });
+    resizeCanvases();
+
+    // UI Controls
+    function toggleSim() {
+        if (gameState === 'ended') {
+            resetSim(); // Start fresh for next round
+            isRunning = true;
+            document.getElementById('btn-start').innerText = "Pause";
+            requestAnimationFrame(gameLoop);
+            return;
+        }
+        
+        isRunning = !isRunning;
+        document.getElementById('btn-start').innerText = isRunning ? "Pause" : "Resume";
+        if (isRunning) requestAnimationFrame(gameLoop);
+    }
+
+    function resetSim() {
+        isRunning = false;
+        document.getElementById('btn-start').innerText = "Start";
+        tension = 10000;
+        position = 0;
+        velocity = 0;
+        acceleration = 0;
+        time = 0;
+        history = [];
+        lastTimestamp = 0;
+        
+        gameState = 'idle';
+        peakPosition = 0;
+        
+        updateTensionDisplay();
+        draw();
+    }
+
+    function changeTension(amount) {
+        tension += amount;
+        if (tension < 5000) tension = 5000; // Prevent crazy values
+        if (tension > 15000) tension = 15000;
+        updateTensionDisplay();
+        if (!isRunning) draw(); // Update diagram even if paused
+    }
+
+    function updateTensionDisplay() {
+        document.getElementById('tension-display').innerText = tension + " N";
+    }
+
+    // Main Game Loop
+    function gameLoop(timestamp) {
+        if (!isRunning) return;
+        
+        if (!lastTimestamp) lastTimestamp = timestamp;
+        let dt = (timestamp - lastTimestamp) / 1000; // Convert to seconds
+        lastTimestamp = timestamp;
+
+        // Cap dt to prevent huge jumps if tab is inactive
+        if (dt > 0.1) dt = 0.1;
+
+        updatePhysics(dt);
+        draw();
+
+        requestAnimationFrame(gameLoop);
+    }
+
+    // Physics Engine
+    function updatePhysics(dt) {
+        if (gameState === 'ended') return;
+
+        let netForce = tension - WEIGHT;
+        acceleration = netForce / MASS;
+
+        velocity += acceleration * dt;
+        position += velocity * dt;
+        time += dt;
+
+        // --- Game State Machine & Collision ---
+        if (gameState === 'idle' && velocity > 0) {
+            gameState = 'ascending';
+        } 
+        else if (gameState === 'ascending') {
+            if (position > peakPosition) peakPosition = position;
+            
+            // Check U-Turn
+            if (velocity < 0) {
+                gameState = 'descending';
+            }
+        }
+        else if (gameState === 'descending') {
+            // 1. Collision with Ground
+            if (position <= 0) {
+                position = 0;
+                let impactVelocity = velocity; // Save speed for penalty
+                velocity = 0;
+                endRound(impactVelocity);
+            }
+            // 2. Successful Mid-Air Stop (velocity crosses 0 to positive again)
+            else if (velocity >= 0) {
+                velocity = 0; // Lock to 0 to represent stopped
+                endRound(0); // Perfect landing, 0 impact
+            }
+        }
+        
+        // Safety bound for idle state (prevents underground movement before launch)
+        if (position <= 0 && gameState === 'idle') {
+            position = 0;
+            if (velocity < 0) velocity = 0;
+        }
+
+        // Save history for graph
+        history.push({ t: time, v: velocity });
+        // Keep graph history array large enough to hold 120 seconds at ~60fps
+        if (history.length > 8000) history.shift(); 
+    }
+
+    // Function to submit score silently to Google Form
+    function submitScoreToForm(name, round, score) {
+        // Must use formResponse instead of viewform for POST requests
+        const formUrl = "https://docs.google.com/forms/d/e/1FAIpQLSfqIdDPWNM9x__Nqdx6ffLwqvAOg2iBN0TEv3hhuslfsJ_J8w/formResponse";
+        
+        // Use URLSearchParams instead of FormData so it sends as application/x-www-form-urlencoded
+        const formData = new URLSearchParams();
+        formData.append("entry.830319332", name);
+        formData.append("entry.1404955167", round);
+        formData.append("entry.513548058", score);
+
+        fetch(formUrl, {
+            method: "POST",
+            mode: "no-cors", // Prevents CORS errors when doing a one-way submission
+            body: formData
+        }).then(() => {
+            console.log("Score for Round " + round + " submitted successfully.");
+        }).catch(err => {
+            console.error("Error submitting score:", err);
+        });
+    }
+
+    // Gamification Scoring
+    function endRound(impactV) {
+        gameState = 'ended';
+        isRunning = false;
+        document.getElementById('btn-start').innerText = "Next Round";
+
+        let peakFloor = peakPosition / 3;
+        let stopFloor = position / 3;
+
+        // U-turn Score: 500 max. Lose 5 pts per floor away from 100/F
+        let peakScore = Math.max(0, Math.floor(500 - Math.abs(100 - peakFloor) * 5));
+        
+        // Stop Score: 500 max. Lose 5 pts per floor away from G/F (0/F)
+        let stopScore = Math.max(0, Math.floor(500 - stopFloor * 5));
+        
+        // Penalty: Massive penalty for crashing. 20 pts per 1 m/s of impact speed.
+        let penalty = Math.floor(Math.abs(impactV) * 20);
+
+        let totalScore = Math.max(0, peakScore + stopScore - penalty);
+
+        // Submit to Google Form in the background
+        submitScoreToForm(playerName, roundNumber, totalScore);
+
+        // Update UI
+        let log = document.getElementById('score-list');
+        let card = document.createElement('div');
+        card.className = 'score-card';
+        
+        let crashText = impactV < -0.5 
+            ? `<div style="color:#c0392b; font-weight:bold; margin-top:5px;">⚠️ CRASH! (${impactV.toFixed(1)} m/s)<br>Penalty: -${penalty} pts</div>` 
+            : `<div style="color:#27ae60; font-weight:bold; margin-top:5px;">✅ Safe Landing!</div>`;
+
+        card.innerHTML = `
+            <div style="font-weight:bold; color:#2c3e50; border-bottom:1px solid #eee; margin-bottom:5px; padding-bottom:5px;">Round ${roundNumber}</div>
+            <div>U-Turn: ${peakFloor.toFixed(1)}/F <span style="float:right; color:#7f8c8d;">${peakScore} pts</span></div>
+            <div>Stop: ${stopFloor.toFixed(1)}/F <span style="float:right; color:#7f8c8d;">${stopScore} pts</span></div>
+            ${crashText}
+            <div style="font-weight:bold; font-size:1.1rem; margin-top:5px; text-align:right; color:#4a90e2;">Total: ${totalScore}</div>
+        `;
+        log.prepend(card);
+
+        roundNumber++;
+    }
+
+    // Drawing Functions
+    function draw() {
+        drawGraph();
+        drawSimulation();
+    }
+
+    function drawGraph() {
+        graphCtx.clearRect(0, 0, graphCanvas.width, graphCanvas.height);
+        
+        const w = graphCanvas.width;
+        const h = graphCanvas.height;
+        const margin = 40;
+        
+        const MAX_TIME = 120; // Fixed 120s x-axis
+        const MAX_VELOCITY = 30; // Fixed +/- 30 m/s y-axis
+        const usableHeight = h - 40; // Leave 20px padding top and bottom
+        
+        // Setup Grid and Axes
+        graphCtx.strokeStyle = "#ddd";
+        graphCtx.lineWidth = 1;
+        
+        // Zero Velocity Line (Middle of canvas)
+        const yZero = h / 2;
+        graphCtx.beginPath();
+        graphCtx.moveTo(margin, yZero);
+        graphCtx.lineTo(w, yZero);
+        graphCtx.stroke();
+        
+        // Y-axis
+        graphCtx.beginPath();
+        graphCtx.moveTo(margin, 0);
+        graphCtx.lineTo(margin, h);
+        graphCtx.stroke();
+
+        // Labels
+        graphCtx.fillStyle = "#333";
+        graphCtx.font = "12px Arial";
+        graphCtx.fillText("Velocity (m/s)", margin - 35, 15);
+        graphCtx.fillText("0", margin - 15, yZero + 4);
+        
+        // Y-axis range labels
+        graphCtx.fillText("+" + MAX_VELOCITY, margin - 25, 30);
+        graphCtx.fillText("-" + MAX_VELOCITY, margin - 25, h - 15);
+        
+        // X-axis labels
+        graphCtx.fillText("Time (s)", w - 50, yZero - 10);
+        graphCtx.fillText(MAX_TIME, w - 25, yZero + 15);
+
+        if (history.length < 2) return;
+
+        // Plot Data
+        graphCtx.strokeStyle = "#e74c3c";
+        graphCtx.lineWidth = 3;
+        graphCtx.beginPath();
+
+        history.forEach(point => {
+            if (point.t > MAX_TIME) return; // Don't draw past 120s
+            
+            // Map time to X (0 to 120)
+            let x = margin + (point.t / MAX_TIME) * (w - margin);
+            // Map velocity to Y (-20 to 20)
+            let y = yZero - (point.v / MAX_VELOCITY) * (usableHeight / 2);
+            
+            if (point === history[0]) {
+                 graphCtx.moveTo(x, y);
+            } else {
+                 graphCtx.lineTo(x, y);
+            }
+        });
+        graphCtx.stroke();
+    }
+
+    function drawSimulation() {
+        simCtx.clearRect(0, 0, simCanvas.width, simCanvas.height);
+        
+        const w = simCanvas.width;
+        const h = simCanvas.height;
+        
+        // --- 1. SHAFT VIEW (Left 25% of the panel) ---
+        const shaftRight = w * 0.25;
+        const floorHeight = h * 0.8 / 100; // 100 floors fit into 80% of canvas height
+        const bottomY = h * 0.9; // G/F position
+        
+        // Draw Floors
+        simCtx.font = "12px Arial";
+        for (let i = 0; i <= 100; i++) {
+            let y = bottomY - (i * floorHeight);
+            
+            if (i % 10 === 0) {
+                // Major floor line every 10 floors
+                simCtx.fillStyle = "#555";
+                simCtx.strokeStyle = "#aaa";
+                simCtx.lineWidth = 1;
+                simCtx.beginPath();
+                simCtx.moveTo(25, y);
+                simCtx.lineTo(shaftRight, y);
+                simCtx.stroke();
+                simCtx.fillText((i === 0 ? "G/F" : i), 2, y + 4);
+            } else {
+                // Minor floor lines
+                simCtx.strokeStyle = "#eee";
+                simCtx.lineWidth = 1;
+                simCtx.beginPath();
+                simCtx.moveTo(30, y);
+                simCtx.lineTo(shaftRight, y);
+                simCtx.stroke();
+            }
+        }
+
+        // Draw Elevator Dot on Shaft
+        const pixelPos = bottomY - (position / MAX_HEIGHT) * (100 * floorHeight); 
+        const dotX = shaftRight / 2 + 10;
+        
+        // Shaft track line
+        simCtx.strokeStyle = "#bdc3c7";
+        simCtx.lineWidth = 2;
+        simCtx.beginPath();
+        simCtx.moveTo(dotX, bottomY);
+        simCtx.lineTo(dotX, bottomY - (100 * floorHeight));
+        simCtx.stroke();
+
+        // The square
+        simCtx.fillStyle = "#e74c3c";
+        const squareSize = 12;
+        simCtx.fillRect(dotX - squareSize / 2, pixelPos - squareSize / 2, squareSize, squareSize);
+        simCtx.strokeStyle = "#c0392b";
+        simCtx.lineWidth = 2;
+        simCtx.strokeRect(dotX - squareSize / 2, pixelPos - squareSize / 2, squareSize, squareSize);
+
+
+        // --- 2. ZOOM-IN VIEW (Right 70% of the panel) ---
+        const zoomCenterX = w * 0.65;
+        const zoomCenterY = h / 2;
+        
+        // Zoomed Elevator Block
+        const elevatorW = 70;
+        const elevatorH = 70;
+        const elevatorX = zoomCenterX - elevatorW / 2;
+        const elevatorTop = zoomCenterY - elevatorH / 2;
+
+        simCtx.fillStyle = "#f2f2f2";
+        simCtx.fillRect(elevatorX, elevatorTop, elevatorW, elevatorH);
+        simCtx.strokeStyle = "#34495e";
+        simCtx.lineWidth = 2;
+        simCtx.strokeRect(elevatorX, elevatorTop, elevatorW, elevatorH);
+
+        // Calculate visual arrow lengths (scale: 1000N = 5 pixels)
+        const scaleF = 0.005; 
+        const tLen = tension * scaleF;
+        const wLen = WEIGHT * scaleF;
+        const netForce = tension - WEIGHT;
+        const netFLen = Math.abs(netForce) * scaleF;
+        
+        simCtx.font = "bold 16px Arial";
+
+        // 1. Tension Arrow (Up from top)
+        drawArrow(simCtx, zoomCenterX, elevatorTop, zoomCenterX, elevatorTop - tLen, "#2980b9", null, 0);
+        simCtx.fillStyle = "#2980b9";
+        simCtx.textAlign = "center";
+        simCtx.textBaseline = "bottom";
+        simCtx.fillText("Tension = " + tension + " N", zoomCenterX, elevatorTop - tLen - 10);
+        
+        // 2. Weight Arrow (Down from bottom)
+        drawArrow(simCtx, zoomCenterX, elevatorTop + elevatorH, zoomCenterX, elevatorTop + elevatorH + wLen, "#c0392b", null, 0);
+        simCtx.fillStyle = "#c0392b";
+        simCtx.textAlign = "center";
+        simCtx.textBaseline = "top";
+        simCtx.fillText("Weight = " + WEIGHT + " N", zoomCenterX, elevatorTop + elevatorH + wLen + 10);
+
+        // 3. Net Force Arrow (Beside elevator, left side)
+        const leftX = elevatorX - 45;
+        simCtx.fillStyle = "#8e44ad";
+        simCtx.textAlign = "right";
+        simCtx.textBaseline = "middle";
+        if (Math.abs(netForce) > 0) {
+            const dir = netForce > 0 ? -1 : 1; // -1 is up in canvas
+            drawArrow(simCtx, leftX, zoomCenterY, leftX, zoomCenterY + (dir * netFLen), "#8e44ad", null, 0);
+            simCtx.fillText("Net F = " + Math.abs(netForce) + " N", leftX - 15, zoomCenterY);
+        } else {
+            simCtx.fillText("Net F = 0 N", leftX - 15, zoomCenterY);
+        }
+
+        // 4. Direction of Motion (Velocity) Arrow (Beside elevator, right side)
+        const rightX = elevatorX + elevatorW + 45;
+        simCtx.fillStyle = "#27ae60";
+        simCtx.textAlign = "right";
+        simCtx.textBaseline = "middle";
+        if (Math.abs(velocity) > 0.1) { // Only show if moving significantly
+            const vLen = Math.abs(velocity) * 5; // Visual scale for velocity
+            const vDir = velocity > 0 ? -1 : 1;
+            drawArrow(simCtx, rightX, zoomCenterY, rightX, zoomCenterY + (vDir * vLen), "#27ae60", null, 0);
+            simCtx.fillText("Speed", rightX - 10, zoomCenterY);
+        } else {
+            simCtx.fillText("Speed = 0", rightX - 10, zoomCenterY);
+        }
+
+        // Reset text alignment for anything else
+        simCtx.textAlign = "left";
+        simCtx.textBaseline = "alphabetic";
+    }
+
+    // Helper Function to draw arrows
+    function drawArrow(ctx, fromx, fromy, tox, toy, color, label, labelOffset) {
+        const headlen = 10; // length of head in pixels
+        const dx = tox - fromx;
+        const dy = toy - fromy;
+        const angle = Math.atan2(dy, dx);
+        
+        ctx.strokeStyle = color;
+        ctx.fillStyle = color;
+        ctx.lineWidth = 3;
+        
+        // Draw line
+        ctx.beginPath();
+        ctx.moveTo(fromx, fromy);
+        ctx.lineTo(tox, toy);
+        ctx.stroke();
+        
+        // Draw head
+        ctx.beginPath();
+        ctx.moveTo(tox, toy);
+        ctx.lineTo(tox - headlen * Math.cos(angle - Math.PI / 6), toy - headlen * Math.sin(angle - Math.PI / 6));
+        ctx.lineTo(tox - headlen * Math.cos(angle + Math.PI / 6), toy - headlen * Math.sin(angle + Math.PI / 6));
+        ctx.lineTo(tox, toy);
+        ctx.fill();
+
+        // Label
+        if (label) {
+            ctx.font = "bold 16px Arial";
+            ctx.fillText(label, tox + 10, toy + labelOffset);
+        }
+    }
+
+    // Initial draw to setup screen
+    draw();
+
+</script>
+<script src="../../assets/sim.js" data-root="../../#junior-science"></script>
+</body>
+</html>
