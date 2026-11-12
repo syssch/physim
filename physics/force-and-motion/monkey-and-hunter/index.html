@@ -18,7 +18,8 @@
         /* ---- Phone / narrow-screen layout ---- */
         @media (max-width: 900px) {
             body { height: auto !important; width: auto !important; display: block !important; overflow: auto !important; }
-            #appBox { max-width: none; max-height: none; aspect-ratio: auto; display: block; }
+            #appBox { max-width: none; max-height: none; aspect-ratio: auto; display: flex; flex-direction: column; justify-content: flex-start; }
+            #appBox > div:nth-of-type(1) { order: -1; }
             /* canvas joins the normal flow; crop the strip that sat under the old bottom overlay */
             #simCanvas { position: relative; inset: auto; height: auto; aspect-ratio: 1920 / 900; object-fit: cover; object-position: top; }
             #appBox > div:nth-of-type(1) { padding: 10px 12px; background: #fff; }
