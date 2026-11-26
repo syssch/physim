@@ -1433,6 +1433,7 @@
                 type,
                 gx, gz, rotSteps,
                 voltage: opts.voltage !== undefined ? opts.voltage : 9.0,
+                internalR: opts.internalR !== undefined ? opts.internalR : 0.0, // battery internal resistance r (Ω)
                 resistance: opts.resistance !== undefined ? opts.resistance : (type === 'bulb' ? 10 : 100),
                 isClosed: opts.isClosed !== undefined ? opts.isClosed : true,
                 ledColor: opts.ledColor || 'red',
@@ -1663,7 +1664,7 @@
                     }
                 });
 
-                // Stamp Batteries (term 0 = Negative '-', term 1 = Positive '+', 50 mΩ internal resistance)
+                // Stamp Batteries (term 0 = Negative '-', term 1 = Positive '+', adjustable internal resistance r)
                 batteries.forEach((bat, bIdx) => {
                     const row = numNodes + bIdx;
                     const nNeg = nodeIdx(bat.cIdx, 0);
@@ -1672,7 +1673,7 @@
                     A[nNeg][row] -= 1;
                     A[row][nPos] += 1;
                     A[row][nNeg] -= 1;
-                    A[row][row] -= 0.05; // 50 mΩ internal resistance
+                    A[row][row] -= bat.comp.internalR; // internal resistance r (V_terminal = ε − I·r)
                     b[row] = bat.comp.voltage;
                 });
 
@@ -2291,11 +2292,19 @@
                 ctrl.innerHTML = `
                     <div>
                         <div class="flex justify-between text-xs mb-1">
-                            <span class="text-slate-400">EMF Voltage</span>
+                            <span class="text-slate-400">EMF Voltage (ε)</span>
                             <span id="ctrl-val-v" class="font-mono font-bold text-amber-400">${comp.voltage.toFixed(1)} V</span>
                         </div>
                         <input type="range" min="1.5" max="24" step="0.5" value="${comp.voltage}" class="w-full" oninput="updateSelectedVoltage(this.value)">
-                    </div>`;
+                    </div>
+                    <div>
+                        <div class="flex justify-between text-xs mb-1">
+                            <span class="text-slate-400">Internal Resistance (r)</span>
+                            <span id="ctrl-val-ir" class="font-mono font-bold text-rose-400">${comp.internalR.toFixed(1)} Ω</span>
+                        </div>
+                        <input type="range" min="0" max="10" step="0.1" value="${comp.internalR}" class="w-full" oninput="updateSelectedInternalR(this.value)">
+                    </div>
+                    <div id="ctrl-bat-info" class="text-[11px] font-mono text-slate-300 bg-slate-950/75 border border-slate-800 rounded-xl p-2.5 leading-relaxed"></div>`;
             } else if (comp.type === 'resistor' || comp.type === 'bulb') {
                 const maxR = comp.type === 'bulb' ? 200 : 10000;
                 ctrl.innerHTML = `
@@ -2375,6 +2384,17 @@
                     ? `${(absI * 1000).toFixed(1)} mA`
                     : `${absI.toFixed(2)} A`;
                 document.getElementById('insp-p').textContent = `${c.power.toFixed(2)} W`;
+
+                const info = document.getElementById('ctrl-bat-info');
+                if (info && c.type === 'battery') {
+                    const I = Math.abs(c.current);
+                    const lost = I * c.internalR;
+                    info.innerHTML =
+                        `Terminal p.d. V = ε − Ir<br>` +
+                        `= ${c.voltage.toFixed(2)} − ${I.toFixed(3)} × ${c.internalR.toFixed(1)}<br>` +
+                        `= <span class="text-emerald-400 font-bold">${Math.abs(c.vDrop).toFixed(2)} V</span>` +
+                        ` &nbsp;(lost volts Ir = <span class="text-rose-400 font-bold">${lost.toFixed(2)} V</span>)`;
+                }
             } else if (selectedItem.kind === 'wire') {
                 const w = selectedItem.ref;
                 vaEl.textContent = `${w.vA.toFixed(2)} V`;
@@ -2391,6 +2411,16 @@
                 document.getElementById('insp-p').textContent = `${(absI * absI * WIRE_RESISTANCE).toFixed(4)} W`;
             }
 
+        }
+
+        function updateSelectedInternalR(val) {
+            if (!selectedItem || selectedItem.kind !== 'component') return;
+            const comp = selectedItem.ref;
+            if (comp.type !== 'battery') return;
+            comp.internalR = Math.max(0, parseFloat(val));
+            const lbl = document.getElementById('ctrl-val-ir');
+            if (lbl) lbl.textContent = `${comp.internalR.toFixed(1)} Ω`;
+            solveCircuit();
         }
 
         function updateSelectedVoltage(val) {
