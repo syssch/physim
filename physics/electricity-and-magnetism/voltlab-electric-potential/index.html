@@ -1,0 +1,2731 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+<script src="../../../assets/sim-early.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>VoltLab: 2D/3D Electric Potential · PhySim</title>
+    <!-- Tailwind CSS -->
+    <link rel="stylesheet" href="../../../assets/vendor/tailwind.css">
+    <!-- Google Fonts: Inter & JetBrains Mono -->
+    <link rel="stylesheet" href="../../../assets/vendor/inter/inter.css">
+    <!-- Three.js r128 & OrbitControls -->
+    <script src="../../../assets/vendor/three.min.js"></script>
+    <script src="../../../assets/vendor/OrbitControls.js"></script>
+
+
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #0b1120;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: none;
+        }
+        #canvas-container {
+            position: fixed;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            outline: none;
+        }
+        /* Floating 3D-projected voltage badges container */
+        #voltage-labels-layer {
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            overflow: hidden;
+            z-index: 10;
+        }
+        .v-badge {
+            position: absolute;
+            transform: translate(-50%, -100%);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            font-weight: 700;
+            padding: 2px 7px;
+            border-radius: 999px;
+            background: rgba(15, 23, 42, 0.88);
+            backdrop-filter: blur(4px);
+            border: 1.5px solid currentColor;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45);
+            white-space: nowrap;
+            transition: opacity 0.15s ease;
+        }
+        /* Sleek range slider */
+        input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            background: rgba(51, 65, 85, 0.85);
+            height: 6px;
+            border-radius: 999px;
+            outline: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            background: #38bdf8;
+            cursor: pointer;
+            border: 2px solid #0f172a;
+            box-shadow: 0 0 8px rgba(56, 189, 248, 0.6);
+            transition: transform 0.15s ease;
+        }
+        input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.15);
+        }
+        .custom-scroll::-webkit-scrollbar {
+            width: 5px;
+            height: 5px;
+        }
+        .custom-scroll::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-scroll::-webkit-scrollbar-thumb {
+            background: rgba(100, 116, 139, 0.45);
+            border-radius: 999px;
+        }
+        .custom-scroll::-webkit-scrollbar-thumb:hover {
+            background: rgba(148, 163, 184, 0.65);
+        }
+        @keyframes pulse-border {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.55); }
+            50% { box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
+        }
+        .short-circuit-pulse {
+            animation: pulse-border 1.2s infinite;
+        }
+        .font-sans { font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; }
+        .font-mono { font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+
+        /* =====================================================================
+           PHONE LAYOUT (≤ 640 px): two-row top bar, tools + components as a
+           bottom toolbar, inspector as a bottom sheet above it.
+           --dock-h (set in JS) = height of the bottom toolbar + margin.
+           ===================================================================== */
+        @media (max-width: 640px) {
+            header.fixed { height: auto; flex-wrap: wrap; row-gap: 6px; padding: 6px 8px 6px 52px; }
+            header.fixed > div:nth-child(2) { margin-left: auto; }
+            header.fixed > div:nth-child(3) { flex: 0 0 calc(100% + 44px); width: calc(100% + 44px); margin-left: -44px; justify-content: space-between; overflow: visible; }
+            #preset-select { flex: 1 1 auto; min-width: 0; max-width: none; padding-top: 7px; padding-bottom: 7px; }
+            #btn-flow-mode, #btn-grid-snap, header.fixed > div:nth-child(3) > button:last-child { padding-top: 7px; padding-bottom: 7px; }
+            #flow-label { display: inline; }
+            #btn-view-toggle { padding: 7px 12px; }
+            .physim-home { top: 8px !important; bottom: auto !important; left: 8px !important; }
+
+            #left-sidebar { top: auto; left: 8px; right: 8px; bottom: 8px; width: auto; }
+            #left-sidebar > div { gap: 6px; overflow: visible; max-height: none; padding-right: 0; }
+            #left-sidebar section:first-child { display: flex; align-items: stretch; gap: 6px; padding: 6px; }
+            #left-sidebar section:first-child > div:first-child { display: none; }
+            #left-sidebar section:first-child > .grid { flex: 1 1 auto; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 5px; }
+            #left-sidebar .mode-btn { flex-direction: column; gap: 2px; padding: 7px 2px; font-size: 11px; }
+            #left-sidebar section:first-child > button { margin-top: 0; width: auto; flex-direction: column; gap: 2px; padding: 7px 10px; font-size: 11px; }
+            #left-sidebar section:first-child > button > span:last-child { display: none; }
+            #left-sidebar section:nth-child(2) > div:first-child { display: none; }
+            #palette-list { display: flex; gap: 6px; overflow-x: auto; padding: 6px; -webkit-overflow-scrolling: touch; }
+            #palette-list > * + * { margin-top: 0 !important; }
+            #palette-list .palette-item { flex: none; width: auto; padding: 5px 12px 5px 5px; gap: 7px; }
+            #palette-list .palette-item .min-w-0 > div:last-child { display: none; }
+
+            #inspector-panel { top: auto; left: 8px; right: 8px; bottom: var(--dock-h, 124px); width: auto; max-height: 46vh; z-index: 25; }
+            #bottom-dock { left: 8px; right: 8px; bottom: calc(var(--dock-h, 124px) + 4px); }
+            #insp-controls input[type="range"] { min-height: 0; height: 8px; margin: 10px 0; }
+            #insp-controls input[type="range"]::-webkit-slider-thumb { width: 24px; height: 24px; }
+            #hint-bar { font-size: 11px; line-height: 1.35; white-space: normal; overflow: visible; text-overflow: clip; border-radius: 14px; }
+        }
+    </style>
+<link rel="icon" href="../../../favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../../../assets/sim.css">
+</head>
+<body class="text-slate-100 font-sans antialiased">
+
+    <!-- 3D Viewport Container -->
+    <div id="canvas-container"></div>
+
+    <!-- Floating Projected Node Voltage Badges (Visible in 3D Potential View) -->
+    <div id="voltage-labels-layer"></div>
+
+    <!-- =====================================================================
+         TOP BAR: Fixed h-14, full-width, clean single-row non-overlapping bar
+         ===================================================================== -->
+    <header class="fixed top-0 left-0 right-0 h-14 z-30 bg-slate-900/92 backdrop-blur-md border-b border-slate-700/70 px-3 flex items-center justify-between gap-2 shadow-xl">
+        <!-- Brand & Live Circuit Status -->
+        <div class="flex items-center gap-2.5 shrink-0">
+            <div class="flex items-center gap-2">
+                <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-sky-400 to-indigo-600 flex items-center justify-center shadow-lg shadow-sky-500/20">
+                    <svg class="w-4.5 h-4.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.3">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                </div>
+                <div class="hidden sm:block">
+                    <h1 class="text-sm font-bold tracking-tight text-white leading-none">VoltLab</h1>
+                    <p class="text-[10px] text-slate-400 font-medium tracking-wide uppercase mt-0.5">2D/3D Potential Lab</p>
+                </div>
+            </div>
+            <div id="status-badge" class="flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 transition-all">
+                <span id="status-dot" class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span id="status-text">Active</span>
+            </div>
+        </div>
+
+        <!-- Center: Single Prominent 2D Editor / 3D Potential View Toggle Button -->
+        <div class="flex items-center justify-center shrink-0">
+            <button id="btn-view-toggle" onclick="toggleViewMode()" class="flex items-center gap-2 px-3.5 sm:px-4 py-1.5 rounded-xl text-xs font-bold tracking-wide transition-all shadow-lg border bg-gradient-to-r from-indigo-500 to-sky-500 hover:from-indigo-400 hover:to-sky-400 text-white border-sky-300/40 shadow-sky-500/25">
+                <svg id="icon-to-3d" class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M21 7.5l-9-5.25L3 7.5m18 0l-9 5.25m9-5.25v9l-9 5.25M3 7.5l9 5.25M3 7.5v9l9 5.25m0-9v9" />
+                </svg>
+                <svg id="icon-to-2d" class="w-4 h-4 shrink-0 hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M4 6a2 2 0 012-2h12a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm0 6h16M12 4v16" />
+                </svg>
+                <span id="text-view-toggle">Switch to 3D Potential View</span>
+            </button>
+        </div>
+
+        <!-- Right Controls: Presets, Current Flow, Grid Snap, Clear -->
+        <div class="flex items-center gap-1.5 shrink-0 overflow-x-auto custom-scroll">
+            <select id="preset-select" onchange="loadPreset(this.value)" title="Load Preset Circuit" class="bg-slate-800/95 text-slate-200 text-xs font-medium rounded-xl px-2.5 py-1.5 border border-slate-700 focus:outline-none focus:border-sky-500 cursor-pointer max-w-[165px] sm:max-w-none">
+                <option value="voltage_divider">Voltage Divider (Series)</option>
+                <option value="parallel_bulbs">Parallel Bulbs</option>
+                <option value="series_bulbs">Series Bulbs</option>
+                <option value="switched_led">Switched LED</option>
+                <option value="simple_lamp">Simple Lamp</option>
+            </select>
+
+            <button id="btn-flow-mode" onclick="cycleFlowMode()" title="Cycle Current Flow Visualization" class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold bg-amber-500/15 text-amber-300 border border-amber-500/30 hover:bg-amber-500/25 transition-all whitespace-nowrap">
+                <span class="w-2 h-2 rounded-full bg-amber-400" id="flow-dot"></span>
+                <span id="flow-label" class="hidden md:inline">Conv. (+→-)</span>
+            </button>
+
+            <button id="btn-grid-snap" onclick="toggleGridSnap()" title="Toggle Grid Snap" class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold bg-sky-500/20 text-sky-300 border border-sky-500/30 hover:bg-sky-500/30 transition-all whitespace-nowrap">
+                <svg class="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/></svg>
+                <span id="snap-label" class="hidden lg:inline">Snap: ON</span>
+            </button>
+
+            <button onclick="requestClearBoard()" title="Clear Workbench" class="px-2.5 py-1.5 rounded-xl text-xs font-semibold text-slate-300 hover:bg-rose-500/20 hover:text-rose-300 border border-slate-700/70 hover:border-rose-500/40 transition-all whitespace-nowrap">
+                Clear
+            </button>
+        </div>
+    </header>
+
+    <!-- =====================================================================
+         UNIFIED LEFT SIDEBAR: Fixed flex column (top:64px, left:12px, bottom:12px)
+         Zero overlap at any viewport height via internal overflow-y scroll
+         ===================================================================== -->
+    <aside id="left-sidebar" class="fixed top-[64px] left-3 bottom-3 w-[192px] sm:w-[220px] z-20 flex flex-col gap-2.5 pointer-events-none">
+        <div class="flex flex-col gap-2.5 overflow-y-auto custom-scroll max-h-full pr-0.5 pointer-events-none">
+
+            <!-- TOOLS PANEL (In-flow Flex Child) -->
+            <section class="pointer-events-auto shrink-0 bg-slate-900/90 backdrop-blur-md border border-slate-700/70 rounded-2xl p-2.5 shadow-xl">
+                <div class="flex items-center justify-between px-1 mb-2">
+                    <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Tools</span>
+                    <span class="text-[10px] font-mono text-slate-500">Keys 1–4</span>
+                </div>
+                <div class="grid grid-cols-2 gap-1.5">
+                    <button id="mode-select" onclick="setMode('select')" title="Select, Drag & Toggle Switches (1)" class="mode-btn flex items-center justify-center gap-1.5 px-2 py-2 rounded-xl text-xs font-semibold transition-all bg-sky-500 text-slate-950 shadow-md shadow-sky-500/25">
+                        <svg class="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5" />
+                        </svg>
+                        <span>Select</span>
+                    </button>
+                    <button id="mode-wire" onclick="setMode('wire')" title="Connect Terminals (2)" class="mode-btn flex items-center justify-center gap-1.5 px-2 py-2 rounded-xl text-xs font-semibold transition-all text-slate-300 bg-slate-800/70 hover:bg-slate-800 hover:text-white">
+                        <svg class="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M4 17c2-6 5-10 8-10s6 4 8 10M4 17a2 2 0 100 4 2 2 0 000-4zm16 0a2 2 0 100 4 2 2 0 000-4z" />
+                        </svg>
+                        <span>Wire</span>
+                    </button>
+                    <button id="mode-place" onclick="setMode('place')" title="Place Component (3)" class="mode-btn flex items-center justify-center gap-1.5 px-2 py-2 rounded-xl text-xs font-semibold transition-all text-slate-300 bg-slate-800/70 hover:bg-slate-800 hover:text-white">
+                        <svg class="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+                        </svg>
+                        <span>Place</span>
+                    </button>
+                    <button id="mode-delete" onclick="setMode('delete')" title="Delete Item (4)" class="mode-btn flex items-center justify-center gap-1.5 px-2 py-2 rounded-xl text-xs font-semibold transition-all text-slate-300 bg-slate-800/70 hover:bg-rose-500/20 hover:text-rose-400">
+                        <svg class="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                        <span>Delete</span>
+                    </button>
+                </div>
+                <button onclick="rotateActive()" title="Rotate Selected or Placement Ghost 90° (R)" class="mt-2 w-full flex items-center justify-center gap-1.5 py-1.5 px-2.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-xs font-semibold text-sky-300 border border-slate-700/80 transition-colors">
+                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                    <span>Rotate 90°</span>
+                    <span class="ml-auto text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-900 text-slate-400">R</span>
+                </button>
+            </section>
+
+            <!-- COMPONENTS PALETTE PANEL (In-flow Flex Child) -->
+            <section class="pointer-events-auto shrink-0 bg-slate-900/90 backdrop-blur-md border border-slate-700/70 rounded-2xl shadow-xl overflow-hidden">
+                <div class="px-3 py-2 border-b border-slate-700/60 flex items-center justify-between">
+                    <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Components</span>
+                    <span class="text-[10px] text-slate-500">Click to place</span>
+                </div>
+                <div class="p-2 space-y-1" id="palette-list">
+                    <!-- Battery -->
+                    <button onclick="selectPaletteType('battery')" data-type="battery" class="palette-item w-full flex items-center gap-2.5 p-1.5 rounded-xl border border-transparent hover:bg-slate-800/90 hover:border-slate-700 transition-all text-left group">
+                        <div class="w-8 h-8 shrink-0 rounded-lg bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 group-hover:scale-105 transition-transform">
+                            <svg class="w-4.5 h-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <rect x="4" y="7" width="16" height="12" rx="2" />
+                                <path d="M8 7V5m8 2V5M8 13h2m-1-1v2m5-1h2" stroke-linecap="round"/>
+                            </svg>
+                        </div>
+                        <div class="min-w-0">
+                            <div class="text-xs font-semibold text-slate-100 truncate">DC Battery</div>
+                            <div class="text-[10px] text-slate-400 truncate">1.5V – 24V EMF</div>
+                        </div>
+                    </button>
+
+                    <!-- Light Bulb -->
+                    <button onclick="selectPaletteType('bulb')" data-type="bulb" class="palette-item w-full flex items-center gap-2.5 p-1.5 rounded-xl border border-transparent hover:bg-slate-800/90 hover:border-slate-700 transition-all text-left group">
+                        <div class="w-8 h-8 shrink-0 rounded-lg bg-yellow-400/15 border border-yellow-400/30 flex items-center justify-center text-yellow-300 group-hover:scale-105 transition-transform">
+                            <svg class="w-4.5 h-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
+                            </svg>
+                        </div>
+                        <div class="min-w-0">
+                            <div class="text-xs font-semibold text-slate-100 truncate">Light Bulb</div>
+                            <div class="text-[10px] text-slate-400 truncate">Incandescent Lamp</div>
+                        </div>
+                    </button>
+
+                    <!-- Resistor -->
+                    <button onclick="selectPaletteType('resistor')" data-type="resistor" class="palette-item w-full flex items-center gap-2.5 p-1.5 rounded-xl border border-transparent hover:bg-slate-800/90 hover:border-slate-700 transition-all text-left group">
+                        <div class="w-8 h-8 shrink-0 rounded-lg bg-orange-500/15 border border-orange-500/30 flex items-center justify-center text-orange-400 group-hover:scale-105 transition-transform">
+                            <svg class="w-4.5 h-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M2 12h3l2-5 3 10 3-10 3 10 2-5h4"/>
+                            </svg>
+                        </div>
+                        <div class="min-w-0">
+                            <div class="text-xs font-semibold text-slate-100 truncate">Resistor</div>
+                            <div class="text-[10px] text-slate-400 truncate">1Ω – 10kΩ Drop</div>
+                        </div>
+                    </button>
+
+                    <!-- Switch -->
+                    <button onclick="selectPaletteType('switch')" data-type="switch" class="palette-item w-full flex items-center gap-2.5 p-1.5 rounded-xl border border-transparent hover:bg-slate-800/90 hover:border-slate-700 transition-all text-left group">
+                        <div class="w-8 h-8 shrink-0 rounded-lg bg-sky-500/15 border border-sky-500/30 flex items-center justify-center text-sky-400 group-hover:scale-105 transition-transform">
+                            <svg class="w-4.5 h-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <circle cx="6" cy="15" r="2" />
+                                <circle cx="18" cy="15" r="2" />
+                                <path stroke-linecap="round" d="M7.5 13.8L16 7" />
+                            </svg>
+                        </div>
+                        <div class="min-w-0">
+                            <div class="text-xs font-semibold text-slate-100 truncate">SPST Switch</div>
+                            <div class="text-[10px] text-slate-400 truncate">Click to Toggle</div>
+                        </div>
+                    </button>
+
+                    <!-- LED -->
+                    <button onclick="selectPaletteType('led')" data-type="led" class="palette-item w-full flex items-center gap-2.5 p-1.5 rounded-xl border border-transparent hover:bg-slate-800/90 hover:border-slate-700 transition-all text-left group">
+                        <div class="w-8 h-8 shrink-0 rounded-lg bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-400 group-hover:scale-105 transition-transform">
+                            <svg class="w-4.5 h-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4a5 5 0 00-5 5v6h10V9a5 5 0 00-5-5zM9 15v5m6-5v5"/>
+                            </svg>
+                        </div>
+                        <div class="min-w-0">
+                            <div class="text-xs font-semibold text-slate-100 truncate">LED Diode</div>
+                            <div class="text-[10px] text-slate-400 truncate">Polarized Emitter</div>
+                        </div>
+                    </button>
+
+                    <!-- Ammeter -->
+                    <button onclick="selectPaletteType('ammeter')" data-type="ammeter" class="palette-item w-full flex items-center gap-2.5 p-1.5 rounded-xl border border-transparent hover:bg-slate-800/90 hover:border-slate-700 transition-all text-left group">
+                        <div class="w-8 h-8 shrink-0 rounded-lg bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 group-hover:scale-105 transition-transform">
+                            <svg class="w-4.5 h-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="9" />
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M9.5 15.5L12 8.5l2.5 7m-4-2h3"/>
+                            </svg>
+                        </div>
+                        <div class="min-w-0">
+                            <div class="text-xs font-semibold text-slate-100 truncate">Ammeter</div>
+                            <div class="text-[10px] text-slate-400 truncate">Live Current (A)</div>
+                        </div>
+                    </button>
+                </div>
+            </section>
+        </div>
+    </aside>
+
+    <!-- =====================================================================
+         RIGHT INSPECTOR PANEL: top:64px, right:12px, max-h calc(100vh - 80px)
+         ===================================================================== -->
+    <aside id="inspector-panel" class="fixed top-[64px] right-3 z-20 w-[260px] max-h-[calc(100vh-80px)] overflow-y-auto custom-scroll bg-slate-900/92 backdrop-blur-md border border-slate-700/70 rounded-2xl shadow-2xl transition-all duration-200 translate-x-[120%] opacity-0 pointer-events-none">
+        <div class="px-4 py-3 border-b border-slate-700/60 flex items-center justify-between bg-slate-800/40 sticky top-0 z-10 backdrop-blur-md">
+            <div>
+                <h2 id="insp-title" class="text-sm font-bold text-white leading-tight">Component</h2>
+                <span id="insp-id" class="text-[10px] font-mono text-slate-400 uppercase">ID: ---</span>
+            </div>
+            <button onclick="deselectAll()" class="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700/60 transition-colors">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+        </div>
+
+        <div class="p-3.5 space-y-3">
+            <!-- Terminal Potentials Row (VA & VB) -->
+            <div class="grid grid-cols-2 gap-2">
+                <div class="bg-slate-950/75 border border-slate-800 rounded-xl p-2 text-center">
+                    <div class="text-[10px] text-slate-400 font-medium">Potential V(A)</div>
+                    <div id="insp-va" class="text-xs font-mono font-bold text-rose-400 mt-0.5">0.00 V</div>
+                </div>
+                <div class="bg-slate-950/75 border border-slate-800 rounded-xl p-2 text-center">
+                    <div class="text-[10px] text-slate-400 font-medium">Potential V(B)</div>
+                    <div id="insp-vb" class="text-xs font-mono font-bold text-sky-400 mt-0.5">0.00 V</div>
+                </div>
+            </div>
+
+            <!-- Live Telemetry Readouts (ΔV, I, P) -->
+            <div class="grid grid-cols-3 gap-1.5">
+                <div class="bg-slate-950/75 border border-slate-800 rounded-xl p-2 text-center">
+                    <div class="text-[10px] text-slate-400 font-medium">Drop ΔV</div>
+                    <div id="insp-v" class="text-[11px] font-mono font-bold text-sky-300 mt-0.5">0.00 V</div>
+                </div>
+                <div class="bg-slate-950/75 border border-slate-800 rounded-xl p-2 text-center">
+                    <div class="text-[10px] text-slate-400 font-medium">Current</div>
+                    <div id="insp-i" class="text-[11px] font-mono font-bold text-amber-400 mt-0.5">0.00 A</div>
+                </div>
+                <div class="bg-slate-950/75 border border-slate-800 rounded-xl p-2 text-center">
+                    <div class="text-[10px] text-slate-400 font-medium">Power</div>
+                    <div id="insp-p" class="text-[11px] font-mono font-bold text-emerald-400 mt-0.5">0.00 W</div>
+                </div>
+            </div>
+
+            <!-- Unified Charge Flow Verification Readouts (Speed & Exact Flux) -->
+            <div class="grid grid-cols-2 gap-1.5">
+                <div class="bg-slate-950/75 border border-slate-800 rounded-xl p-2 text-center">
+                    <div class="text-[10px] text-slate-400 font-medium">Charge Speed</div>
+                    <div id="insp-speed" class="text-[11px] font-mono font-bold text-amber-300 mt-0.5">0.00 u/s</div>
+                </div>
+                <div class="bg-slate-950/75 border border-slate-800 rounded-xl p-2 text-center">
+                    <div class="text-[10px] text-slate-400 font-medium">Flow Rate</div>
+                    <div id="insp-flux" class="text-[11px] font-mono font-bold text-cyan-300 mt-0.5">0.00 q/s</div>
+                </div>
+            </div>
+
+            <!-- Dynamic Component / Wire Controls -->
+            <div id="insp-controls" class="space-y-3"></div>
+
+            <!-- Warning / Note Area -->
+            <div id="insp-note" class="hidden text-[11px] px-3 py-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 leading-snug"></div>
+
+            <!-- Action Buttons -->
+            <div class="flex items-center gap-2 pt-2 border-t border-slate-800">
+                <button id="insp-rotate-btn" onclick="rotateSelected()" class="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-colors">
+                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                    Rotate
+                </button>
+                <button onclick="deleteSelected()" class="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold bg-rose-500/15 hover:bg-rose-500/25 text-rose-400 border border-rose-500/30 transition-colors">
+                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                    Delete
+                </button>
+            </div>
+        </div>
+    </aside>
+
+    <!-- =====================================================================
+         BOTTOM DOCK: Docked strictly to the right of Left Sidebar (left:244px)
+         Holds Potential Legend (in 3D view) + Context Controls Hint
+         ===================================================================== -->
+    <div id="bottom-dock" class="fixed bottom-3 left-[212px] sm:left-[244px] right-3 lg:right-[284px] z-20 pointer-events-none flex flex-col items-center gap-2">
+        <!-- Electric Potential Color Scale Legend (Only shown in 3D Potential View) -->
+        <div id="potential-legend" class="bg-slate-900/90 backdrop-blur-md border border-slate-700/70 rounded-2xl px-3.5 py-2 shadow-xl transition-all duration-300 opacity-0 translate-y-3 pointer-events-none hidden">
+            <div class="flex items-center justify-between gap-4 mb-1">
+                <span class="text-[10px] font-bold uppercase tracking-wider text-slate-300">Electric Potential (Height &amp; Color)</span>
+                <span id="legend-max-v" class="text-[10px] font-mono font-bold text-rose-400">9.0 V</span>
+            </div>
+            <div class="w-56 sm:w-64 h-2.5 rounded-full shadow-inner" style="background: linear-gradient(90deg, #2563eb 0%, #06b6d4 25%, #10b981 50%, #f59e0b 75%, #ef4444 100%);"></div>
+            <div class="flex justify-between text-[10px] font-mono text-slate-400 mt-1">
+                <span>0.0V (GND)</span>
+                <span id="legend-mid-v">4.5V</span>
+                <span id="legend-high-v">9.0V</span>
+            </div>
+        </div>
+
+        <!-- Context Hint Pill -->
+        <div id="hint-bar" class="px-3.5 py-1.5 rounded-full bg-slate-900/88 backdrop-blur-md border border-slate-700/60 text-[11px] sm:text-xs text-slate-300 shadow-lg max-w-full truncate text-center">
+            2D Editor: Drag components to move • Left/Right-drag board to pan • Scroll to zoom • Click switch to toggle
+        </div>
+    </div>
+
+    <!-- CUSTOM CONFIRMATION MODAL (No alert/confirm) -->
+    <div id="confirm-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-950/70 backdrop-blur-sm p-4">
+        <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-sm w-full p-5 shadow-2xl">
+            <h3 class="text-base font-bold text-white">Clear Workbench?</h3>
+            <p class="text-xs text-slate-400 mt-1.5 leading-relaxed">This will remove all placed components and wires from the board. You can reload any preset circuit at any time.</p>
+            <div class="flex justify-end gap-2 mt-5">
+                <button onclick="closeConfirmModal()" class="px-4 py-2 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors">Cancel</button>
+                <button onclick="confirmClearBoard()" class="px-4 py-2 rounded-xl text-xs font-semibold bg-rose-600 hover:bg-rose-500 text-white shadow-lg shadow-rose-600/25 transition-colors">Clear Board</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /* =========================================================================
+           VOLTLAB — 2D/3D ELECTRIC POTENTIAL & DC CIRCUIT SIMULATOR
+           - Clean Non-Overlapping Flexbox HUD Architecture
+           - Single 2D Editor <-> 3D Potential View Toggle
+           - 3D View: Full 360° Orbit Rotation, Pan, Zoom + Potential Height Map
+           - 2D View: Locked Top-Down Editing with Pan & Zoom
+           - Real-Time MNA DC Solver + Exact Arc-Length Constant-Speed Charge Flow
+           ========================================================================= */
+
+        // --- PHONE / TOUCH HELPERS ---
+        const COARSE = window.matchMedia && matchMedia('(pointer: coarse)').matches;
+        const isNarrow = () => window.innerWidth <= 640;
+
+        /** Bottom toolbar height (phones) so the dock/inspector/badges sit above it */
+        function updateDockVar() {
+            const sb = document.getElementById('left-sidebar');
+            const h = isNarrow() && sb ? sb.offsetHeight + 14 : 12;
+            document.documentElement.style.setProperty('--dock-h', h + 'px');
+            return h;
+        }
+
+        /** Scale a default viewpoint so the whole 15-unit board fits narrow (portrait) screens */
+        function fitView(v) {
+            const aspect = window.innerWidth / window.innerHeight;
+            const needed = 15.4 / (2 * Math.tan(THREE.MathUtils.degToRad(21)) * aspect); // distance for board width
+            const baseDist = v.pos.distanceTo(v.target);
+            const k = Math.max(1, Math.min(2.6, needed / 21.5));
+            if (controls) controls.maxDistance = Math.max(38, baseDist * k * 1.4);
+            const pos = v.target.clone().add(v.pos.clone().sub(v.target).multiplyScalar(k));
+            return { pos, target: v.target.clone() };
+        }
+
+        // --- GLOBAL SCENE & STATE ---
+        let scene, camera, renderer, controls, raycaster, pointer;
+        let boardPlane;
+        let components = [];
+        let wires = [];
+        let nextCompId = 1;
+        let nextWireId = 1;
+
+        // View & Potential Transition State
+        let is3DView = false;              // false = 2D Top-Down Editor, true = 3D Potential View
+        let potentialBlend = 0.0;          // Smoothly animates 0 (2D) <-> 1 (3D)
+        let targetPotentialBlend = 0.0;
+        let camAnim = null;
+
+        // Default Viewpoints
+        const VIEW_2D = {
+            pos: new THREE.Vector3(0, 21.5, 0.01),
+            target: new THREE.Vector3(0, 0, 0)
+        };
+        const VIEW_3D = {
+            pos: new THREE.Vector3(11.5, 10.2, 13.8),
+            target: new THREE.Vector3(0, 1.55, 0)
+        };
+
+        // Potential Scaling Constants
+        const WIRE_BASE_Y = 0.26;
+        const MAX_POTENTIAL_H = 4.4;
+        let scaleMaxV = 9.0;               // Auto-adjusted to highest circuit voltage
+
+        // Physics-Accurate Charge Animation Constants
+        const WIRE_RESISTANCE = 1e-3;      // 0.001 Ohm per wire segment for exact MNA branch KCL
+        const CHARGE_SPACING = 0.42;       // Exact constant world-space arc-length spacing (u)
+        const CHARGE_RADIUS = 0.065;       // Shared sphere radius for wires and components
+        const CHARGE_MAX_SPEED = 14.0;     // Mild asymptotic clamp only for extreme short-circuits
+        let circuitSpeedGain = 3.2;        // Uniform circuit-wide linear velocity gain (v = k * |I|)
+
+        // Shared Charge Particle Geometry & Glowing Emissive Materials
+        const sharedChargeGeo = new THREE.SphereGeometry(CHARGE_RADIUS, 12, 12);
+        const sharedConvMat = new THREE.MeshStandardMaterial({
+            color: 0xfbbf24,
+            emissive: 0xf59e0b,
+            emissiveIntensity: 1.4,
+            roughness: 0.25,
+            metalness: 0.1
+        });
+        const sharedElecMat = new THREE.MeshStandardMaterial({
+            color: 0x38bdf8,
+            emissive: 0x06b6d4,
+            emissiveIntensity: 1.4,
+            roughness: 0.25,
+            metalness: 0.1
+        });
+        const sharedShortMat = new THREE.MeshStandardMaterial({
+            color: 0xff4444,
+            emissive: 0xef4444,
+            emissiveIntensity: 1.8,
+            roughness: 0.2,
+            metalness: 0.1
+        });
+
+        // 3D Potential Visualization Groups
+        let potentialGroup = null;
+        let refGridGroup = null;
+
+        // Editing Interaction State
+        let currentMode = 'select';        // 'select' | 'wire' | 'place' | 'delete'
+        let placeType = 'resistor';
+        let ghostRotSteps = 0;             // 0..3 (multiples of 90 deg)
+        let gridSnap = true;
+        let flowMode = 'conventional';     // 'conventional' | 'electron' | 'off'
+
+        let selectedItem = null;           // { kind: 'component'|'wire', ref }
+        let selectionRing = null;
+        let ghostGroup = null;
+
+        // Wire Drafting State
+        let wireStart = null;              // { comp, termIndex, pos }
+        let wireDraftLine = null;
+
+        // Dragging & Pointer Tracking State
+        let draggingComp = null;
+        let isDraggingCompMoved = false;
+        let pointerDownPos = { x: 0, y: 0 };
+        let clickedSwitchCandidate = null;
+
+        // Circuit Status
+        let circuitStatus = { shortCircuit: false, active: false };
+
+        // Resistor EIA Color Code Table
+        const EIA_COLORS = [
+            0x111111, // 0 Black
+            0x7c3f1d, // 1 Brown
+            0xdc2626, // 2 Red
+            0xf97316, // 3 Orange
+            0xeab308, // 4 Yellow
+            0x16a34a, // 5 Green
+            0x2563eb, // 6 Blue
+            0x9333ea, // 7 Violet
+            0x64748b, // 8 Grey
+            0xf8fafc  // 9 White
+        ];
+
+        // LED Presets (Forward Voltage & Color)
+        const LED_SPECS = {
+            red:    { vf: 1.8, hex: 0xff2a2a, css: '#ef4444', label: 'Red (1.8V)' },
+            yellow: { vf: 2.0, hex: 0xfacc15, css: '#eab308', label: 'Yellow (2.0V)' },
+            green:  { vf: 2.2, hex: 0x22c55e, css: '#22c55e', label: 'Green (2.2V)' },
+            blue:   { vf: 3.0, hex: 0x3b82f6, css: '#3b82f6', label: 'Blue (3.0V)' }
+        };
+
+        // =========================================================================
+        // COLOR & POTENTIAL HELPER FUNCTIONS
+        // =========================================================================
+        function voltageToColorObj(v) {
+            const norm = Math.max(0, Math.min(1, v / Math.max(0.5, scaleMaxV)));
+            const stops = [
+                { t: 0.00, r: 37,  g: 99,  b: 235 }, // #2563eb Deep Blue (0V)
+                { t: 0.25, r: 6,   g: 182, b: 212 }, // #06b6d4 Cyan
+                { t: 0.50, r: 16,  g: 185, b: 129 }, // #10b981 Emerald Green
+                { t: 0.75, r: 245, g: 158, b: 11  }, // #f59e0b Amber Yellow
+                { t: 1.00, r: 239, g: 68,  b: 68  }  // #ef4444 Bright Red (Max V)
+            ];
+            let s0 = stops[0], s1 = stops[stops.length - 1];
+            for (let i = 0; i < stops.length - 1; i++) {
+                if (norm >= stops[i].t && norm <= stops[i + 1].t) {
+                    s0 = stops[i];
+                    s1 = stops[i + 1];
+                    break;
+                }
+            }
+            const f = (norm - s0.t) / Math.max(1e-6, s1.t - s0.t);
+            return new THREE.Color(
+                (s0.r + (s1.r - s0.r) * f) / 255,
+                (s0.g + (s1.g - s0.g) * f) / 255,
+                (s0.b + (s1.b - s0.b) * f) / 255
+            );
+        }
+
+        function voltageToHexCSS(v) {
+            return '#' + voltageToColorObj(v).getHexString();
+        }
+
+        function voltageToY(v, blend = potentialBlend) {
+            const clampedV = Math.max(0, v);
+            const norm = Math.min(1.25, clampedV / Math.max(0.5, scaleMaxV));
+            return WIRE_BASE_Y + norm * MAX_POTENTIAL_H * blend;
+        }
+
+        /** True linear charge drift velocity v ∝ |I| across the entire circuit */
+        function computeChargeVelocity(absCurrent) {
+            const linearV = absCurrent * circuitSpeedGain;
+            if (linearV <= 10.0) return linearV;
+            return 10.0 + (CHARGE_MAX_SPEED - 10.0) * (1 - Math.exp(-(linearV - 10.0) / 8.0));
+        }
+
+        /** Height of charge particles over components in flat 2D view */
+        function getComponent2DChargeY(comp) {
+            if (comp.type === 'battery' || comp.type === 'ammeter') return 0.92;
+            if (comp.type === 'bulb') return 1.15;
+            if (comp.type === 'led') return 0.86;
+            if (comp.type === 'resistor') return 0.62;
+            return 0.56;
+        }
+
+        // =========================================================================
+        // UNIFIED EXACT-FLUX CHARGE STREAM ENGINE (WIRES & COMPONENTS)
+        // =========================================================================
+        function createChargeStream() {
+            return {
+                curve: null,
+                curveLength: 0,
+                phaseDist: 0,
+                particles: []
+            };
+        }
+
+        function ensureChargeStreamPool(stream, curveLength) {
+            const needed = Math.max(1, Math.ceil(curveLength / CHARGE_SPACING) + 2);
+            while (stream.particles.length < needed) {
+                const pMesh = new THREE.Mesh(sharedChargeGeo, sharedConvMat);
+                pMesh.visible = false;
+                scene.add(pMesh);
+                stream.particles.push(pMesh);
+            }
+        }
+
+        function disposeChargeStream(stream) {
+            if (!stream) return;
+            for (const pMesh of stream.particles) {
+                scene.remove(pMesh);
+            }
+            stream.particles = [];
+            stream.curve = null;
+            stream.curveLength = 0;
+        }
+
+        /** Build the actual currently-rendered 3D path curve for a wire (exact terminal-to-terminal) */
+        function buildWireChargeCurve(wire) {
+            const pA = getTerminalWorldPos(wire.compA, wire.termA);
+            const pB = getTerminalWorldPos(wire.compB, wire.termB);
+            const yA = voltageToY(wire.vA, potentialBlend);
+            const yB = voltageToY(wire.vB, potentialBlend);
+
+            const start = new THREE.Vector3(pA.x, yA, pA.z);
+            const end = new THREE.Vector3(pB.x, yB, pB.z);
+            const mid = start.clone().lerp(end, 0.5);
+            // Match the subtle 2D wire arch, flattening onto the 3D potential ridge as potentialBlend -> 1
+            mid.y += 0.04 * (1 - potentialBlend);
+
+            wire.chargeStream.curve = new THREE.CatmullRomCurve3([start, mid, end]);
+            wire.chargeStream.curveLength = wire.chargeStream.curve.getLength();
+        }
+
+        /** Build the actual currently-rendered 3D path curve for a component (exact terminal 0 -> terminal 1) */
+        function buildComponentChargeCurve(comp) {
+            const p0 = getTerminalWorldPos(comp, 0);
+            const p1 = getTerminalWorldPos(comp, 1);
+            const y0 = voltageToY(comp.v0, potentialBlend);
+            const y1 = voltageToY(comp.v1, potentialBlend);
+
+            const start = new THREE.Vector3(p0.x, y0, p0.z);
+            const end = new THREE.Vector3(p1.x, y1, p1.z);
+
+            // In 2D view, rise cleanly over the top rail of the component so charges are never occluded.
+            // In 3D Potential View, align directly with the sloped potential ramp / battery EMF lift.
+            const y2DTop = getComponent2DChargeY(comp);
+            const q1 = start.clone().lerp(end, 0.25);
+            const q3 = start.clone().lerp(end, 0.75);
+            const y1Pot = THREE.MathUtils.lerp(y0, y1, 0.25);
+            const y3Pot = THREE.MathUtils.lerp(y0, y1, 0.75);
+
+            q1.y = THREE.MathUtils.lerp(y2DTop, y1Pot, potentialBlend);
+            q3.y = THREE.MathUtils.lerp(y2DTop, y3Pot, potentialBlend);
+
+            comp.chargeStream.curve = new THREE.CatmullRomCurve3([start, q1, q3, end]);
+            comp.chargeStream.curveLength = comp.chargeStream.curve.getLength();
+        }
+
+        function rebuildAllChargeCurves() {
+            for (const w of wires) buildWireChargeCurve(w);
+            for (const c of components) buildComponentChargeCurve(c);
+        }
+
+        /**
+         * Single unified exact-flux ChargeStream updater used by BOTH wires and components.
+         * Guarantees identical visual arc-length speed (v = k * |I|), exact spacing (CHARGE_SPACING),
+         * and identical charge flow rate (flux = v / CHARGE_SPACING) everywhere in the circuit.
+         */
+        function updateChargeStream(stream, curve, currentAmps, dt, mode) {
+            const absI = Math.abs(currentAmps);
+            const curveLength = curve ? curve.getLength() : 0;
+            stream.curveLength = curveLength;
+
+            if (mode === 'off' || !curve || curveLength < 1e-4 || absI < 1e-4) {
+                for (let i = 0; i < stream.particles.length; i++) {
+                    stream.particles[i].visible = false;
+                }
+                return;
+            }
+
+            ensureChargeStreamPool(stream, curveLength);
+
+            const speed = computeChargeVelocity(absI);
+            const flowSign = mode === 'conventional' ? 1 : -1;
+            const dir = (currentAmps >= 0 ? 1 : -1) * flowSign;
+
+            stream.phaseDist = ((stream.phaseDist + dir * speed * dt) % CHARGE_SPACING + CHARGE_SPACING) % CHARGE_SPACING;
+
+            const mat = circuitStatus.shortCircuit
+                ? sharedShortMat
+                : (mode === 'conventional' ? sharedConvMat : sharedElecMat);
+
+            let idx = 0;
+            for (let d = stream.phaseDist; d <= curveLength + 1e-6; d += CHARGE_SPACING) {
+                const pMesh = stream.particles[idx++];
+                if (!pMesh) break;
+                const u = Math.min(1, Math.max(0, d / curveLength));
+                curve.getPointAt(u, pMesh.position);
+                pMesh.material = mat;
+                pMesh.visible = true;
+            }
+            for (; idx < stream.particles.length; idx++) {
+                stream.particles[idx].visible = false;
+            }
+        }
+
+        // =========================================================================
+        // 1. THREE.JS SCENE, ORBIT CONTROLS & WORKBENCH SETUP
+        // =========================================================================
+        function initScene() {
+            const container = document.getElementById('canvas-container');
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x0b1120);
+            scene.fog = new THREE.FogExp2(0x0b1120, 0.011);
+
+            camera = new THREE.PerspectiveCamera(42, window.innerWidth / window.innerHeight, 0.1, 150);
+            camera.position.copy(VIEW_2D.pos); // refitted for narrow screens once controls exist
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            renderer.toneMappingExposure = 1.08;
+            container.appendChild(renderer.domElement);
+
+            // OrbitControls: Dynamically switches between Locked-2D and Free-360°-3D
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.target.copy(VIEW_2D.target);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.08;
+            controls.enablePan = true;
+            controls.enableZoom = true;
+            controls.screenSpacePanning = false;
+            controls.minDistance = 6;
+            controls.maxDistance = 38;
+            controls.minPolarAngle = 0.08;
+            controls.maxPolarAngle = Math.PI / 2 - 0.04;
+
+            // Start in 2D Editor Mode (rotation locked)
+            applyControlsForViewMode();
+            updateDockVar();
+            camera.position.copy(fitView(VIEW_2D).pos);
+
+            // Cancel camera tween if user manually interacts with OrbitControls
+            controls.addEventListener('start', () => {
+                camAnim = null;
+            });
+
+            // Studio Lighting
+            const hemi = new THREE.HemisphereLight(0xdbeafe, 0x1e293b, 0.72);
+            scene.add(hemi);
+
+            const dirLight = new THREE.DirectionalLight(0xffffff, 0.92);
+            dirLight.position.set(10, 18, 12);
+            dirLight.castShadow = true;
+            dirLight.shadow.mapSize.width = 2048;
+            dirLight.shadow.mapSize.height = 2048;
+            dirLight.shadow.camera.near = 2;
+            dirLight.shadow.camera.far = 45;
+            const d = 11;
+            dirLight.shadow.camera.left = -d;
+            dirLight.shadow.camera.right = d;
+            dirLight.shadow.camera.top = d;
+            dirLight.shadow.camera.bottom = -d;
+            dirLight.shadow.bias = -0.0005;
+            scene.add(dirLight);
+
+            const fillLight = new THREE.DirectionalLight(0x38bdf8, 0.28);
+            fillLight.position.set(-12, 8, -10);
+            scene.add(fillLight);
+
+            buildWorkbench();
+            buildReferenceGrid();
+
+            potentialGroup = new THREE.Group();
+            scene.add(potentialGroup);
+
+            // Selection Highlight Ring
+            const ringGeo = new THREE.RingGeometry(0.95, 1.12, 36);
+            ringGeo.rotateX(-Math.PI / 2);
+            const ringMat = new THREE.MeshBasicMaterial({
+                color: 0x38bdf8,
+                side: THREE.DoubleSide,
+                transparent: true,
+                opacity: 0.9
+            });
+            selectionRing = new THREE.Mesh(ringGeo, ringMat);
+            selectionRing.visible = false;
+            selectionRing.position.y = 0.04;
+            scene.add(selectionRing);
+
+            // Wire Draft Preview Line
+            const draftGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
+            const draftMat = new THREE.LineBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.9 });
+            wireDraftLine = new THREE.Line(draftGeo, draftMat);
+            wireDraftLine.visible = false;
+            scene.add(wireDraftLine);
+
+            raycaster = new THREE.Raycaster();
+            pointer = new THREE.Vector2();
+
+            // Event Listeners
+            window.addEventListener('resize', onWindowResize);
+            const dom = renderer.domElement;
+            dom.addEventListener('pointerdown', onPointerDown);
+            window.addEventListener('pointermove', onPointerMove);
+            window.addEventListener('pointerup', onPointerUp);
+            window.addEventListener('pointercancel', onPointerUp);
+            window.addEventListener('keydown', onKeyDown);
+        }
+
+        /** Configure OrbitControls for 2D (locked top-down) vs 3D (free 360° orbit) */
+        function applyControlsForViewMode() {
+            if (is3DView) {
+                controls.enableRotate = true;
+                controls.enablePan = true;
+                controls.enableZoom = true;
+                controls.minPolarAngle = 0.08;
+                controls.maxPolarAngle = Math.PI / 2 - 0.04;
+                controls.mouseButtons = {
+                    LEFT: THREE.MOUSE.ROTATE,
+                    MIDDLE: THREE.MOUSE.DOLLY,
+                    RIGHT: THREE.MOUSE.PAN
+                };
+                controls.touches = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN };
+            } else {
+                controls.enableRotate = false;
+                controls.enablePan = true;
+                controls.enableZoom = true;
+                controls.minPolarAngle = 0.0;
+                controls.maxPolarAngle = Math.PI / 2 - 0.04;
+                controls.mouseButtons = {
+                    LEFT: THREE.MOUSE.PAN,
+                    MIDDLE: THREE.MOUSE.DOLLY,
+                    RIGHT: THREE.MOUSE.PAN
+                };
+                controls.touches = { ONE: THREE.TOUCH.PAN, TWO: THREE.TOUCH.DOLLY_PAN };
+            }
+        }
+
+        /** Build 14x14 Prototyping Circuit Workbench */
+        function buildWorkbench() {
+            // Outer beveled desk base
+            const baseGeo = new THREE.BoxGeometry(15.6, 0.55, 15.6);
+            const baseMat = new THREE.MeshStandardMaterial({ color: 0x111827, roughness: 0.7, metalness: 0.2 });
+            const baseMesh = new THREE.Mesh(baseGeo, baseMat);
+            baseMesh.position.y = -0.32;
+            baseMesh.receiveShadow = true;
+            scene.add(baseMesh);
+
+            // Inner prototyping board surface (14x14)
+            const boardGeo = new THREE.BoxGeometry(14.4, 0.08, 14.4);
+            const boardMat = new THREE.MeshStandardMaterial({ color: 0x17253b, roughness: 0.65, metalness: 0.12 });
+            const boardMesh = new THREE.Mesh(boardGeo, boardMat);
+            boardMesh.position.y = -0.04;
+            boardMesh.receiveShadow = true;
+            scene.add(boardMesh);
+
+            // Crisp Grid Overlay
+            const gridHelper = new THREE.GridHelper(14, 14, 0x334155, 0x1e293b);
+            gridHelper.position.y = 0.005;
+            scene.add(gridHelper);
+
+            // Subtle prototyping hole dots at grid intersections
+            const dotGeo = new THREE.CircleGeometry(0.055, 10);
+            dotGeo.rotateX(-Math.PI / 2);
+            const dotMat = new THREE.MeshBasicMaterial({ color: 0x334155 });
+            const inst = new THREE.InstancedMesh(dotGeo, dotMat, 15 * 15);
+            const dummy = new THREE.Object3D();
+            let idx = 0;
+            for (let x = -7; x <= 7; x++) {
+                for (let z = -7; z <= 7; z++) {
+                    dummy.position.set(x, 0.008, z);
+                    dummy.updateMatrix();
+                    inst.setMatrixAt(idx++, dummy.matrix);
+                }
+            }
+            scene.add(inst);
+
+            // Invisible raycast plane at y = 0
+            boardPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+        }
+
+        /** Vertical Voltage Reference Grid (shown behind board in 3D Potential View) */
+        function buildReferenceGrid() {
+            refGridGroup = new THREE.Group();
+            refGridGroup.visible = false;
+            scene.add(refGridGroup);
+            updateReferenceGrid();
+        }
+
+        function updateReferenceGrid() {
+            if (!refGridGroup) return;
+            while (refGridGroup.children.length > 0) {
+                const ch = refGridGroup.children[0];
+                refGridGroup.remove(ch);
+                if (ch.geometry) ch.geometry.dispose();
+                if (ch.material) ch.material.dispose();
+            }
+
+            const levels = [0, 0.25, 0.5, 0.75, 1.0];
+            const zBack = -7.2;
+            const xMin = -7.2, xMax = 7.2;
+
+            // Vertical border pillars
+            const pillarMat = new THREE.LineBasicMaterial({ color: 0x334155, transparent: true, opacity: 0.55 });
+            for (const x of [xMin, 0, xMax]) {
+                const g = new THREE.BufferGeometry().setFromPoints([
+                    new THREE.Vector3(x, WIRE_BASE_Y, zBack),
+                    new THREE.Vector3(x, WIRE_BASE_Y + MAX_POTENTIAL_H + 0.2, zBack)
+                ]);
+                refGridGroup.add(new THREE.Line(g, pillarMat));
+            }
+
+            // Horizontal voltage level lines
+            for (const frac of levels) {
+                const v = frac * scaleMaxV;
+                const y = WIRE_BASE_Y + frac * MAX_POTENTIAL_H;
+                const col = voltageToColorObj(v);
+                const mat = new THREE.LineBasicMaterial({ color: col, transparent: true, opacity: 0.42 });
+                const g = new THREE.BufferGeometry().setFromPoints([
+                    new THREE.Vector3(xMin, y, zBack),
+                    new THREE.Vector3(xMax, y, zBack)
+                ]);
+                refGridGroup.add(new THREE.Line(g, mat));
+            }
+        }
+
+        // =========================================================================
+        // 2. SINGLE 2D / 3D VIEW SWITCHER
+        // =========================================================================
+        function toggleViewMode() {
+            is3DView = !is3DView;
+            targetPotentialBlend = is3DView ? 1.0 : 0.0;
+            applyControlsForViewMode();
+
+            const btn = document.getElementById('btn-view-toggle');
+            const text = document.getElementById('text-view-toggle');
+            const icon3D = document.getElementById('icon-to-3d');
+            const icon2D = document.getElementById('icon-to-2d');
+            const legend = document.getElementById('potential-legend');
+
+            if (is3DView) {
+                text.textContent = isNarrow() ? '2D Editor' : 'Switch to 2D Editor';
+                icon3D.classList.add('hidden');
+                icon2D.classList.remove('hidden');
+                btn.classList.remove('from-indigo-500', 'to-sky-500', 'hover:from-indigo-400', 'hover:to-sky-400');
+                btn.classList.add('from-amber-500', 'to-rose-500', 'hover:from-amber-400', 'hover:to-rose-400');
+
+                legend.classList.remove('hidden');
+                requestAnimationFrame(() => {
+                    legend.classList.remove('opacity-0', 'translate-y-3', 'pointer-events-none');
+                    legend.classList.add('opacity-100', 'translate-y-0', 'pointer-events-auto');
+                });
+                const v3 = fitView(VIEW_3D);
+                animateCameraTo(v3.pos, v3.target, 550);
+            } else {
+                text.textContent = isNarrow() ? '3D View' : 'Switch to 3D Potential View';
+                icon3D.classList.remove('hidden');
+                icon2D.classList.add('hidden');
+                btn.classList.remove('from-amber-500', 'to-rose-500', 'hover:from-amber-400', 'hover:to-rose-400');
+                btn.classList.add('from-indigo-500', 'to-sky-500', 'hover:from-indigo-400', 'hover:to-sky-400');
+
+                legend.classList.add('opacity-0', 'translate-y-3', 'pointer-events-none');
+                legend.classList.remove('opacity-100', 'translate-y-0', 'pointer-events-auto');
+                setTimeout(() => {
+                    if (!is3DView) legend.classList.add('hidden');
+                }, 300);
+                const v2 = fitView(VIEW_2D);
+                animateCameraTo(v2.pos, v2.target, 550);
+            }
+
+            updateHint();
+        }
+
+        function animateCameraTo(destPos, destTarget, durationMs = 550) {
+            camAnim = {
+                startPos: camera.position.clone(),
+                endPos: destPos.clone(),
+                startTarget: controls.target.clone(),
+                endTarget: destTarget.clone(),
+                startTime: performance.now(),
+                duration: durationMs
+            };
+        }
+
+        // =========================================================================
+        // 3. PROCEDURAL 3D ELECTRONIC COMPONENTS
+        // =========================================================================
+        function createBindingPost(termIndex, comp, colorHex = 0xd4af37) {
+            const g = new THREE.Group();
+            const postGeo = new THREE.CylinderGeometry(0.11, 0.13, 0.28, 16);
+            const postMat = new THREE.MeshStandardMaterial({ color: colorHex, roughness: 0.28, metalness: 0.82 });
+            const post = new THREE.Mesh(postGeo, postMat);
+            post.position.y = 0.14;
+            post.castShadow = true;
+            g.add(post);
+
+            const capGeo = new THREE.SphereGeometry(0.095, 14, 14);
+            const capMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.25, metalness: 0.7 });
+            const cap = new THREE.Mesh(capGeo, capMat);
+            cap.position.y = 0.28;
+            g.add(cap);
+
+            // Invisible larger hit sphere for effortless wiring clicks
+            const hitGeo = new THREE.SphereGeometry(COARSE ? 0.5 : 0.28, 10, 10);
+            const hitMat = new THREE.MeshBasicMaterial({ visible: false });
+            const hit = new THREE.Mesh(hitGeo, hitMat);
+            hit.position.y = 0.22;
+            hit.userData = { isTerminal: true, comp, termIndex };
+            g.add(hit);
+
+            return { group: g, hitMesh: hit, capMat };
+        }
+
+        function makeTextTexture(text, bg, fg, w = 256, h = 128, fontSize = 54) {
+            const c = document.createElement('canvas');
+            c.width = w;
+            c.height = h;
+            const ctx = c.getContext('2d');
+            ctx.fillStyle = bg;
+            ctx.fillRect(0, 0, w, h);
+            ctx.fillStyle = fg;
+            ctx.font = `700 ${fontSize}px "JetBrains Mono", monospace`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(text, w / 2, h / 2);
+            const tex = new THREE.CanvasTexture(c);
+            tex.needsUpdate = true;
+            return tex;
+        }
+
+        function buildComponentMesh(type, comp, isGhost = false) {
+            const root = new THREE.Group();
+            const visuals = {};
+
+            // Shared PCB mounting base
+            // Terminals:
+            // - Battery: term 0 = Negative (-) at local x = -0.75 (blue), term 1 = Positive (+) at local x = +0.75 (red)
+            // - Passive/LED: term 0 at local x = +0.75, term 1 at local x = -0.75
+            let t0Color = 0xd4af37;
+            let t1Color = 0xd4af37;
+            let x0 = 0.75;
+            let x1 = -0.75;
+            if (type === 'battery') {
+                t0Color = 0x3b82f6;
+                t1Color = 0xef4444;
+                x0 = -0.75;
+                x1 = 0.75;
+            } else if (type === 'led') {
+                t0Color = 0xef4444;
+                t1Color = 0x3b82f6;
+            }
+
+            const post0 = createBindingPost(0, comp, t0Color);
+            const post1 = createBindingPost(1, comp, t1Color);
+            post0.group.position.set(x0, 0.08, 0);
+            post1.group.position.set(x1, 0.08, 0);
+            root.add(post0.group);
+            root.add(post1.group);
+
+            if (!isGhost && comp) {
+                comp.terminalHitMeshes = [post0.hitMesh, post1.hitMesh];
+                comp.terminalGroups = [post0.group, post1.group];
+            }
+
+            if (type === 'battery') {
+                // Copper/black battery body
+                const bodyGeo = new THREE.CylinderGeometry(0.32, 0.32, 1.02, 24);
+                bodyGeo.rotateZ(Math.PI / 2);
+                const bodyMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.35, metalness: 0.55 });
+                const body = new THREE.Mesh(bodyGeo, bodyMat);
+                body.position.set(-0.08, 0.45, 0);
+                body.castShadow = !isGhost;
+                root.add(body);
+
+                // Copper positive jacket
+                const capGeo = new THREE.CylinderGeometry(0.325, 0.325, 0.34, 24);
+                capGeo.rotateZ(Math.PI / 2);
+                const capMat = new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.3, metalness: 0.7 });
+                const cap = new THREE.Mesh(capGeo, capMat);
+                cap.position.set(0.36, 0.45, 0);
+                root.add(cap);
+
+                // Positive button nub
+                const nubGeo = new THREE.CylinderGeometry(0.12, 0.12, 0.12, 16);
+                nubGeo.rotateZ(Math.PI / 2);
+                const nubMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.25, metalness: 0.85 });
+                const nub = new THREE.Mesh(nubGeo, nubMat);
+                nub.position.set(0.56, 0.45, 0);
+                root.add(nub);
+
+                // Top Voltage Label Plate
+                const vText = comp ? `${comp.voltage.toFixed(1)}V` : '9.0V';
+                const lblMat = new THREE.MeshBasicMaterial({ map: makeTextTexture(vText, '#0f172a', '#fbbf24', 256, 96, 52) });
+                const lbl = new THREE.Mesh(new THREE.PlaneGeometry(0.78, 0.3), lblMat);
+                lbl.rotation.x = -Math.PI / 2;
+                lbl.position.set(-0.06, 0.78, 0);
+                root.add(lbl);
+                visuals.labelMat = lblMat;
+
+                // + and - polarity indicators
+                const plusMat = new THREE.MeshBasicMaterial({ map: makeTextTexture('+', '#ef4444', '#ffffff', 64, 64, 48) });
+                const plus = new THREE.Mesh(new THREE.PlaneGeometry(0.22, 0.22), plusMat);
+                plus.rotation.x = -Math.PI / 2;
+                plus.position.set(0.75, 0.13, 0.32);
+                root.add(plus);
+
+                const minusMat = new THREE.MeshBasicMaterial({ map: makeTextTexture('−', '#3b82f6', '#ffffff', 64, 64, 48) });
+                const minus = new THREE.Mesh(new THREE.PlaneGeometry(0.22, 0.22), minusMat);
+                minus.rotation.x = -Math.PI / 2;
+                minus.position.set(-0.75, 0.13, 0.32);
+                root.add(minus);
+            }
+            else if (type === 'resistor') {
+                // Axial metal lead
+                const leadGeo = new THREE.CylinderGeometry(0.035, 0.035, 1.48, 12);
+                leadGeo.rotateZ(Math.PI / 2);
+                const leadMat = new THREE.MeshStandardMaterial({ color: 0xcbd5e1, roughness: 0.25, metalness: 0.85 });
+                const lead = new THREE.Mesh(leadGeo, leadMat);
+                lead.position.y = 0.34;
+                root.add(lead);
+
+                // Ceramic tan resistor body
+                const bodyGeo = new THREE.CylinderGeometry(0.20, 0.20, 0.84, 20);
+                bodyGeo.rotateZ(Math.PI / 2);
+                const bodyMat = new THREE.MeshStandardMaterial({ color: 0xe6cfa8, roughness: 0.5, metalness: 0.05 });
+                const body = new THREE.Mesh(bodyGeo, bodyMat);
+                body.position.y = 0.34;
+                body.castShadow = !isGhost;
+                root.add(body);
+
+                // 4 EIA Color Bands
+                visuals.bands = [];
+                const bandXs = [-0.26, -0.09, 0.08, 0.28];
+                for (let i = 0; i < 4; i++) {
+                    const bGeo = new THREE.CylinderGeometry(0.208, 0.208, 0.08, 20);
+                    bGeo.rotateZ(Math.PI / 2);
+                    const bMat = new THREE.MeshStandardMaterial({
+                        color: i === 3 ? 0xd4af37 : 0x7c3f1d,
+                        roughness: 0.4,
+                        metalness: i === 3 ? 0.7 : 0.1
+                    });
+                    const bMesh = new THREE.Mesh(bGeo, bMat);
+                    bMesh.position.set(bandXs[i], 0.34, 0);
+                    root.add(bMesh);
+                    visuals.bands.push(bMat);
+                }
+            }
+            else if (type === 'bulb') {
+                // Brass socket
+                const sockGeo = new THREE.CylinderGeometry(0.26, 0.29, 0.32, 20);
+                const sockMat = new THREE.MeshStandardMaterial({ color: 0xca8a04, roughness: 0.3, metalness: 0.8 });
+                const sock = new THREE.Mesh(sockGeo, sockMat);
+                sock.position.y = 0.28;
+                sock.castShadow = !isGhost;
+                root.add(sock);
+
+                // Filament glow core
+                const filGeo = new THREE.TorusGeometry(0.11, 0.025, 10, 20, Math.PI);
+                const filMat = new THREE.MeshStandardMaterial({
+                    color: 0x78716c,
+                    emissive: 0xffb703,
+                    emissiveIntensity: 0.0,
+                    roughness: 0.3
+                });
+                const fil = new THREE.Mesh(filGeo, filMat);
+                fil.position.y = 0.54;
+                root.add(fil);
+                visuals.filamentMat = filMat;
+
+                // Glass bulb sphere
+                const glassGeo = new THREE.SphereGeometry(0.37, 24, 24);
+                const glassMat = new THREE.MeshStandardMaterial({
+                    color: 0xfef9c3,
+                    emissive: 0xffc83d,
+                    emissiveIntensity: 0.0,
+                    transparent: true,
+                    opacity: 0.42,
+                    roughness: 0.1,
+                    metalness: 0.05
+                });
+                const glass = new THREE.Mesh(glassGeo, glassMat);
+                glass.position.y = 0.74;
+                root.add(glass);
+                visuals.glassMat = glassMat;
+
+                if (!isGhost) {
+                    const pLight = new THREE.PointLight(0xffcf56, 0, 6.5, 1.8);
+                    pLight.position.set(0, 0.85, 0);
+                    root.add(pLight);
+                    visuals.light = pLight;
+                }
+            }
+            else if (type === 'switch') {
+                // Two copper contact clips
+                const clipMat = new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.3, metalness: 0.8 });
+                for (const sx of [-0.46, 0.46]) {
+                    const clip = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.24, 0.18), clipMat);
+                    clip.position.set(sx, 0.24, 0);
+                    root.add(clip);
+                }
+
+                // Pivoting knife lever
+                const leverPivot = new THREE.Group();
+                leverPivot.position.set(-0.46, 0.32, 0);
+
+                const bladeGeo = new THREE.BoxGeometry(0.96, 0.06, 0.08);
+                const bladeMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.25, metalness: 0.88 });
+                const blade = new THREE.Mesh(bladeGeo, bladeMat);
+                blade.position.set(0.48, 0, 0);
+                blade.castShadow = !isGhost;
+                leverPivot.add(blade);
+
+                // Red insulated grip handle
+                const handleGeo = new THREE.CylinderGeometry(0.085, 0.085, 0.32, 16);
+                handleGeo.rotateZ(Math.PI / 2);
+                const handleMat = new THREE.MeshStandardMaterial({ color: 0xef4444, roughness: 0.4, metalness: 0.1 });
+                const handle = new THREE.Mesh(handleGeo, handleMat);
+                handle.position.set(1.06, 0, 0);
+                leverPivot.add(handle);
+
+                root.add(leverPivot);
+                visuals.leverPivot = leverPivot;
+            }
+            else if (type === 'led') {
+                const spec = LED_SPECS[comp ? comp.ledColor : 'red'];
+                const domeMat = new THREE.MeshStandardMaterial({
+                    color: spec.hex,
+                    emissive: spec.hex,
+                    emissiveIntensity: 0.05,
+                    transparent: true,
+                    opacity: 0.78,
+                    roughness: 0.15
+                });
+                const cyl = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.24, 0.34, 20), domeMat);
+                cyl.position.y = 0.34;
+                root.add(cyl);
+
+                const topSphere = new THREE.Mesh(new THREE.SphereGeometry(0.24, 20, 16), domeMat);
+                topSphere.position.y = 0.51;
+                root.add(topSphere);
+                visuals.domeMat = domeMat;
+
+                // Polarity indicator (+) on term 0 side
+                const plusMat = new THREE.MeshBasicMaterial({ map: makeTextTexture('+', '#ef4444', '#ffffff', 64, 64, 48) });
+                const plus = new THREE.Mesh(new THREE.PlaneGeometry(0.20, 0.20), plusMat);
+                plus.rotation.x = -Math.PI / 2;
+                plus.position.set(0.75, 0.13, 0.30);
+                root.add(plus);
+
+                if (!isGhost) {
+                    const pLight = new THREE.PointLight(spec.hex, 0, 4.5, 2.0);
+                    pLight.position.set(0, 0.72, 0);
+                    root.add(pLight);
+                    visuals.light = pLight;
+                }
+            }
+            else if (type === 'ammeter') {
+                const housingGeo = new THREE.BoxGeometry(1.12, 0.54, 0.82);
+                const housingMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.45, metalness: 0.35 });
+                const housing = new THREE.Mesh(housingGeo, housingMat);
+                housing.position.y = 0.39;
+                housing.castShadow = !isGhost;
+                root.add(housing);
+
+                const canvas = document.createElement('canvas');
+                canvas.width = 256;
+                canvas.height = 192;
+                const tex = new THREE.CanvasTexture(canvas);
+                const faceMat = new THREE.MeshBasicMaterial({ map: tex });
+                const face = new THREE.Mesh(new THREE.PlaneGeometry(0.98, 0.72), faceMat);
+                face.rotation.x = -Math.PI / 2;
+                face.position.y = 0.67;
+                root.add(face);
+
+                visuals.meterCanvas = canvas;
+                visuals.meterTex = tex;
+                drawAmmeterFace(canvas, tex, 0);
+            }
+
+            if (!isGhost && comp) {
+                root.traverse(obj => {
+                    if (!obj.userData.isTerminal) {
+                        obj.userData.comp = comp;
+                    }
+                });
+            }
+
+            return { mesh: root, visuals };
+        }
+
+        function drawAmmeterFace(canvas, tex, currentVal) {
+            const ctx = canvas.getContext('2d');
+            const w = canvas.width, h = canvas.height;
+            ctx.fillStyle = '#0f172a';
+            ctx.fillRect(0, 0, w, h);
+
+            // Outer bezel
+            ctx.strokeStyle = '#334155';
+            ctx.lineWidth = 6;
+            ctx.strokeRect(4, 4, w - 8, h - 8);
+
+            // Analog arc
+            const cx = w / 2, cy = h * 0.66, r = 68;
+            ctx.beginPath();
+            ctx.arc(cx, cy, r, Math.PI * 1.15, Math.PI * 1.85);
+            ctx.strokeStyle = '#475569';
+            ctx.lineWidth = 5;
+            ctx.stroke();
+
+            // Needle deflection
+            const absI = Math.abs(currentVal);
+            const norm = Math.min(1, absI / 2.0);
+            const angle = Math.PI * 1.15 + norm * (Math.PI * 0.7);
+            ctx.beginPath();
+            ctx.moveTo(cx, cy);
+            ctx.lineTo(cx + Math.cos(angle) * (r - 6), cy + Math.sin(angle) * (r - 6));
+            ctx.strokeStyle = '#10b981';
+            ctx.lineWidth = 4;
+            ctx.stroke();
+
+            // Center pivot
+            ctx.beginPath();
+            ctx.arc(cx, cy, 7, 0, Math.PI * 2);
+            ctx.fillStyle = '#e2e8f0';
+            ctx.fill();
+
+            // Digital readout
+            const label = absI < 0.1 && absI > 1e-4
+                ? `${(absI * 1000).toFixed(1)} mA`
+                : `${absI.toFixed(2)} A`;
+            ctx.fillStyle = '#34d399';
+            ctx.font = '700 32px "JetBrains Mono", monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText(label, w / 2, h - 18);
+
+            tex.needsUpdate = true;
+        }
+
+        function updateResistorBands(comp) {
+            if (!comp.visuals.bands) return;
+            const R = Math.max(1, Math.round(comp.resistance));
+            const s = String(R);
+            let d1 = parseInt(s[0], 10);
+            let d2 = s.length > 1 ? parseInt(s[1], 10) : 0;
+            let mult = Math.max(0, s.length - 2);
+            if (R < 10) { d1 = 0; d2 = R; mult = 0; }
+            comp.visuals.bands[0].color.setHex(EIA_COLORS[d1] || 0x111111);
+            comp.visuals.bands[1].color.setHex(EIA_COLORS[d2] || 0x111111);
+            comp.visuals.bands[2].color.setHex(EIA_COLORS[Math.min(9, mult)] || 0x111111);
+        }
+
+        function addComponent(type, gx, gz, rotSteps = 0, opts = {}) {
+            const prefixMap = { battery: 'BAT', resistor: 'R', bulb: 'L', switch: 'SW', led: 'LED', ammeter: 'A' };
+            const comp = {
+                id: `${prefixMap[type] || 'C'}-${nextCompId++}`,
+                type,
+                gx, gz, rotSteps,
+                voltage: opts.voltage !== undefined ? opts.voltage : 9.0,
+                resistance: opts.resistance !== undefined ? opts.resistance : (type === 'bulb' ? 10 : 100),
+                isClosed: opts.isClosed !== undefined ? opts.isClosed : true,
+                ledColor: opts.ledColor || 'red',
+                // Live Telemetry
+                v0: 0, v1: 0, vDrop: 0, current: 0, power: 0, ledOn: false,
+                terminalHitMeshes: [null, null],
+                terminalGroups: [null, null],
+                mesh: null,
+                visuals: {},
+                // Unified exact-flux charge stream
+                chargeStream: createChargeStream()
+            };
+
+            const built = buildComponentMesh(type, comp, false);
+            comp.mesh = built.mesh;
+            comp.visuals = built.visuals;
+            comp.mesh.position.set(gx, 0, gz);
+            comp.mesh.rotation.y = comp.rotSteps * (Math.PI / 2);
+            scene.add(comp.mesh);
+
+            if (type === 'resistor') updateResistorBands(comp);
+            if (type === 'switch' && comp.visuals.leverPivot) {
+                comp.visuals.leverPivot.rotation.z = comp.isClosed ? 0 : 0.72;
+            }
+
+            buildComponentChargeCurve(comp);
+            components.push(comp);
+            solveCircuit();
+            return comp;
+        }
+
+        function getTerminalWorldPos(comp, termIndex) {
+            comp.mesh.updateMatrixWorld(true);
+            const localX = comp.type === 'battery'
+                ? (termIndex === 0 ? -0.75 : 0.75)
+                : (termIndex === 0 ? 0.75 : -0.75);
+            const v = new THREE.Vector3(localX, WIRE_BASE_Y, 0);
+            v.applyMatrix4(comp.mesh.matrixWorld);
+            return v;
+        }
+
+        function addWire(compA, termA, compB, termB) {
+            if (compA === compB && termA === termB) return null;
+            const exists = wires.some(w =>
+                (w.compA === compA && w.termA === termA && w.compB === compB && w.termB === termB) ||
+                (w.compA === compB && w.termA === termB && w.compB === compA && w.termB === termA)
+            );
+            if (exists) return null;
+
+            const wire = {
+                id: `W-${nextWireId++}`,
+                compA, termA, compB, termB,
+                vA: 0, vB: 0, current: 0,
+                baseCurve: null,
+                mesh: null,
+                chargeStream: createChargeStream()
+            };
+            rebuildBaseWireGeometry(wire);
+            wires.push(wire);
+            solveCircuit();
+            return wire;
+        }
+
+        /** Flat clean wire on the circuit board + unified charge curve sync */
+        function rebuildBaseWireGeometry(wire) {
+            if (wire.mesh) {
+                scene.remove(wire.mesh);
+                wire.mesh.geometry.dispose();
+                wire.mesh.material.dispose();
+            }
+
+            const pA = getTerminalWorldPos(wire.compA, wire.termA);
+            const pB = getTerminalWorldPos(wire.compB, wire.termB);
+
+            const mid = pA.clone().lerp(pB, 0.5);
+            mid.y = WIRE_BASE_Y + 0.04;
+            wire.baseCurve = new THREE.CatmullRomCurve3([pA, mid, pB]);
+
+            const tubeGeo = new THREE.TubeGeometry(wire.baseCurve, 24, 0.048, 10, false);
+            const tubeMat = new THREE.MeshStandardMaterial({
+                color: 0x38bdf8,
+                roughness: 0.35,
+                metalness: 0.2
+            });
+            wire.mesh = new THREE.Mesh(tubeGeo, tubeMat);
+            wire.mesh.castShadow = true;
+            wire.mesh.userData = { isWire: true, wire };
+            scene.add(wire.mesh);
+
+            buildWireChargeCurve(wire);
+        }
+
+        function removeComponent(comp) {
+            const attached = wires.filter(w => w.compA === comp || w.compB === comp);
+            attached.forEach(w => removeWire(w, false));
+            disposeChargeStream(comp.chargeStream);
+            scene.remove(comp.mesh);
+            components = components.filter(c => c !== comp);
+            if (selectedItem && selectedItem.ref === comp) deselectAll();
+            solveCircuit();
+        }
+
+        function removeWire(wire, shouldSolve = true) {
+            if (wire.mesh) {
+                scene.remove(wire.mesh);
+                wire.mesh.geometry.dispose();
+                wire.mesh.material.dispose();
+            }
+            disposeChargeStream(wire.chargeStream);
+            wires = wires.filter(w => w !== wire);
+            if (selectedItem && selectedItem.ref === wire) deselectAll();
+            if (shouldSolve) solveCircuit();
+        }
+
+        // =========================================================================
+        // 4. REAL-TIME MODIFIED NODAL ANALYSIS (MNA) DC CIRCUIT SOLVER
+        // =========================================================================
+        function solveLinearSystem(A, b) {
+            const n = b.length;
+            const M = A.map((row, i) => [...row, b[i]]);
+            for (let col = 0; col < n; col++) {
+                let pivot = col;
+                for (let row = col + 1; row < n; row++) {
+                    if (Math.abs(M[row][col]) > Math.abs(M[pivot][col])) pivot = row;
+                }
+                if (Math.abs(M[pivot][col]) < 1e-12) continue;
+                [M[col], M[pivot]] = [M[pivot], M[col]];
+
+                const div = M[col][col];
+                for (let j = col; j <= n; j++) M[col][j] /= div;
+                for (let row = 0; row < n; row++) {
+                    if (row === col) continue;
+                    const factor = M[row][col];
+                    if (Math.abs(factor) < 1e-15) continue;
+                    for (let j = col; j <= n; j++) M[row][j] -= factor * M[col][j];
+                }
+            }
+            return M.map(row => row[n]);
+        }
+
+        function solveCircuit() {
+            const N = components.length;
+            if (N === 0) {
+                circuitStatus = { shortCircuit: false, active: false };
+                updateStatusUI();
+                rebuildPotentialLandscape();
+                return;
+            }
+
+            const compIndexMap = new Map();
+            components.forEach((c, i) => compIndexMap.set(c, i));
+            const nodeIdx = (cIdx, term) => cIdx * 2 + term;
+
+            const batteries = [];
+            const leds = [];
+            components.forEach((c, cIdx) => {
+                if (c.type === 'battery') batteries.push({ comp: c, cIdx });
+                if (c.type === 'led') leds.push({ comp: c, cIdx, conducting: false });
+            });
+
+            // Auto-scale 3D potential height axis to highest battery voltage
+            const maxBatV = batteries.reduce((m, b) => Math.max(m, b.comp.voltage), 0);
+            scaleMaxV = Math.max(3.0, maxBatV || 9.0);
+            document.getElementById('legend-max-v').textContent = `${scaleMaxV.toFixed(1)} V`;
+            document.getElementById('legend-high-v').textContent = `${scaleMaxV.toFixed(1)}V`;
+            document.getElementById('legend-mid-v').textContent = `${(scaleMaxV * 0.5).toFixed(1)}V`;
+            updateReferenceGrid();
+
+            const numNodes = N * 2;
+            const numBat = batteries.length;
+            const dim = numNodes + numBat;
+
+            let x = new Array(dim).fill(0);
+
+            // Iterative solver for LED forward-bias threshold
+            for (let iter = 0; iter < 8; iter++) {
+                const A = Array.from({ length: dim }, () => new Array(dim).fill(0));
+                const b = new Array(dim).fill(0);
+
+                const stampG = (n1, n2, g) => {
+                    A[n1][n1] += g;
+                    A[n2][n2] += g;
+                    A[n1][n2] -= g;
+                    A[n2][n1] -= g;
+                };
+
+                // Tiny leakage to ground on every node to prevent floating singular matrices
+                for (let i = 0; i < numNodes; i++) A[i][i] += 1e-8;
+
+                // Ground Reference: First battery's negative terminal (term 0) = 0.0 V
+                if (batteries.length > 0) {
+                    const gnd = nodeIdx(batteries[0].cIdx, 0);
+                    A[gnd][gnd] += 1e4;
+                }
+
+                // Stamp Wires (R_wire = 0.001 Ohm)
+                const gWire = 1.0 / WIRE_RESISTANCE;
+                for (const w of wires) {
+                    stampG(
+                        nodeIdx(compIndexMap.get(w.compA), w.termA),
+                        nodeIdx(compIndexMap.get(w.compB), w.termB),
+                        gWire
+                    );
+                }
+
+                // Stamp Components
+                components.forEach((c, cIdx) => {
+                    const n0 = nodeIdx(cIdx, 0);
+                    const n1 = nodeIdx(cIdx, 1);
+                    if (c.type === 'resistor' || c.type === 'bulb') {
+                        stampG(n0, n1, 1.0 / Math.max(0.5, c.resistance));
+                    } else if (c.type === 'switch') {
+                        stampG(n0, n1, c.isClosed ? 1e3 : 1e-8);
+                    } else if (c.type === 'ammeter') {
+                        stampG(n0, n1, 1e3);
+                    } else if (c.type === 'led') {
+                        const ledState = leds.find(l => l.comp === c);
+                        const vf = LED_SPECS[c.ledColor].vf;
+                        if (ledState.conducting) {
+                            // Forward-biased: Vf + 10Ω series resistance -> Norton equivalent
+                            const gLed = 1.0 / 10.0;
+                            stampG(n0, n1, gLed);
+                            b[n0] += vf * gLed;
+                            b[n1] -= vf * gLed;
+                        } else {
+                            stampG(n0, n1, 1e-7);
+                        }
+                    }
+                });
+
+                // Stamp Batteries (term 0 = Negative '-', term 1 = Positive '+', 50 mΩ internal resistance)
+                batteries.forEach((bat, bIdx) => {
+                    const row = numNodes + bIdx;
+                    const nNeg = nodeIdx(bat.cIdx, 0);
+                    const nPos = nodeIdx(bat.cIdx, 1);
+                    A[nPos][row] += 1;
+                    A[nNeg][row] -= 1;
+                    A[row][nPos] += 1;
+                    A[row][nNeg] -= 1;
+                    A[row][row] -= 0.05; // 50 mΩ internal resistance
+                    b[row] = bat.comp.voltage;
+                });
+
+                x = solveLinearSystem(A, b);
+
+                // Update LED conduction states
+                let changed = false;
+                for (const l of leds) {
+                    const n0 = nodeIdx(l.cIdx, 0);
+                    const n1 = nodeIdx(l.cIdx, 1);
+                    const vd = x[n0] - x[n1];
+                    const vf = LED_SPECS[l.comp.ledColor].vf;
+                    const shouldConduct = vd >= vf - 0.02;
+                    if (shouldConduct !== l.conducting) {
+                        l.conducting = shouldConduct;
+                        changed = true;
+                    }
+                }
+                if (!changed) break;
+            }
+
+            // Extract Telemetry
+            let shortCircuit = false;
+            let anyCurrent = false;
+            let minLoadR = Infinity;
+
+            components.forEach((c, cIdx) => {
+                const n0 = nodeIdx(cIdx, 0);
+                const n1 = nodeIdx(cIdx, 1);
+                c.v0 = Math.abs(x[n0]) < 1e-3 ? 0 : x[n0];
+                c.v1 = Math.abs(x[n1]) < 1e-3 ? 0 : x[n1];
+                c.vDrop = c.type === 'battery' ? (c.v1 - c.v0) : (c.v0 - c.v1);
+
+                if (c.type === 'battery') {
+                    const bIdx = batteries.findIndex(b => b.comp === c);
+                    // Positive conventional current flows 0 (-) -> 1 (+) internally when supplying power
+                    c.current = -x[numNodes + bIdx];
+                    c.power = Math.abs(c.vDrop * c.current);
+                } else if (c.type === 'resistor' || c.type === 'bulb') {
+                    minLoadR = Math.min(minLoadR, c.resistance);
+                    c.current = c.vDrop / Math.max(0.5, c.resistance);
+                    c.power = c.current * c.current * c.resistance;
+                } else if (c.type === 'switch') {
+                    c.current = c.isClosed ? c.vDrop * 1e3 : 0;
+                    c.power = 0;
+                } else if (c.type === 'ammeter') {
+                    c.current = c.vDrop * 1e3;
+                    c.power = 0;
+                } else if (c.type === 'led') {
+                    const ledState = leds.find(l => l.comp === c);
+                    const vf = LED_SPECS[c.ledColor].vf;
+                    c.ledOn = ledState.conducting && (c.vDrop > vf - 0.05);
+                    c.current = c.ledOn ? Math.max(0, (c.vDrop - vf) / 10.0) : 0;
+                    c.power = Math.abs(c.vDrop * c.current);
+                }
+
+                if (Math.abs(c.current) < 1e-4) c.current = 0;
+                if (Math.abs(c.current) > 1e-3) anyCurrent = true;
+                if (Math.abs(c.current) > 25.0) shortCircuit = true;
+
+                updateComponentVisuals(c);
+            });
+
+            // Choose a single uniform circuit-wide linear speed gain so mA circuits
+            // (e.g. 100Ω voltage divider, 330Ω LED) and A circuits (10Ω bulbs) both
+            // animate at an ideal visual pace while strictly preserving v ∝ |I| everywhere.
+            circuitSpeedGain = (minLoadR >= 50 && minLoadR < Infinity) ? 32.0 : 3.2;
+
+            // Per-wire voltages & currents
+            const gWire = 1.0 / WIRE_RESISTANCE;
+            for (const w of wires) {
+                const nA = nodeIdx(compIndexMap.get(w.compA), w.termA);
+                const nB = nodeIdx(compIndexMap.get(w.compB), w.termB);
+                w.vA = Math.abs(x[nA]) < 1e-3 ? 0 : x[nA];
+                w.vB = Math.abs(x[nB]) < 1e-3 ? 0 : x[nB];
+                const iW = (x[nA] - x[nB]) * gWire;
+                w.current = Math.abs(iW) < 1e-4 ? 0 : iW;
+                if (Math.abs(w.current) > 25.0) shortCircuit = true;
+
+                // Subtle potential tint on physical board wire
+                const avgV = (w.vA + w.vB) * 0.5;
+                if (w.mesh && w.mesh.material) {
+                    if (selectedItem && selectedItem.ref === w) {
+                        w.mesh.material.color.setHex(0xffffff);
+                    } else if (shortCircuit && Math.abs(w.current) > 20) {
+                        w.mesh.material.color.setHex(0xef4444);
+                    } else {
+                        w.mesh.material.color.copy(voltageToColorObj(avgV));
+                    }
+                }
+            }
+
+            circuitStatus = { shortCircuit, active: anyCurrent };
+            updateStatusUI();
+            updateInspectorLiveReadout();
+            rebuildPotentialLandscape();
+        }
+
+        function updateComponentVisuals(c) {
+            if (c.type === 'bulb') {
+                const glow = Math.min(1.0, c.power / 6.0);
+                c.visuals.filamentMat.emissiveIntensity = glow * 4.0;
+                c.visuals.glassMat.emissiveIntensity = glow * 1.45;
+                c.visuals.glassMat.opacity = 0.38 + glow * 0.45;
+                if (c.visuals.light) c.visuals.light.intensity = glow * 2.6;
+            } else if (c.type === 'led') {
+                const spec = LED_SPECS[c.ledColor];
+                const intensity = c.ledOn ? Math.min(1.0, c.current / 0.02) : 0;
+                c.visuals.domeMat.color.setHex(spec.hex);
+                c.visuals.domeMat.emissive.setHex(spec.hex);
+                c.visuals.domeMat.emissiveIntensity = 0.06 + intensity * 2.6;
+                if (c.visuals.light) {
+                    c.visuals.light.color.setHex(spec.hex);
+                    c.visuals.light.intensity = intensity * 1.8;
+                }
+            } else if (c.type === 'ammeter') {
+                drawAmmeterFace(c.visuals.meterCanvas, c.visuals.meterTex, c.current);
+            }
+        }
+
+        function updateStatusUI() {
+            const badge = document.getElementById('status-badge');
+            const dot = document.getElementById('status-dot');
+            const text = document.getElementById('status-text');
+            badge.classList.remove('short-circuit-pulse');
+
+            if (circuitStatus.shortCircuit) {
+                badge.className = 'flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-semibold bg-rose-500/20 text-rose-300 border border-rose-500/50 short-circuit-pulse';
+                dot.className = 'w-2 h-2 rounded-full bg-rose-500 animate-ping';
+                text.textContent = 'Short Circuit!';
+            } else if (circuitStatus.active) {
+                badge.className = 'flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30';
+                dot.className = 'w-2 h-2 rounded-full bg-emerald-400 animate-pulse';
+                text.textContent = 'Active';
+            } else {
+                badge.className = 'flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-semibold bg-slate-800 text-slate-400 border border-slate-700';
+                dot.className = 'w-2 h-2 rounded-full bg-slate-500';
+                text.textContent = 'Open / Idle';
+            }
+        }
+
+        // =========================================================================
+        // 5. 3D ELECTRIC POTENTIAL HEIGHT MAP (CURTAINS, RAMPS, EMF LIFTS & BADGES)
+        // =========================================================================
+        function rebuildPotentialLandscape() {
+            while (potentialGroup.children.length > 0) {
+                const ch = potentialGroup.children[0];
+                potentialGroup.remove(ch);
+                if (ch.geometry) ch.geometry.dispose();
+                if (ch.material) ch.material.dispose();
+            }
+
+            // Keep all wire & component charge curves strictly synced to the current 2D/3D geometry
+            rebuildAllChargeCurves();
+
+            if (potentialBlend < 0.01) return;
+
+            const alpha = Math.min(1, potentialBlend * 1.2);
+
+            /** Helper: Build a color-coded translucent potential curtain + elevated glowing ribbon */
+            const addPotentialSpan = (pStart, vStart, pEnd, vEnd, segments = 14, tubeRadius = 0.068, curtainOpacity = 0.36) => {
+                const ptsTop = [];
+                const positions = [];
+                const colors = [];
+                const indices = [];
+
+                for (let i = 0; i <= segments; i++) {
+                    const t = i / segments;
+                    const x = THREE.MathUtils.lerp(pStart.x, pEnd.x, t);
+                    const z = THREE.MathUtils.lerp(pStart.z, pEnd.z, t);
+                    const v = THREE.MathUtils.lerp(vStart, vEnd, t);
+                    const yTop = voltageToY(v, potentialBlend);
+                    const c = voltageToColorObj(v);
+
+                    ptsTop.push(new THREE.Vector3(x, yTop, z));
+
+                    // Bottom vertex (board level)
+                    positions.push(x, WIRE_BASE_Y, z);
+                    colors.push(c.r * 0.45, c.g * 0.45, c.b * 0.55);
+
+                    // Top vertex (potential height)
+                    positions.push(x, yTop, z);
+                    colors.push(c.r, c.g, c.b);
+
+                    if (i < segments) {
+                        const b0 = i * 2, t0 = i * 2 + 1;
+                        const b1 = (i + 1) * 2, t1 = (i + 1) * 2 + 1;
+                        indices.push(b0, b1, t0, t0, b1, t1);
+                    }
+                }
+
+                // Translucent vertical potential curtain
+                const curtainGeo = new THREE.BufferGeometry();
+                curtainGeo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+                curtainGeo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+                curtainGeo.setIndex(indices);
+                curtainGeo.computeVertexNormals();
+
+                const curtainMat = new THREE.MeshBasicMaterial({
+                    vertexColors: true,
+                    transparent: true,
+                    opacity: curtainOpacity * alpha,
+                    side: THREE.DoubleSide,
+                    depthWrite: false
+                });
+                potentialGroup.add(new THREE.Mesh(curtainGeo, curtainMat));
+
+                // Elevated potential tube along the top ridge
+                const curve = new THREE.CatmullRomCurve3(ptsTop);
+                const tubeGeo = new THREE.TubeGeometry(curve, segments, tubeRadius, 8, false);
+                const posAttr = tubeGeo.attributes.position;
+                const tubeColors = new Float32Array(posAttr.count * 3);
+                for (let i = 0; i < posAttr.count; i++) {
+                    const yVal = posAttr.getY(i);
+                    const approxV = ((yVal - WIRE_BASE_Y) / Math.max(0.01, MAX_POTENTIAL_H * potentialBlend)) * scaleMaxV;
+                    const c = voltageToColorObj(approxV);
+                    tubeColors[i * 3]     = c.r;
+                    tubeColors[i * 3 + 1] = c.g;
+                    tubeColors[i * 3 + 2] = c.b;
+                }
+                tubeGeo.setAttribute('color', new THREE.BufferAttribute(tubeColors, 3));
+                const tubeMat = new THREE.MeshStandardMaterial({
+                    vertexColors: true,
+                    roughness: 0.28,
+                    metalness: 0.15,
+                    transparent: true,
+                    opacity: 0.94 * alpha
+                });
+                potentialGroup.add(new THREE.Mesh(tubeGeo, tubeMat));
+            };
+
+            // 1. Potential Curtains & Elevated Ridges for Wires
+            for (const w of wires) {
+                const pA = getTerminalWorldPos(w.compA, w.termA);
+                const pB = getTerminalWorldPos(w.compB, w.termB);
+                addPotentialSpan(pA, w.vA, pB, w.vB, 10, 0.062, 0.30);
+            }
+
+            // 2. Potential Ramps, Battery EMF Lifts & Open-Switch Discontinuities
+            for (const c of components) {
+                const p0 = getTerminalWorldPos(c, 0);
+                const p1 = getTerminalWorldPos(c, 1);
+
+                // Vertical glowing pillars at both terminals
+                for (const [p, v] of [[p0, c.v0], [p1, c.v1]]) {
+                    const yTop = voltageToY(v, potentialBlend);
+                    const h = Math.max(0.02, yTop - WIRE_BASE_Y);
+                    const col = voltageToColorObj(v);
+                    const pilGeo = new THREE.CylinderGeometry(0.04, 0.04, h, 8);
+                    const pilMat = new THREE.MeshBasicMaterial({
+                        color: col,
+                        transparent: true,
+                        opacity: 0.65 * alpha
+                    });
+                    const pil = new THREE.Mesh(pilGeo, pilMat);
+                    pil.position.set(p.x, WIRE_BASE_Y + h * 0.5, p.z);
+                    potentialGroup.add(pil);
+
+                    // Top node sphere
+                    const nodeSphere = new THREE.Mesh(
+                        new THREE.SphereGeometry(0.11, 12, 12),
+                        new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: alpha })
+                    );
+                    nodeSphere.position.set(p.x, yTop, p.z);
+                    potentialGroup.add(nodeSphere);
+                }
+
+                // Open Switch: Show crisp potential discontinuity (no bridge!)
+                if (c.type === 'switch' && !c.isClosed) continue;
+
+                // Battery: Steep EMF Lift from V- (term 0) up to V+ (term 1)
+                if (c.type === 'battery') {
+                    addPotentialSpan(p0, c.v0, p1, c.v1, 16, 0.085, 0.46);
+                }
+                // Resistors, Bulbs, LEDs: Sloped Voltage-Drop Ramps
+                else if (c.type === 'resistor' || c.type === 'bulb' || c.type === 'led') {
+                    addPotentialSpan(p0, c.v0, p1, c.v1, 16, 0.08, 0.46);
+                }
+                // Closed Switch & Ammeter: Flat Potential Bridge
+                else {
+                    addPotentialSpan(p0, c.v0, p1, c.v1, 8, 0.065, 0.30);
+                }
+            }
+        }
+
+        /** Project deduplicated elevated node voltage badges into crisp HTML overlays */
+        function updateProjectedVoltageBadges() {
+            const layer = document.getElementById('voltage-labels-layer');
+            if (potentialBlend < 0.25 || components.length === 0) {
+                layer.innerHTML = '';
+                return;
+            }
+
+            // Deduplicate nearby terminals at similar voltage
+            const anchors = [];
+            for (const c of components) {
+                for (const [tIdx, v] of [[0, c.v0], [1, c.v1]]) {
+                    const p = getTerminalWorldPos(c, tIdx);
+                    const dup = anchors.find(a =>
+                        Math.hypot(a.x - p.x, a.z - p.z) < 1.35 && Math.abs(a.v - v) < 0.12
+                    );
+                    if (!dup) {
+                        anchors.push({ x: p.x, z: p.z, v });
+                    }
+                }
+            }
+
+            const opacity = Math.min(1, (potentialBlend - 0.25) / 0.5);
+            const width = window.innerWidth;
+            const height = window.innerHeight;
+            let html = '';
+
+            for (const a of anchors) {
+                const worldPos = new THREE.Vector3(a.x, voltageToY(a.v, potentialBlend) + 0.35, a.z);
+                worldPos.project(camera);
+                if (worldPos.z > 1) continue;
+                const sx = (worldPos.x * 0.5 + 0.5) * width;
+                const sy = (-worldPos.y * 0.5 + 0.5) * height;
+                const hdrH = (document.querySelector('header') || {}).offsetHeight || 56;
+                const leftLim = isNarrow() ? 8 : 220;
+                const botLim = isNarrow() ? updateDockVar() + 40 : 40;
+                if (sx < leftLim || sx > width - 20 || sy < hdrH + 8 || sy > height - botLim) continue;
+
+                const col = voltageToHexCSS(a.v);
+                html += `<div class="v-badge" style="left:${sx.toFixed(1)}px;top:${sy.toFixed(1)}px;color:${col};opacity:${opacity.toFixed(2)};">${a.v.toFixed(1)}V</div>`;
+            }
+            layer.innerHTML = html;
+        }
+
+        // =========================================================================
+        // 6. INTERACTION: RAYCASTING, DRAG-TO-MOVE, WIRING & SWITCH TOGGLING
+        // =========================================================================
+        function updatePointerNDC(e) {
+            const rect = renderer.domElement.getBoundingClientRect();
+            pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+            pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+        }
+
+        function getBoardIntersection() {
+            raycaster.setFromCamera(pointer, camera);
+            const hit = new THREE.Vector3();
+            if (raycaster.ray.intersectPlane(boardPlane, hit)) {
+                hit.x = Math.max(-6.5, Math.min(6.5, hit.x));
+                hit.z = Math.max(-6.5, Math.min(6.5, hit.z));
+                if (gridSnap) {
+                    hit.x = Math.round(hit.x);
+                    hit.z = Math.round(hit.z);
+                }
+                return hit;
+            }
+            return null;
+        }
+
+        function onPointerDown(e) {
+            if (e.button !== 0) return; // Only left-click / primary touch for editing
+            updatePointerNDC(e);
+            pointerDownPos = { x: e.clientX, y: e.clientY };
+            raycaster.setFromCamera(pointer, camera);
+
+            // 1. PLACE MODE
+            if (currentMode === 'place') {
+                const hit = getBoardIntersection();
+                if (hit) {
+                    const comp = addComponent(placeType, hit.x, hit.z, ghostRotSteps);
+                    selectComponent(comp);
+                }
+                return;
+            }
+
+            // 2. WIRE MODE
+            if (currentMode === 'wire') {
+                const termHits = components.flatMap(c => c.terminalHitMeshes).filter(Boolean);
+                const intersects = raycaster.intersectObjects(termHits, false);
+                if (intersects.length > 0) {
+                    const { comp, termIndex } = intersects[0].object.userData;
+                    const pos = getTerminalWorldPos(comp, termIndex);
+                    if (!wireStart) {
+                        wireStart = { comp, termIndex, pos };
+                        wireDraftLine.visible = true;
+                        updateHint();
+                    } else {
+                        if (wireStart.comp !== comp || wireStart.termIndex !== termIndex) {
+                            addWire(wireStart.comp, wireStart.termIndex, comp, termIndex);
+                        }
+                        cancelWireDraft();
+                    }
+                } else {
+                    cancelWireDraft();
+                }
+                return;
+            }
+
+            // 3. DELETE MODE
+            if (currentMode === 'delete') {
+                const compMeshes = components.map(c => c.mesh);
+                const cHits = raycaster.intersectObjects(compMeshes, true);
+                if (cHits.length > 0) {
+                    const comp = findCompFromObj(cHits[0].object);
+                    if (comp) { removeComponent(comp); return; }
+                }
+                const wireMeshes = wires.map(w => w.mesh).filter(Boolean);
+                const wHits = raycaster.intersectObjects(wireMeshes, false);
+                if (wHits.length > 0 && wHits[0].object.userData.isWire) {
+                    removeWire(wHits[0].object.userData.wire);
+                }
+                return;
+            }
+
+            // 4. SELECT MODE (Drag component, click switch, select wire, or orbit/pan on empty board)
+            const compMeshes = components.map(c => c.mesh);
+            const cHits = raycaster.intersectObjects(compMeshes, true);
+            if (cHits.length > 0) {
+                const comp = findCompFromObj(cHits[0].object);
+                if (comp) {
+                    selectComponent(comp);
+                    draggingComp = comp;
+                    isDraggingCompMoved = false;
+                    clickedSwitchCandidate = comp.type === 'switch' ? comp : null;
+                    // Suspend OrbitControls while manipulating component so it never fights 3D rotation
+                    controls.enabled = false;
+                    return;
+                }
+            }
+
+            const wireMeshes = wires.map(w => w.mesh).filter(Boolean);
+            const wHits = raycaster.intersectObjects(wireMeshes, false);
+            if (wHits.length > 0 && wHits[0].object.userData.isWire) {
+                selectWire(wHits[0].object.userData.wire);
+                return;
+            }
+        }
+
+        function onPointerMove(e) {
+            updatePointerNDC(e);
+
+            // Dragging a component on the grid
+            if (draggingComp) {
+                const dist = Math.hypot(e.clientX - pointerDownPos.x, e.clientY - pointerDownPos.y);
+                if (dist > 5) isDraggingCompMoved = true;
+                if (isDraggingCompMoved) {
+                    const hit = getBoardIntersection();
+                    if (hit && (hit.x !== draggingComp.gx || hit.z !== draggingComp.gz)) {
+                        draggingComp.gx = hit.x;
+                        draggingComp.gz = hit.z;
+                        draggingComp.mesh.position.set(hit.x, 0, hit.z);
+                        buildComponentChargeCurve(draggingComp);
+                        if (selectedItem && selectedItem.ref === draggingComp) {
+                            selectionRing.position.set(hit.x, 0.04, hit.z);
+                        }
+                        wires.forEach(w => {
+                            if (w.compA === draggingComp || w.compB === draggingComp) {
+                                rebuildBaseWireGeometry(w);
+                            }
+                        });
+                        solveCircuit();
+                    }
+                }
+                return;
+            }
+
+            // Ghost placement preview
+            if (currentMode === 'place' && ghostGroup) {
+                const hit = getBoardIntersection();
+                if (hit) {
+                    ghostGroup.visible = true;
+                    ghostGroup.position.set(hit.x, 0, hit.z);
+                }
+            }
+
+            // Wire draft preview line
+            if (currentMode === 'wire' && wireStart) {
+                const hit = getBoardIntersection();
+                if (hit) {
+                    const endPos = new THREE.Vector3(hit.x, WIRE_BASE_Y + 0.05, hit.z);
+                    wireDraftLine.geometry.setFromPoints([wireStart.pos, endPos]);
+                }
+            }
+        }
+
+        function onPointerUp() {
+            if (draggingComp) {
+                if (!isDraggingCompMoved && clickedSwitchCandidate) {
+                    clickedSwitchCandidate.isClosed = !clickedSwitchCandidate.isClosed;
+                    solveCircuit();
+                    openInspectorForComponent(clickedSwitchCandidate);
+                }
+                draggingComp = null;
+                clickedSwitchCandidate = null;
+                isDraggingCompMoved = false;
+                controls.enabled = true;
+            }
+        }
+
+        function findCompFromObj(obj) {
+            let cur = obj;
+            while (cur) {
+                if (cur.userData && cur.userData.comp) return cur.userData.comp;
+                cur = cur.parent;
+            }
+            return null;
+        }
+
+        function cancelWireDraft() {
+            wireStart = null;
+            wireDraftLine.visible = false;
+            updateHint();
+        }
+
+        // =========================================================================
+        // 7. MODES, GHOST PREVIEW & INSPECTOR UI
+        // =========================================================================
+        function setMode(mode) {
+            currentMode = mode;
+            cancelWireDraft();
+
+            document.querySelectorAll('.mode-btn').forEach(btn => {
+                btn.classList.remove('bg-sky-500', 'text-slate-950', 'shadow-md', 'shadow-sky-500/25', 'bg-rose-500', 'text-white');
+                btn.classList.add('text-slate-300', 'bg-slate-800/70');
+            });
+
+            const activeBtn = document.getElementById(`mode-${mode}`);
+            if (activeBtn) {
+                activeBtn.classList.remove('text-slate-300', 'bg-slate-800/70');
+                if (mode === 'delete') {
+                    activeBtn.classList.add('bg-rose-500', 'text-white', 'shadow-md');
+                } else {
+                    activeBtn.classList.add('bg-sky-500', 'text-slate-950', 'shadow-md', 'shadow-sky-500/25');
+                }
+            }
+
+            if (mode === 'place') {
+                rebuildGhostMesh();
+            } else if (ghostGroup) {
+                ghostGroup.visible = false;
+            }
+
+            updatePaletteHighlight();
+            updateHint();
+        }
+
+        function selectPaletteType(type) {
+            placeType = type;
+            setMode('place');
+        }
+
+        function updatePaletteHighlight() {
+            document.querySelectorAll('.palette-item').forEach(el => {
+                const active = currentMode === 'place' && el.dataset.type === placeType;
+                el.classList.toggle('bg-sky-500/15', active);
+                el.classList.toggle('border-sky-500/50', active);
+                el.classList.toggle('border-transparent', !active);
+            });
+        }
+
+        function rebuildGhostMesh() {
+            if (ghostGroup) scene.remove(ghostGroup);
+            const built = buildComponentMesh(placeType, null, true);
+            ghostGroup = built.mesh;
+            ghostGroup.rotation.y = ghostRotSteps * (Math.PI / 2);
+            ghostGroup.visible = currentMode === 'place';
+            scene.add(ghostGroup);
+        }
+
+        function rotateActive() {
+            if (currentMode === 'place') {
+                ghostRotSteps = (ghostRotSteps + 1) % 4;
+                if (ghostGroup) ghostGroup.rotation.y = ghostRotSteps * (Math.PI / 2);
+            } else if (selectedItem && selectedItem.kind === 'component') {
+                rotateSelected();
+            } else {
+                ghostRotSteps = (ghostRotSteps + 1) % 4;
+            }
+        }
+
+        function selectComponent(comp) {
+            selectedItem = { kind: 'component', ref: comp };
+            selectionRing.visible = true;
+            selectionRing.position.set(comp.gx, 0.04, comp.gz);
+            openInspectorForComponent(comp);
+            solveCircuit();
+        }
+
+        function selectWire(wire) {
+            selectedItem = { kind: 'wire', ref: wire };
+            selectionRing.visible = false;
+            openInspectorForWire(wire);
+            solveCircuit();
+        }
+
+        function deselectAll() {
+            selectedItem = null;
+            selectionRing.visible = false;
+            const panel = document.getElementById('inspector-panel');
+            panel.classList.add('translate-x-[120%]', 'opacity-0', 'pointer-events-none');
+            solveCircuit();
+        }
+
+        function openInspectorForComponent(comp) {
+            const panel = document.getElementById('inspector-panel');
+            panel.classList.remove('translate-x-[120%]', 'opacity-0', 'pointer-events-none');
+
+            const names = {
+                battery: 'DC Battery', resistor: 'Resistor', bulb: 'Light Bulb',
+                switch: 'SPST Switch', led: 'LED Diode', ammeter: 'DC Ammeter'
+            };
+            document.getElementById('insp-title').textContent = names[comp.type] || 'Component';
+            document.getElementById('insp-id').textContent = `ID: ${comp.id}`;
+            document.getElementById('insp-rotate-btn').classList.remove('hidden');
+
+            const ctrl = document.getElementById('insp-controls');
+            const note = document.getElementById('insp-note');
+            note.classList.add('hidden');
+            ctrl.innerHTML = '';
+
+            if (comp.type === 'battery') {
+                ctrl.innerHTML = `
+                    <div>
+                        <div class="flex justify-between text-xs mb-1">
+                            <span class="text-slate-400">EMF Voltage</span>
+                            <span id="ctrl-val-v" class="font-mono font-bold text-amber-400">${comp.voltage.toFixed(1)} V</span>
+                        </div>
+                        <input type="range" min="1.5" max="24" step="0.5" value="${comp.voltage}" class="w-full" oninput="updateSelectedVoltage(this.value)">
+                    </div>`;
+            } else if (comp.type === 'resistor' || comp.type === 'bulb') {
+                const maxR = comp.type === 'bulb' ? 200 : 10000;
+                ctrl.innerHTML = `
+                    <div>
+                        <div class="flex justify-between text-xs mb-1">
+                            <span class="text-slate-400">Resistance</span>
+                            <span id="ctrl-val-r" class="font-mono font-bold text-orange-400">${comp.resistance} Ω</span>
+                        </div>
+                        <input type="range" min="1" max="${maxR}" step="${comp.type === 'bulb' ? 1 : 10}" value="${comp.resistance}" class="w-full" oninput="updateSelectedResistance(this.value)">
+                        <div class="grid grid-cols-4 gap-1 mt-2">
+                            ${(comp.type === 'bulb' ? [5, 10, 25, 50] : [10, 100, 330, 1000]).map(v =>
+                                `<button onclick="updateSelectedResistance(${v})" class="py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-[10px] font-mono text-slate-300 border border-slate-700">${v >= 1000 ? (v/1000)+'k' : v}Ω</button>`
+                            ).join('')}
+                        </div>
+                    </div>`;
+            } else if (comp.type === 'switch') {
+                ctrl.innerHTML = `
+                    <button onclick="toggleSelectedSwitch()" class="w-full py-2 rounded-xl text-xs font-bold border transition-all ${comp.isClosed ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40' : 'bg-rose-500/20 text-rose-300 border-rose-500/40'}">
+                        Switch State: ${comp.isClosed ? 'CLOSED (Conducting)' : 'OPEN (Disconnected)'}
+                    </button>`;
+            } else if (comp.type === 'led') {
+                ctrl.innerHTML = `
+                    <div>
+                        <div class="text-xs text-slate-400 mb-1.5">LED Color &amp; Forward Voltage</div>
+                        <div class="grid grid-cols-2 gap-1.5">
+                            ${Object.entries(LED_SPECS).map(([key, s]) => `
+                                <button onclick="updateSelectedLedColor('${key}')" class="flex items-center gap-1.5 px-2 py-1.5 rounded-xl text-[11px] font-semibold border transition-all ${comp.ledColor === key ? 'bg-slate-800 border-sky-400 text-white' : 'bg-slate-900/60 border-slate-700 text-slate-400 hover:text-white'}">
+                                    <span class="w-2.5 h-2.5 rounded-full" style="background:${s.css}"></span>
+                                    <span>${s.label}</span>
+                                </button>
+                            `).join('')}
+                        </div>
+                    </div>`;
+                note.textContent = 'Tip: LEDs are polarized. Connect higher potential to (+) Red post and use a series resistor.';
+                note.classList.remove('hidden');
+            } else if (comp.type === 'ammeter') {
+                ctrl.innerHTML = `<div class="text-xs text-slate-400 bg-slate-800/50 rounded-xl p-2.5 border border-slate-700/50">Ideal low-resistance DC ammeter connected in series to measure branch current.</div>`;
+            }
+
+            updateInspectorLiveReadout();
+        }
+
+        function openInspectorForWire(wire) {
+            const panel = document.getElementById('inspector-panel');
+            panel.classList.remove('translate-x-[120%]', 'opacity-0', 'pointer-events-none');
+            document.getElementById('insp-title').textContent = 'Conductor Wire';
+            document.getElementById('insp-id').textContent = `ID: ${wire.id}`;
+            document.getElementById('insp-rotate-btn').classList.add('hidden');
+            document.getElementById('insp-note').classList.add('hidden');
+            document.getElementById('insp-controls').innerHTML = `
+                <div class="text-xs text-slate-400 bg-slate-800/50 rounded-xl p-2.5 border border-slate-700/50 space-y-1.5">
+                    <div>Connects <span class="font-mono text-sky-400">${wire.compA.id}</span> to <span class="font-mono text-sky-400">${wire.compB.id}</span></div>
+                    <div class="flex justify-between text-[11px] pt-1 border-t border-slate-700/60">
+                        <span>Path Length: <span class="font-mono text-slate-200">${(wire.chargeStream.curveLength || 0).toFixed(2)} u</span></span>
+                        <span>R<sub>wire</sub>: <span class="font-mono text-slate-200">${WIRE_RESISTANCE} Ω</span></span>
+                    </div>
+                </div>`;
+            updateInspectorLiveReadout();
+        }
+
+        function updateInspectorLiveReadout() {
+            if (!selectedItem) return;
+            const vaEl = document.getElementById('insp-va');
+            const vbEl = document.getElementById('insp-vb');
+            let absI = 0;
+
+            if (selectedItem.kind === 'component') {
+                const c = selectedItem.ref;
+                vaEl.textContent = `${c.v0.toFixed(2)} V`;
+                vaEl.style.color = voltageToHexCSS(c.v0);
+                vbEl.textContent = `${c.v1.toFixed(2)} V`;
+                vbEl.style.color = voltageToHexCSS(c.v1);
+
+                document.getElementById('insp-v').textContent = `${Math.abs(c.vDrop).toFixed(2)} V`;
+                absI = Math.abs(c.current);
+                document.getElementById('insp-i').textContent = absI < 0.1 && absI > 1e-4
+                    ? `${(absI * 1000).toFixed(1)} mA`
+                    : `${absI.toFixed(2)} A`;
+                document.getElementById('insp-p').textContent = `${c.power.toFixed(2)} W`;
+            } else if (selectedItem.kind === 'wire') {
+                const w = selectedItem.ref;
+                vaEl.textContent = `${w.vA.toFixed(2)} V`;
+                vaEl.style.color = voltageToHexCSS(w.vA);
+                vbEl.textContent = `${w.vB.toFixed(2)} V`;
+                vbEl.style.color = voltageToHexCSS(w.vB);
+
+                const vDrop = Math.abs(w.vA - w.vB);
+                document.getElementById('insp-v').textContent = `${(vDrop < 1e-3 ? 0 : vDrop).toFixed(2)} V`;
+                absI = Math.abs(w.current);
+                document.getElementById('insp-i').textContent = absI < 0.1 && absI > 1e-4
+                    ? `${(absI * 1000).toFixed(1)} mA`
+                    : `${absI.toFixed(2)} A`;
+                document.getElementById('insp-p').textContent = `${(absI * absI * WIRE_RESISTANCE).toFixed(4)} W`;
+            }
+
+            const speed = absI > 1e-4 ? computeChargeVelocity(absI) : 0;
+            const flux = speed / CHARGE_SPACING;
+            document.getElementById('insp-speed').textContent = `${speed.toFixed(2)} u/s`;
+            document.getElementById('insp-flux').textContent = `${flux.toFixed(2)} q/s`;
+        }
+
+        function updateSelectedVoltage(val) {
+            if (!selectedItem || selectedItem.kind !== 'component') return;
+            const comp = selectedItem.ref;
+            comp.voltage = parseFloat(val);
+            const lbl = document.getElementById('ctrl-val-v');
+            if (lbl) lbl.textContent = `${comp.voltage.toFixed(1)} V`;
+            if (comp.visuals && comp.visuals.labelMat) {
+                if (comp.visuals.labelMat.map) comp.visuals.labelMat.map.dispose();
+                comp.visuals.labelMat.map = makeTextTexture(`${comp.voltage.toFixed(1)}V`, '#0f172a', '#fbbf24', 256, 96, 52);
+                comp.visuals.labelMat.needsUpdate = true;
+            }
+            solveCircuit();
+        }
+
+        function updateSelectedResistance(val) {
+            if (!selectedItem || selectedItem.kind !== 'component') return;
+            const comp = selectedItem.ref;
+            comp.resistance = Math.max(1, parseFloat(val));
+            const lbl = document.getElementById('ctrl-val-r');
+            if (lbl) lbl.textContent = `${comp.resistance} Ω`;
+            const slider = document.querySelector('#insp-controls input[type="range"]');
+            if (slider) slider.value = comp.resistance;
+            if (comp.type === 'resistor') updateResistorBands(comp);
+            solveCircuit();
+        }
+
+        function toggleSelectedSwitch() {
+            if (!selectedItem || selectedItem.kind !== 'component') return;
+            const comp = selectedItem.ref;
+            if (comp.type !== 'switch') return;
+            comp.isClosed = !comp.isClosed;
+            solveCircuit();
+            openInspectorForComponent(comp);
+        }
+
+        function updateSelectedLedColor(colorKey) {
+            if (!selectedItem || selectedItem.kind !== 'component') return;
+            const comp = selectedItem.ref;
+            if (comp.type !== 'led' || !LED_SPECS[colorKey]) return;
+            comp.ledColor = colorKey;
+            solveCircuit();
+            openInspectorForComponent(comp);
+        }
+
+        function rotateSelected() {
+            if (!selectedItem || selectedItem.kind !== 'component') return;
+            const comp = selectedItem.ref;
+            comp.rotSteps = (comp.rotSteps + 1) % 4;
+            comp.mesh.rotation.y = comp.rotSteps * (Math.PI / 2);
+            buildComponentChargeCurve(comp);
+            wires.forEach(w => {
+                if (w.compA === comp || w.compB === comp) {
+                    rebuildBaseWireGeometry(w);
+                }
+            });
+            solveCircuit();
+        }
+
+        function deleteSelected() {
+            if (!selectedItem) return;
+            if (selectedItem.kind === 'component') {
+                removeComponent(selectedItem.ref);
+            } else if (selectedItem.kind === 'wire') {
+                removeWire(selectedItem.ref);
+            }
+        }
+
+        // =========================================================================
+        // 8. TOOLBAR CONTROLS, PRESETS, KEYBOARD & RESIZE HANDLERS
+        // =========================================================================
+        function cycleFlowMode() {
+            const order = ['conventional', 'electron', 'off'];
+            flowMode = order[(order.indexOf(flowMode) + 1) % order.length];
+            const btn = document.getElementById('btn-flow-mode');
+            const dot = document.getElementById('flow-dot');
+            const lbl = document.getElementById('flow-label');
+
+            if (flowMode === 'conventional') {
+                btn.className = 'flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold bg-amber-500/15 text-amber-300 border border-amber-500/30 hover:bg-amber-500/25 transition-all whitespace-nowrap';
+                dot.className = 'w-2 h-2 rounded-full bg-amber-400';
+                lbl.textContent = 'Conv. (+→-)';
+            } else if (flowMode === 'electron') {
+                btn.className = 'flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 hover:bg-cyan-500/25 transition-all whitespace-nowrap';
+                dot.className = 'w-2 h-2 rounded-full bg-cyan-400';
+                lbl.textContent = 'Elec. (-→+)';
+            } else {
+                btn.className = 'flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold bg-slate-800 text-slate-400 border border-slate-700 hover:bg-slate-700 transition-all whitespace-nowrap';
+                dot.className = 'w-2 h-2 rounded-full bg-slate-500';
+                lbl.textContent = 'Flow: OFF';
+            }
+        }
+
+        function toggleGridSnap() {
+            gridSnap = !gridSnap;
+            const btn = document.getElementById('btn-grid-snap');
+            const lbl = document.getElementById('snap-label');
+            if (gridSnap) {
+                btn.className = 'flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold bg-sky-500/20 text-sky-300 border border-sky-500/30 hover:bg-sky-500/30 transition-all whitespace-nowrap';
+                lbl.textContent = 'Snap: ON';
+            } else {
+                btn.className = 'flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold bg-slate-800 text-slate-400 border border-slate-700 hover:bg-slate-700 transition-all whitespace-nowrap';
+                lbl.textContent = 'Snap: OFF';
+            }
+        }
+
+        function requestClearBoard() {
+            const modal = document.getElementById('confirm-modal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+
+        function closeConfirmModal() {
+            const modal = document.getElementById('confirm-modal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+
+        function confirmClearBoard() {
+            closeConfirmModal();
+            clearAll();
+        }
+
+        function clearAll() {
+            cancelWireDraft();
+            deselectAll();
+            while (wires.length > 0) removeWire(wires[0], false);
+            while (components.length > 0) removeComponent(components[0]);
+            nextCompId = 1;
+            nextWireId = 1;
+            solveCircuit();
+        }
+
+        function loadPreset(presetName) {
+            clearAll();
+            const sel = document.getElementById('preset-select');
+            if (sel && sel.value !== presetName) sel.value = presetName;
+
+            if (presetName === 'voltage_divider') {
+                const bat = addComponent('battery', -4, 0, 1, { voltage: 9.0 });
+                const r1 = addComponent('resistor', -1, -3, 2, { resistance: 100 });
+                const r2 = addComponent('resistor', 4, 0, 1, { resistance: 100 });
+                const r3 = addComponent('resistor', 0, 3, 0, { resistance: 100 });
+                addWire(bat, 1, r1, 0);
+                addWire(r1, 1, r2, 0);
+                addWire(r2, 1, r3, 0);
+                addWire(r3, 1, bat, 0);
+            } else if (presetName === 'parallel_bulbs') {
+                const bat = addComponent('battery', -4, 0, 1, { voltage: 9.0 });
+                const sw = addComponent('switch', -1, -3, 2, { isClosed: true });
+                const b1 = addComponent('bulb', 1, 0, 1, { resistance: 10 });
+                const b2 = addComponent('bulb', 4, 0, 1, { resistance: 20 });
+                const amm = addComponent('ammeter', -1, 3, 0);
+                addWire(bat, 1, sw, 0);
+                addWire(sw, 1, b1, 0);
+                addWire(b1, 0, b2, 0);
+                addWire(b2, 1, b1, 1);
+                addWire(b1, 1, amm, 0);
+                addWire(amm, 1, bat, 0);
+            } else if (presetName === 'series_bulbs') {
+                const bat = addComponent('battery', -4, 0, 1, { voltage: 12.0 });
+                const b1 = addComponent('bulb', -1, -3, 2, { resistance: 10 });
+                const b2 = addComponent('bulb', 3, -3, 2, { resistance: 20 });
+                const amm = addComponent('ammeter', 3, 3, 0);
+                const sw = addComponent('switch', -1, 3, 0, { isClosed: true });
+                addWire(bat, 1, b1, 0);
+                addWire(b1, 1, b2, 0);
+                addWire(b2, 1, amm, 0);
+                addWire(amm, 1, sw, 0);
+                addWire(sw, 1, bat, 0);
+            } else if (presetName === 'switched_led') {
+                const bat = addComponent('battery', -4, 0, 1, { voltage: 9.0 });
+                const sw = addComponent('switch', -1, -3, 2, { isClosed: true });
+                const r1 = addComponent('resistor', 3, -3, 2, { resistance: 330 });
+                const led = addComponent('led', 4, 0, 1, { ledColor: 'red' });
+                const amm = addComponent('ammeter', 0, 3, 0);
+                addWire(bat, 1, sw, 0);
+                addWire(sw, 1, r1, 0);
+                addWire(r1, 1, led, 0);
+                addWire(led, 1, amm, 0);
+                addWire(amm, 1, bat, 0);
+            } else if (presetName === 'simple_lamp') {
+                const bat = addComponent('battery', -3, 0, 1, { voltage: 9.0 });
+                const sw = addComponent('switch', 0, -2.5, 2, { isClosed: true });
+                const b1 = addComponent('bulb', 3, 0, 1, { resistance: 10 });
+                const amm = addComponent('ammeter', 0, 2.5, 0);
+                addWire(bat, 1, sw, 0);
+                addWire(sw, 1, b1, 0);
+                addWire(b1, 1, amm, 0);
+                addWire(amm, 1, bat, 0);
+            }
+
+            setMode('select');
+            solveCircuit();
+        }
+
+        function updateHint() {
+            const bar = document.getElementById('hint-bar');
+            if (!bar) return;
+            if (currentMode === 'wire') {
+                bar.textContent = wireStart
+                    ? 'Wire Mode: Click a second binding post to complete the wire (Esc to cancel)'
+                    : 'Wire Mode: Click any glowing binding post to start drawing a wire';
+            } else if (currentMode === 'place') {
+                bar.textContent = 'Place Mode: Click on the board to place component • Press R to rotate 90° • Esc to exit';
+            } else if (currentMode === 'delete') {
+                bar.textContent = 'Delete Mode: Click any component or wire to remove it';
+            } else if (is3DView) {
+                bar.textContent = '3D Potential View: Left-drag to rotate 360° • Right-drag to pan • Scroll to zoom • Click switch to toggle';
+            } else {
+                bar.textContent = '2D Editor: Drag components to move • Left/Right-drag board to pan • Scroll to zoom • Click switch to toggle';
+            }
+            if (COARSE) {
+                if (currentMode === 'wire') {
+                    bar.textContent = wireStart ? 'Wire: tap a second binding post to finish the wire' : 'Wire: tap a binding post to start a wire';
+                } else if (currentMode === 'place') {
+                    bar.textContent = 'Place: tap the board to place the part • Rotate turns it 90°';
+                } else if (currentMode === 'delete') {
+                    bar.textContent = 'Delete: tap a component or wire to remove it';
+                } else if (is3DView) {
+                    bar.textContent = '3D View: drag to rotate • two fingers to pan/zoom • tap a switch to toggle';
+                } else {
+                    bar.textContent = '2D Editor: drag parts to move • drag the board to pan • pinch to zoom • tap a switch to toggle';
+                }
+            }
+        }
+
+        function onKeyDown(e) {
+            if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA')) return;
+            const key = e.key.toLowerCase();
+            if (key === '1') setMode('select');
+            else if (key === '2') setMode('wire');
+            else if (key === '3') setMode('place');
+            else if (key === '4') setMode('delete');
+            else if (key === 'r') rotateActive();
+            else if (key === 'delete' || key === 'backspace') deleteSelected();
+            else if (key === 'escape') {
+                cancelWireDraft();
+                setMode('select');
+                deselectAll();
+            }
+        }
+
+        function onWindowResize() {
+            if (!camera || !renderer) return;
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            updateDockVar();
+        }
+
+        // =========================================================================
+        // 9. MAIN ANIMATION LOOP
+        // =========================================================================
+        let lastTime = performance.now();
+
+        function animate(now = performance.now()) {
+            requestAnimationFrame(animate);
+            const dt = Math.min(0.05, Math.max(0.001, (now - lastTime) / 1000));
+            lastTime = now;
+
+            // 1. Smooth Camera Tween (2D <-> 3D)
+            if (camAnim) {
+                const t = Math.min(1, (now - camAnim.startTime) / camAnim.duration);
+                const ease = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+                camera.position.lerpVectors(camAnim.startPos, camAnim.endPos, ease);
+                controls.target.lerpVectors(camAnim.startTarget, camAnim.endTarget, ease);
+                if (t >= 1) camAnim = null;
+            }
+            controls.update();
+
+            // 2. Smooth Potential Height Map Blend (0 in 2D <-> 1 in 3D)
+            if (Math.abs(potentialBlend - targetPotentialBlend) > 0.001) {
+                potentialBlend = THREE.MathUtils.lerp(potentialBlend, targetPotentialBlend, Math.min(1, dt * 7.5));
+                if (Math.abs(potentialBlend - targetPotentialBlend) <= 0.002) {
+                    potentialBlend = targetPotentialBlend;
+                }
+                if (refGridGroup) refGridGroup.visible = potentialBlend > 0.08;
+                rebuildPotentialLandscape();
+            }
+
+            // 3. Smooth Switch Lever Animation
+            for (const c of components) {
+                if (c.type === 'switch' && c.visuals.leverPivot) {
+                    const targetRot = c.isClosed ? 0 : 0.72;
+                    c.visuals.leverPivot.rotation.z = THREE.MathUtils.lerp(
+                        c.visuals.leverPivot.rotation.z,
+                        targetRot,
+                        Math.min(1, dt * 14)
+                    );
+                }
+            }
+
+            // 4. Unified Exact-Flux Charge Stream Animation (Identical Engine for Wires & Components)
+            for (const w of wires) {
+                updateChargeStream(w.chargeStream, w.chargeStream.curve, w.current, dt, flowMode);
+            }
+
+            for (const c of components) {
+                const activeCurrent = (c.type === 'switch' && !c.isClosed) ? 0 : c.current;
+                updateChargeStream(c.chargeStream, c.chargeStream.curve, activeCurrent, dt, flowMode);
+            }
+
+            // 5. Floating Projected Node Voltage Badges (3D Potential View)
+            updateProjectedVoltageBadges();
+
+            renderer.render(scene, camera);
+        }
+
+        // Start simulation after window onload
+        window.onload = function () {
+            initScene();
+            loadPreset('voltage_divider');
+            if (isNarrow()) document.getElementById('text-view-toggle').textContent = '3D View';
+            updateHint();
+            animate();
+        };
+    </script>
+<script src="../../../assets/sim.js" data-root="../../../#electricity-and-magnetism"></script>
+</body>
+</html>
