@@ -1,0 +1,2107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="../../../assets/sim-early.js"></script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="../../../assets/vendor/inter/inter.css" />
+  <title>Battery Terminal Voltage & Internal Resistance · PhySim</title>
+  <style>
+    /* =========================================================================
+       STRICT 16:9 PROPORTIONAL LABORATORY FRAME
+       --u = 1% of the 16:9 frame width, guaranteeing zero scrolling and
+       exact proportional scaling across any viewport aspect ratio or size.
+       ========================================================================= */
+    :root {
+      --u: min(0.98vw, 1.742222vh);
+      --frame-w: calc(100 * var(--u));
+
+      --bg-viewport: #04070f;
+      --bg-frame: #080d1a;
+      --bg-panel: #0f172a;
+      --bg-card: #131e36;
+      --bg-elevated: #1b2a4a;
+      --border-subtle: rgba(148, 163, 184, 0.17);
+      --border-bright: rgba(56, 189, 248, 0.35);
+
+      --text-primary: #f1f5f9;
+      --text-secondary: #94a3b8;
+      --text-muted: #64748b;
+
+      --cyan: #38bdf8;
+      --amber: #fbbf24;
+      --emerald: #34d399;
+      --rose: #fb7185;
+      --violet: #a78bfa;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html, body {
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      background-color: var(--bg-viewport);
+      background-image:
+        radial-gradient(circle at 20% 20%, rgba(56, 189, 248, 0.08), transparent 45%),
+        radial-gradient(circle at 80% 80%, rgba(251, 191, 36, 0.06), transparent 45%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-primary);
+      font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      user-select: none;
+    }
+
+    /* Strictly centered 16:9 frame with zero overflow */
+    .frame-16-9 {
+      width: min(98vw, calc(98vh * 16 / 9));
+      aspect-ratio: 16 / 9;
+      overflow: hidden;
+      background: var(--bg-frame);
+      border: 1px solid rgba(148, 163, 184, 0.24);
+      border-radius: calc(1.1 * var(--u));
+      box-shadow: 0 calc(1.4 * var(--u)) calc(4 * var(--u)) rgba(0, 0, 0, 0.65);
+      display: flex;
+      flex-direction: column;
+      padding: calc(0.8 * var(--u));
+      gap: calc(0.75 * var(--u));
+    }
+
+    /* =========================================================================
+       1. TOP HEADER BAR (~9% HEIGHT)
+       ========================================================================= */
+    .header-bar {
+      flex: 0 0 9%;
+      min-height: 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: calc(0.8 * var(--u));
+      padding: 0 calc(1.1 * var(--u));
+      background: linear-gradient(135deg, rgba(15, 23, 42, 0.96), rgba(21, 33, 60, 0.94));
+      border: 1px solid var(--border-subtle);
+      border-radius: calc(0.75 * var(--u));
+    }
+
+    .title-wrap {
+      display: flex;
+      align-items: center;
+      gap: calc(0.65 * var(--u));
+      min-width: 0;
+      flex-shrink: 1;
+    }
+
+    .live-dot {
+      width: calc(0.6 * var(--u));
+      height: calc(0.6 * var(--u));
+      border-radius: 50%;
+      background: var(--emerald);
+      box-shadow: 0 0 calc(0.6 * var(--u)) var(--emerald);
+      flex-shrink: 0;
+    }
+
+    .header-title {
+      font-size: calc(1.18 * var(--u));
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: var(--text-primary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .formula-badge {
+      padding: calc(0.32 * var(--u)) calc(0.85 * var(--u));
+      border-radius: 999px;
+      background: rgba(56, 189, 248, 0.1);
+      border: 1px solid rgba(56, 189, 248, 0.34);
+      font-family: "JetBrains Mono", "Fira Code", ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: calc(0.86 * var(--u));
+      font-weight: 700;
+      color: #e0f2fe;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .header-controls {
+      display: flex;
+      align-items: center;
+      gap: calc(0.6 * var(--u));
+      flex-shrink: 0;
+    }
+
+    .preset-strip {
+      display: inline-flex;
+      align-items: center;
+      gap: calc(0.32 * var(--u));
+    }
+
+    .preset-btn {
+      border: 1px solid var(--border-subtle);
+      background: var(--bg-card);
+      color: #cbd5e1;
+      font-size: calc(0.72 * var(--u));
+      font-weight: 600;
+      padding: calc(0.32 * var(--u)) calc(0.62 * var(--u));
+      border-radius: calc(0.42 * var(--u));
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.15s ease;
+    }
+
+    .preset-btn:hover {
+      background: var(--bg-elevated);
+      border-color: var(--cyan);
+      color: #f8fafc;
+    }
+
+    .preset-btn.active {
+      background: rgba(56, 189, 248, 0.18);
+      border-color: rgba(56, 189, 248, 0.55);
+      color: #7dd3fc;
+    }
+
+    .flow-toggle {
+      display: inline-flex;
+      background: #080e1c;
+      border: 1px solid var(--border-subtle);
+      border-radius: 999px;
+      padding: calc(0.18 * var(--u));
+      gap: calc(0.18 * var(--u));
+    }
+
+    .flow-toggle button {
+      border: none;
+      background: transparent;
+      color: var(--text-secondary);
+      font-size: calc(0.7 * var(--u));
+      font-weight: 600;
+      padding: calc(0.24 * var(--u)) calc(0.62 * var(--u));
+      border-radius: 999px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.15s ease;
+    }
+
+    .flow-toggle button.active-conv {
+      background: rgba(251, 191, 36, 0.2);
+      color: var(--amber);
+      box-shadow: inset 0 0 0 1px rgba(251, 191, 36, 0.45);
+    }
+
+    .flow-toggle button.active-elec {
+      background: rgba(56, 189, 248, 0.2);
+      color: var(--cyan);
+      box-shadow: inset 0 0 0 1px rgba(56, 189, 248, 0.45);
+    }
+
+    /* =========================================================================
+       2. MAIN BODY (~91% HEIGHT): TWO-COLUMN GRID (62% LEFT / 38% RIGHT)
+       ========================================================================= */
+    .main-body {
+      flex: 1 1 91%;
+      min-height: 0;
+      display: grid;
+      grid-template-columns: minmax(0, 62fr) minmax(0, 38fr);
+      gap: calc(0.75 * var(--u));
+    }
+
+    .col-left, .col-right {
+      display: flex;
+      flex-direction: column;
+      gap: calc(0.75 * var(--u));
+      min-height: 0;
+      min-width: 0;
+    }
+
+    .panel {
+      background: var(--bg-panel);
+      border: 1px solid var(--border-subtle);
+      border-radius: calc(0.75 * var(--u));
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+
+    .panel-head {
+      flex: 0 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: calc(0.5 * var(--u));
+      padding: calc(0.42 * var(--u)) calc(0.85 * var(--u));
+      background: rgba(19, 30, 54, 0.78);
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .panel-title {
+      font-size: calc(0.84 * var(--u));
+      font-weight: 700;
+      color: var(--text-primary);
+      letter-spacing: 0.01em;
+      white-space: nowrap;
+    }
+
+    .panel-hint {
+      font-size: calc(0.7 * var(--u));
+      color: var(--text-secondary);
+      white-space: nowrap;
+    }
+
+    /* =========================================================================
+       LEFT COLUMN: CIRCUIT CANVAS (~77%) + 5 METRIC CARDS (~23%)
+       ========================================================================= */
+    .circuit-panel {
+      flex: 77 1 0%;
+      min-height: 0;
+    }
+
+    .canvas-stage {
+      position: relative;
+      flex: 1 1 auto;
+      min-height: 0;
+      width: 100%;
+      background: #080e1c;
+    }
+
+    .canvas-stage canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      touch-action: none;
+    }
+
+    .readouts-strip {
+      flex: 23 1 0%;
+      min-height: 0;
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: calc(0.55 * var(--u));
+    }
+
+    .metric-card {
+      background: var(--bg-panel);
+      border: 1px solid var(--border-subtle);
+      border-radius: calc(0.65 * var(--u));
+      padding: calc(0.55 * var(--u)) calc(0.65 * var(--u));
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: calc(0.18 * var(--u));
+      min-width: 0;
+      overflow: hidden;
+    }
+
+    .metric-label {
+      font-size: calc(0.66 * var(--u));
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-secondary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .metric-val {
+      font-family: "JetBrains Mono", "Fira Code", ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: calc(1.22 * var(--u));
+      font-weight: 700;
+      line-height: 1.1;
+      white-space: nowrap;
+    }
+
+    .metric-sub {
+      font-family: "JetBrains Mono", "Fira Code", ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: calc(0.66 * var(--u));
+      color: var(--text-muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .c-emerald { color: var(--emerald); }
+    .c-cyan { color: var(--cyan); }
+    .c-amber { color: var(--amber); }
+    .c-violet { color: var(--violet); }
+    .c-rose { color: var(--rose); }
+
+    /* =========================================================================
+       RIGHT COLUMN: V vs I GRAPH (~48%) + CONTROLS PANEL (~52%)
+       ========================================================================= */
+    .graph-panel {
+      flex: 48 1 0%;
+      min-height: 0;
+    }
+
+    .graph-btns {
+      display: flex;
+      align-items: center;
+      gap: calc(0.4 * var(--u));
+    }
+
+    .btn-mini {
+      border: 1px solid var(--border-subtle);
+      background: var(--bg-elevated);
+      color: var(--text-primary);
+      font-size: calc(0.7 * var(--u));
+      font-weight: 600;
+      padding: calc(0.22 * var(--u)) calc(0.58 * var(--u));
+      border-radius: calc(0.38 * var(--u));
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.15s ease;
+    }
+
+    .btn-mini:hover {
+      border-color: var(--cyan);
+      background: rgba(56, 189, 248, 0.18);
+    }
+
+    .btn-mini.btn-rec {
+      border-color: rgba(52, 211, 153, 0.45);
+      background: rgba(52, 211, 153, 0.15);
+      color: #a7f3d0;
+    }
+
+    .btn-mini.btn-rec:hover {
+      background: rgba(52, 211, 153, 0.28);
+    }
+
+    .controls-panel {
+      flex: 52 1 0%;
+      min-height: 0;
+    }
+
+    .controls-body {
+      flex: 1 1 auto;
+      min-height: 0;
+      padding: calc(0.65 * var(--u)) calc(0.85 * var(--u));
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: calc(0.45 * var(--u));
+    }
+
+    /* Prominent Switch Row */
+    .switch-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: calc(0.6 * var(--u));
+      padding: calc(0.46 * var(--u)) calc(0.7 * var(--u));
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: calc(0.55 * var(--u));
+    }
+
+    .switch-meta {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+
+    .switch-name {
+      font-size: calc(0.8 * var(--u));
+      font-weight: 700;
+      color: var(--text-primary);
+      white-space: nowrap;
+    }
+
+    .switch-desc {
+      font-size: calc(0.66 * var(--u));
+      color: var(--text-secondary);
+      white-space: nowrap;
+    }
+
+    .switch-btn {
+      padding: calc(0.36 * var(--u)) calc(0.9 * var(--u));
+      border-radius: 999px;
+      font-size: calc(0.76 * var(--u));
+      font-weight: 700;
+      cursor: pointer;
+      border: 1px solid transparent;
+      white-space: nowrap;
+      transition: all 0.16s ease;
+    }
+
+    .switch-btn.is-closed {
+      background: rgba(52, 211, 153, 0.18);
+      border-color: rgba(52, 211, 153, 0.55);
+      color: #6ee7b7;
+    }
+
+    .switch-btn.is-open {
+      background: rgba(251, 113, 133, 0.16);
+      border-color: rgba(251, 113, 133, 0.52);
+      color: #fda4af;
+    }
+
+    /* Sliders Stack */
+    .sliders-stack {
+      display: flex;
+      flex-direction: column;
+      gap: calc(0.48 * var(--u));
+    }
+
+    .slider-item {
+      display: flex;
+      flex-direction: column;
+      gap: calc(0.22 * var(--u));
+    }
+
+    .slider-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: calc(0.4 * var(--u));
+    }
+
+    .slider-lbl {
+      font-size: calc(0.77 * var(--u));
+      font-weight: 600;
+      color: #e2e8f0;
+      white-space: nowrap;
+    }
+
+    .slider-val {
+      font-family: "JetBrains Mono", "Fira Code", ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: calc(0.78 * var(--u));
+      font-weight: 700;
+      padding: calc(0.08 * var(--u)) calc(0.45 * var(--u));
+      border-radius: calc(0.32 * var(--u));
+      background: #0a1020;
+      border: 1px solid var(--border-subtle);
+      white-space: nowrap;
+    }
+
+    input[type="range"] {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: calc(0.36 * var(--u));
+      border-radius: 999px;
+      background: #1e293b;
+      outline: none;
+      cursor: pointer;
+    }
+
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: calc(1.02 * var(--u));
+      height: calc(1.02 * var(--u));
+      border-radius: 50%;
+      background: var(--thumb, var(--cyan));
+      border: calc(0.14 * var(--u)) solid #0f172a;
+      box-shadow: 0 0 calc(0.55 * var(--u)) rgba(56, 189, 248, 0.45);
+      cursor: pointer;
+      transition: transform 0.12s ease;
+    }
+
+    input[type="range"]::-webkit-slider-thumb:hover {
+      transform: scale(1.14);
+    }
+
+    input[type="range"]::-moz-range-thumb {
+      width: calc(1.02 * var(--u));
+      height: calc(1.02 * var(--u));
+      border-radius: 50%;
+      background: var(--thumb, var(--cyan));
+      border: calc(0.14 * var(--u)) solid #0f172a;
+      box-shadow: 0 0 calc(0.55 * var(--u)) rgba(56, 189, 248, 0.45);
+      cursor: pointer;
+    }
+
+    /* Dynamic Physics Observation Note */
+    .status-note {
+      padding: calc(0.45 * var(--u)) calc(0.68 * var(--u));
+      border-radius: calc(0.5 * var(--u));
+      background: rgba(56, 189, 248, 0.08);
+      border: 1px solid rgba(56, 189, 248, 0.24);
+      font-size: calc(0.71 * var(--u));
+      line-height: 1.38;
+      color: #cbd5e1;
+      overflow: hidden;
+    }
+
+    .status-note strong {
+      color: #f8fafc;
+    }
+    /* =========================================================================
+       PHONE / NARROW-SCREEN LAYOUT (≤ 900 px)
+       The 16:9 frame scales everything with the screen width, which makes text
+       unreadably small on phones. Here the unit becomes a fixed size, panels stack
+       and the page scrolls. The circuit keeps a readable minimum width and can be
+       swiped sideways.
+       ========================================================================= */
+    .hint-mobile { display: none; }
+    .circuit-scroll { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+    @media (max-width: 900px) {
+      :root { --u: 16px; }
+      html, body { width: auto; height: auto; overflow: auto; display: block; }
+      body { padding: 8px 8px 56px; }
+      .frame-16-9 { width: 100%; aspect-ratio: auto; overflow: visible; padding: 10px; gap: 10px; border-radius: 14px; }
+
+      .header-bar { flex: none; flex-direction: column; align-items: stretch; padding: 12px; gap: 10px; border-radius: 12px; }
+      .live-dot { width: 9px; height: 9px; }
+      .header-title { white-space: normal; font-size: 18px; line-height: 1.25; }
+      .formula-badge { align-self: flex-start; white-space: normal; font-size: 13px; padding: 5px 12px; }
+      .header-controls { flex-direction: column; align-items: stretch; gap: 8px; }
+      .preset-strip { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+      .preset-btn { font-size: 13px; padding: 9px 6px; border-radius: 8px; }
+      .flow-toggle { align-self: center; padding: 3px; gap: 3px; }
+      .flow-toggle button { font-size: 13px; padding: 8px 14px; }
+
+      .main-body { flex: none; grid-template-columns: 1fr; gap: 10px; }
+      .col-left, .col-right { gap: 10px; }
+      .panel { border-radius: 12px; }
+      .circuit-panel, .graph-panel, .controls-panel { flex: none; }
+      .panel-head { flex-wrap: wrap; padding: 8px 12px; gap: 4px 10px; }
+      .panel-title { font-size: 14px; white-space: normal; }
+      .panel-hint { font-size: 12px; white-space: normal; }
+      .hint-desktop { display: none; }
+      .hint-mobile { display: inline; }
+
+      .circuit-scroll { flex: none; overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; }
+      #circuitStage { flex: none; width: max(700px, 100%); height: 390px; }
+      #circuitCanvas { touch-action: pan-x; }   /* sideways swipe scrolls; vertical drag moves the wiper */
+      #graphStage { flex: none; height: 300px; }
+
+      .readouts-strip { flex: none; grid-template-columns: 1fr 1fr; gap: 8px; }
+      .readouts-strip .metric-card:last-child { grid-column: span 2; }
+      .metric-card { padding: 10px 12px; gap: 3px; border-radius: 10px; }
+      .metric-label { font-size: 11px; }
+      .metric-val { font-size: 20px; }
+      .metric-sub { font-size: 11.5px; }
+
+      .btn-mini { font-size: 12.5px; padding: 7px 10px; border-radius: 7px; }
+      .controls-body { padding: 12px 14px 16px; gap: 14px; }
+      .switch-row { padding: 10px 12px; border-radius: 10px; }
+      .switch-name { font-size: 14px; white-space: normal; }
+      .switch-desc { font-size: 12px; white-space: normal; }
+      .switch-btn { font-size: 13px; padding: 9px 14px; }
+      .sliders-stack { gap: 14px; }
+      .slider-item { gap: 6px; }
+      .slider-lbl { font-size: 13.5px; white-space: normal; }
+      .slider-val { font-size: 13.5px; padding: 2px 8px; border-radius: 6px; }
+      .slider-item input[type="range"] { height: 8px; min-height: 0; margin: 8px 0; }
+      .slider-item input[type="range"]::-webkit-slider-thumb { width: 24px; height: 24px; border-width: 3px; }
+      .slider-item input[type="range"]::-moz-range-thumb { width: 24px; height: 24px; border-width: 3px; }
+      .status-note { font-size: 13.5px; line-height: 1.45; padding: 10px 12px; border-radius: 8px; }
+    }
+  </style>
+<link rel="icon" href="../../../favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../../../assets/sim.css">
+</head>
+<body>
+  <div class="frame-16-9">
+    <!-- 1. TOP HEADER BAR (~9%) -->
+    <header class="header-bar">
+      <div class="title-wrap">
+        <span class="live-dot"></span>
+        <h1 class="header-title">Battery Terminal Voltage &amp; Current Distribution</h1>
+      </div>
+
+      <div class="formula-badge" id="liveFormulaBadge">
+        V<sub>term</sub> = 12.0 &minus; 1.66&middot;1.5 = 9.51 V
+      </div>
+
+      <div class="header-controls">
+        <div class="preset-strip" role="group" aria-label="Battery Presets">
+          <button class="preset-btn active" type="button" data-preset="typical">Typical</button>
+          <button class="preset-btn" type="button" data-preset="ideal">Ideal (r=0)</button>
+          <button class="preset-btn" type="button" data-preset="aging">Aging (high r)</button>
+          <button class="preset-btn" type="button" data-preset="heavy">Heavy Load</button>
+        </div>
+
+        <div class="flow-toggle" role="group" aria-label="Current Direction">
+          <button id="btnFlowConv" class="active-conv" type="button">Conv (+&rarr;&minus;)</button>
+          <button id="btnFlowElec" type="button">Elec (&minus;&rarr;+)</button>
+        </div>
+      </div>
+    </header>
+
+    <!-- 2. MAIN BODY (~91%): LEFT 62% / RIGHT 38% -->
+    <main class="main-body">
+      <!-- LEFT COLUMN -->
+      <section class="col-left">
+        <!-- HiDPI Interactive Circuit Canvas (~77%) -->
+        <div class="panel circuit-panel">
+          <div class="panel-head">
+            <span class="panel-title">Interactive Circuit Schematic</span>
+            <span class="panel-hint hint-desktop">Click Switch S to toggle &bull; Drag Rheostat wiper to adjust R<sub>rheo</sub></span>
+            <span class="panel-hint hint-mobile">Tap S to switch &bull; Drag the wiper up/down &bull; Swipe &harr; to see the whole circuit</span>
+          </div>
+          <div class="circuit-scroll">
+            <div class="canvas-stage" id="circuitStage">
+              <canvas id="circuitCanvas"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <!-- 5 Crisp Live Readout Cards (~23%) -->
+        <div class="readouts-strip">
+          <div class="metric-card">
+            <span class="metric-label">Terminal Voltage</span>
+            <span class="metric-val c-emerald" id="cardVTerm">9.51 V</span>
+            <span class="metric-sub" id="cardVTermSub">V = &Epsilon; &minus; I&middot;r</span>
+          </div>
+          <div class="metric-card">
+            <span class="metric-label">Main Current</span>
+            <span class="metric-val c-cyan" id="cardITotal">1.66 A</span>
+            <span class="metric-sub" id="cardITotalSub">I<sub>tot</sub> = I<sub>b</sub> + I<sub>r</sub></span>
+          </div>
+          <div class="metric-card">
+            <span class="metric-label">Bulb Current</span>
+            <span class="metric-val c-amber" id="cardIBulb">0.79 A</span>
+            <span class="metric-sub" id="cardPBulbSub">P = 7.54 W</span>
+          </div>
+          <div class="metric-card">
+            <span class="metric-label">Rheostat Current</span>
+            <span class="metric-val c-violet" id="cardIRheo">0.95 A</span>
+            <span class="metric-sub" id="cardIRheoSub">R<sub>rheo</sub> = 10.0 &Omega;</span>
+          </div>
+          <div class="metric-card">
+            <span class="metric-label">Internal Drop</span>
+            <span class="metric-val c-rose" id="cardVDrop">2.49 V</span>
+            <span class="metric-sub" id="cardVDropSub">21% lost in r</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- RIGHT COLUMN -->
+      <aside class="col-right">
+        <!-- Live V vs I Characteristic Graph (~48%) -->
+        <div class="panel graph-panel">
+          <div class="panel-head">
+            <span class="panel-title">V<sub>term</sub> vs. I<sub>total</sub> Characteristic</span>
+            <div class="graph-btns">
+              <button id="btnRecordPoint" class="btn-mini btn-rec" type="button">+ Record Point</button>
+              <button id="btnClearPoints" class="btn-mini" type="button">Clear</button>
+            </div>
+          </div>
+          <div class="canvas-stage" id="graphStage">
+            <canvas id="graphCanvas"></canvas>
+          </div>
+        </div>
+
+        <!-- Interactive Controls Panel (~52%) -->
+        <div class="panel controls-panel">
+          <div class="panel-head">
+            <span class="panel-title">Circuit Controls</span>
+            <span class="panel-hint" id="kclSummaryHint">I<sub>tot</sub> = I<sub>1</sub> + I<sub>2</sub></span>
+          </div>
+
+          <div class="controls-body">
+            <!-- Prominent Switch S Toggle -->
+            <div class="switch-row">
+              <div class="switch-meta">
+                <span class="switch-name">Rheostat Branch Switch S</span>
+                <span class="switch-desc" id="switchDescText">Closed &mdash; Parallel load active</span>
+              </div>
+              <button id="btnSwitchToggle" class="switch-btn is-closed" type="button">S: CLOSED</button>
+            </div>
+
+            <!-- Four Compact Sliders -->
+            <div class="sliders-stack">
+              <div class="slider-item">
+                <div class="slider-top">
+                  <label class="slider-lbl" for="sliderRheo">Rheostat Resistance (R<sub>rheo</sub>)</label>
+                  <span class="slider-val c-violet" id="valRheo">10.0 &Omega;</span>
+                </div>
+                <input type="range" id="sliderRheo" min="1" max="50" step="0.5" value="10" style="--thumb: #a78bfa;" />
+              </div>
+
+              <div class="slider-item">
+                <div class="slider-top">
+                  <label class="slider-lbl" for="sliderIntR">Internal Resistance (r)</label>
+                  <span class="slider-val c-rose" id="valIntR">1.5 &Omega;</span>
+                </div>
+                <input type="range" id="sliderIntR" min="0" max="5" step="0.1" value="1.5" style="--thumb: #fb7185;" />
+              </div>
+
+              <div class="slider-item">
+                <div class="slider-top">
+                  <label class="slider-lbl" for="sliderEmf">Battery EMF (&Epsilon;)</label>
+                  <span class="slider-val c-emerald" id="valEmf">12.0 V</span>
+                </div>
+                <input type="range" id="sliderEmf" min="3" max="24" step="0.5" value="12" style="--thumb: #34d399;" />
+              </div>
+
+              <div class="slider-item">
+                <div class="slider-top">
+                  <label class="slider-lbl" for="sliderBulb">Light Bulb Resistance (R<sub>bulb</sub>)</label>
+                  <span class="slider-val c-amber" id="valBulb">12.0 &Omega;</span>
+                </div>
+                <input type="range" id="sliderBulb" min="4" max="30" step="0.5" value="12" style="--thumb: #fbbf24;" />
+              </div>
+            </div>
+
+            <!-- Dynamic Physical Effect Note -->
+            <div class="status-note" id="statusNote">
+              Lowering <strong>R<sub>rheo</sub></strong> draws more current through <strong>r</strong>, increasing internal drop <strong>I&middot;r</strong> and dimming the bulb.
+            </div>
+          </div>
+        </div>
+      </aside>
+    </main>
+  </div>
+
+  <script>
+    /* =========================================================================
+       PHYSICS SIMULATION ENGINE & DUAL HIDPI CANVAS RENDERER (16:9 LAB)
+       ========================================================================= */
+    (function () {
+      'use strict';
+
+      // -----------------------------------------------------------------------
+      // 1. SIMULATION STATE
+      // -----------------------------------------------------------------------
+      const state = {
+        emf: 12.0,           // Battery EMF (V) [3.0 .. 24.0]
+        rInt: 1.5,           // Internal resistance (Ohm) [0.0 .. 5.0]
+        rBulb: 12.0,         // Light bulb resistance (Ohm) [4.0 .. 30.0]
+        rRheo: 10.0,         // Rheostat resistance (Ohm) [1.0 .. 50.0]
+        rheoClosed: true,    // Switch S state
+        flowMode: 'conv',    // 'conv' (+ -> -) or 'elec' (- -> +)
+
+        // Computed electrical values
+        rExt: 5.45,
+        iTotal: 0,
+        iBulb: 0,
+        iRheo: 0,
+        vTerm: 0,
+        vDrop: 0,
+        pBulb: 0,
+
+        // Animation phases (logical px)
+        phaseMain: 0,
+        phaseBulb: 0,
+        phaseRheo: 0,
+
+        // Switch blade animation (0 = closed, 1 = open)
+        switchAnim: 0,
+
+        // Canvas interaction states
+        draggingRheo: false,
+        hoverTarget: null, // 'switch' | 'rheo' | null
+
+        // Graph history
+        trail: [],
+        recordedPoints: []
+      };
+
+      // Logical coordinate space for circuit schematic
+      const CIRCUIT_W = 860;
+      const CIRCUIT_H = 460;
+
+      const GEO = {
+        voltX: 76,
+        batX: 188,
+        topY: 96,
+        botY: 394,
+        mainAmpX: 342,
+        bulbX: 462,
+        rheoX: 716,
+        switchX1: 548,
+        switchX2: 626,
+        ampBranchY: 164,
+        loadCenterY: 294,
+        rheoCoilH: 108
+      };
+
+      // -----------------------------------------------------------------------
+      // 2. DOM REFERENCES
+      // -----------------------------------------------------------------------
+      const circuitStage = document.getElementById('circuitStage');
+      const graphStage = document.getElementById('graphStage');
+      const circuitCanvas = document.getElementById('circuitCanvas');
+      const circuitCtx = circuitCanvas.getContext('2d');
+      const graphCanvas = document.getElementById('graphCanvas');
+      const graphCtx = graphCanvas.getContext('2d');
+
+      const liveFormulaBadge = document.getElementById('liveFormulaBadge');
+      const kclSummaryHint = document.getElementById('kclSummaryHint');
+
+      const cardVTerm = document.getElementById('cardVTerm');
+      const cardVTermSub = document.getElementById('cardVTermSub');
+      const cardITotal = document.getElementById('cardITotal');
+      const cardITotalSub = document.getElementById('cardITotalSub');
+      const cardIBulb = document.getElementById('cardIBulb');
+      const cardPBulbSub = document.getElementById('cardPBulbSub');
+      const cardIRheo = document.getElementById('cardIRheo');
+      const cardIRheoSub = document.getElementById('cardIRheoSub');
+      const cardVDrop = document.getElementById('cardVDrop');
+      const cardVDropSub = document.getElementById('cardVDropSub');
+
+      const sliderRheo = document.getElementById('sliderRheo');
+      const sliderIntR = document.getElementById('sliderIntR');
+      const sliderEmf = document.getElementById('sliderEmf');
+      const sliderBulb = document.getElementById('sliderBulb');
+
+      const valRheo = document.getElementById('valRheo');
+      const valIntR = document.getElementById('valIntR');
+      const valEmf = document.getElementById('valEmf');
+      const valBulb = document.getElementById('valBulb');
+
+      const btnSwitchToggle = document.getElementById('btnSwitchToggle');
+      const switchDescText = document.getElementById('switchDescText');
+      const btnFlowConv = document.getElementById('btnFlowConv');
+      const btnFlowElec = document.getElementById('btnFlowElec');
+      const btnRecordPoint = document.getElementById('btnRecordPoint');
+      const btnClearPoints = document.getElementById('btnClearPoints');
+      const statusNote = document.getElementById('statusNote');
+      const presetButtons = Array.from(document.querySelectorAll('[data-preset]'));
+
+      let circuitTransform = { scale: 1, offsetX: 0, offsetY: 0 };
+      let circuitSize = { dpr: 1, cssW: 1, cssH: 1 };
+      let graphSize = { dpr: 1, cssW: 1, cssH: 1 };
+
+      // -----------------------------------------------------------------------
+      // 3. PHYSICS MODEL
+      // -----------------------------------------------------------------------
+      function updatePhysics(pushTrail = false) {
+        if (state.rheoClosed) {
+          state.rExt = (state.rBulb * state.rRheo) / (state.rBulb + state.rRheo);
+        } else {
+          state.rExt = state.rBulb;
+        }
+
+        const rTotal = state.rInt + state.rExt;
+        state.iTotal = rTotal > 0 ? state.emf / rTotal : 0;
+        state.vDrop = state.iTotal * state.rInt;
+        state.vTerm = Math.max(0, state.emf - state.vDrop);
+
+        state.iBulb = state.vTerm / state.rBulb;
+        state.iRheo = state.rheoClosed ? state.vTerm / state.rRheo : 0;
+        state.pBulb = (state.vTerm * state.vTerm) / state.rBulb;
+
+        if (pushTrail) {
+          const last = state.trail[state.trail.length - 1];
+          if (!last || Math.hypot(last.i - state.iTotal, last.v - state.vTerm) > 0.06) {
+            state.trail.push({ i: state.iTotal, v: state.vTerm });
+            if (state.trail.length > 50) state.trail.shift();
+          }
+        }
+
+        syncDOM();
+      }
+
+      function syncDOM() {
+        // Header live substituted formula badge
+        liveFormulaBadge.innerHTML =
+          `V<sub>term</sub> = ${state.emf.toFixed(1)} &minus; ${state.iTotal.toFixed(2)}&middot;${state.rInt.toFixed(1)} = <span class="c-emerald">${state.vTerm.toFixed(2)} V</span>`;
+
+        // Controls KCL hint
+        kclSummaryHint.innerHTML =
+          `${state.iTotal.toFixed(2)} A = ${state.iBulb.toFixed(2)} + ${state.iRheo.toFixed(2)} A`;
+
+        // 5 Metric Cards
+        cardVTerm.textContent = `${state.vTerm.toFixed(2)} V`;
+        const pctTerm = state.emf > 0 ? (state.vTerm / state.emf) * 100 : 0;
+        cardVTermSub.textContent = `${pctTerm.toFixed(0)}% of ε (${state.emf.toFixed(1)} V)`;
+
+        cardITotal.textContent = `${state.iTotal.toFixed(2)} A`;
+        cardITotalSub.textContent = `R_ext = ${state.rExt.toFixed(2)} Ω`;
+
+        cardIBulb.textContent = `${state.iBulb.toFixed(2)} A`;
+        cardPBulbSub.textContent = `Power: ${state.pBulb.toFixed(2)} W`;
+
+        cardIRheo.textContent = `${state.iRheo.toFixed(2)} A`;
+        cardIRheoSub.textContent = state.rheoClosed
+          ? `R_rheo = ${state.rRheo.toFixed(1)} Ω`
+          : `Switch S Open`;
+
+        cardVDrop.textContent = `${state.vDrop.toFixed(2)} V`;
+        const pctDrop = state.emf > 0 ? (state.vDrop / state.emf) * 100 : 0;
+        cardVDropSub.textContent = `${pctDrop.toFixed(0)}% lost in r=${state.rInt.toFixed(1)}Ω`;
+
+        // Slider labels
+        valRheo.innerHTML = `${state.rRheo.toFixed(1)} &Omega;`;
+        valIntR.innerHTML = `${state.rInt.toFixed(1)} &Omega;`;
+        valEmf.textContent = `${state.emf.toFixed(1)} V`;
+        valBulb.innerHTML = `${state.rBulb.toFixed(1)} &Omega;`;
+
+        // Switch button UI
+        if (state.rheoClosed) {
+          btnSwitchToggle.textContent = 'S: CLOSED';
+          btnSwitchToggle.classList.remove('is-open');
+          btnSwitchToggle.classList.add('is-closed');
+          switchDescText.textContent = 'Closed — Parallel load active';
+        } else {
+          btnSwitchToggle.textContent = 'S: OPEN';
+          btnSwitchToggle.classList.remove('is-closed');
+          btnSwitchToggle.classList.add('is-open');
+          switchDescText.textContent = 'Open — Bulb branch only';
+        }
+
+        // Dynamic physical observation note
+        if (state.rInt < 0.05) {
+          statusNote.innerHTML =
+            `<strong>Ideal Battery (r = 0 &Omega;):</strong> Zero internal drop! Changing R<sub>rheo</sub> varies I<sub>total</sub>, while <strong>V<sub>term</sub></strong> stays fixed at <strong>${state.emf.toFixed(1)} V</strong> and bulb brightness is unchanged.`;
+        } else if (!state.rheoClosed) {
+          statusNote.innerHTML =
+            `<strong>Switch S Open:</strong> Only the bulb draws current (<strong>${state.iBulb.toFixed(2)} A</strong>). Lower total current reduces <strong>I&middot;r</strong>, so <strong>V<sub>term</sub></strong> rises to <strong>${state.vTerm.toFixed(2)} V</strong> and the bulb brightens.`;
+        } else if (pctDrop >= 35) {
+          statusNote.innerHTML =
+            `<strong>Heavy Voltage Sag (${pctDrop.toFixed(0)}% lost):</strong> High current (<strong>${state.iTotal.toFixed(2)} A</strong>) causes a large internal drop <strong>I&middot;r = ${state.vDrop.toFixed(2)} V</strong>, visibly dimming the light bulb.`;
+        } else {
+          statusNote.innerHTML =
+            `<strong>Real Battery:</strong> Lowering <strong>R<sub>rheo</sub></strong> draws more current through internal resistance <strong>r</strong>, increasing <strong>I&middot;r</strong> so <strong>V<sub>term</sub></strong> drops along the V&ndash;I line.`;
+        }
+      }
+
+      // -----------------------------------------------------------------------
+      // 4. HIDPI RESIZEOBSERVER MANAGEMENT
+      // -----------------------------------------------------------------------
+      function updateCanvasBackingSize(canvas, stageEl) {
+        const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+        const rect = stageEl.getBoundingClientRect();
+        const cssW = Math.max(1, rect.width);
+        const cssH = Math.max(1, rect.height);
+        const w = Math.round(cssW * dpr);
+        const h = Math.round(cssH * dpr);
+        if (canvas.width !== w || canvas.height !== h) {
+          canvas.width = w;
+          canvas.height = h;
+        }
+        return { dpr, cssW, cssH };
+      }
+
+      const resizeObserver = new ResizeObserver(() => {
+        circuitSize = updateCanvasBackingSize(circuitCanvas, circuitStage);
+        graphSize = updateCanvasBackingSize(graphCanvas, graphStage);
+        drawCircuit();
+        drawGraph();
+      });
+      resizeObserver.observe(circuitStage);
+      resizeObserver.observe(graphStage);
+
+      // -----------------------------------------------------------------------
+      // 5. CURRENT PARTICLE ANIMATION HELPER
+      // -----------------------------------------------------------------------
+      function getPolylineLength(pts) {
+        let len = 0;
+        for (let i = 0; i < pts.length - 1; i++) {
+          len += Math.hypot(pts[i + 1].x - pts[i].x, pts[i + 1].y - pts[i].y);
+        }
+        return len;
+      }
+
+      function samplePolyline(pts, dist) {
+        let rem = dist;
+        for (let i = 0; i < pts.length - 1; i++) {
+          const p0 = pts[i], p1 = pts[i + 1];
+          const segLen = Math.hypot(p1.x - p0.x, p1.y - p0.y);
+          if (rem <= segLen || i === pts.length - 2) {
+            const t = segLen > 0 ? Math.max(0, Math.min(1, rem / segLen)) : 0;
+            return {
+              x: p0.x + (p1.x - p0.x) * t,
+              y: p0.y + (p1.y - p0.y) * t,
+              angle: Math.atan2(p1.y - p0.y, p1.x - p0.x)
+            };
+          }
+          rem -= segLen;
+        }
+        return { x: pts[0].x, y: pts[0].y, angle: 0 };
+      }
+
+      function drawCurrentParticles(ctx, pts, currentAmps, phasePx) {
+        if (currentAmps < 0.01) return;
+
+        const totalLen = getPolylineLength(pts);
+        const isConv = state.flowMode === 'conv';
+        const colorMain = isConv ? '#fbbf24' : '#38bdf8';
+        const colorCore = isConv ? '#fef3c7' : '#e0f2fe';
+
+        const intensity = Math.min(1, Math.pow(currentAmps / 4.2, 0.55));
+        const spacing = Math.max(28, 56 - intensity * 22);
+        const radius = 2.8 + intensity * 2.2;
+        const arrowLen = 5.6 + intensity * 3.0;
+
+        const dir = isConv ? 1 : -1;
+        const offset = ((phasePx * dir) % spacing + spacing) % spacing;
+
+        ctx.save();
+        for (let d = offset; d < totalLen; d += spacing) {
+          const s = samplePolyline(pts, d);
+          const heading = isConv ? s.angle : s.angle + Math.PI;
+
+          ctx.save();
+          ctx.translate(s.x, s.y);
+          ctx.rotate(heading);
+
+          ctx.shadowColor = colorMain;
+          ctx.shadowBlur = 6 + intensity * 9;
+
+          // Glowing particle
+          ctx.fillStyle = colorMain;
+          ctx.beginPath();
+          ctx.arc(-2.5, 0, radius, 0, Math.PI * 2);
+          ctx.fill();
+
+          // Bright center
+          ctx.shadowBlur = 0;
+          ctx.fillStyle = colorCore;
+          ctx.beginPath();
+          ctx.arc(-2.5, 0, radius * 0.45, 0, Math.PI * 2);
+          ctx.fill();
+
+          // Directional arrowhead
+          ctx.strokeStyle = colorCore;
+          ctx.lineWidth = 1.6 + intensity * 0.7;
+          ctx.lineCap = 'round';
+          ctx.lineJoin = 'round';
+          ctx.beginPath();
+          ctx.moveTo(arrowLen * 0.18, -radius * 0.95);
+          ctx.lineTo(arrowLen * 0.95, 0);
+          ctx.lineTo(arrowLen * 0.18, radius * 0.95);
+          ctx.stroke();
+
+          ctx.restore();
+        }
+        ctx.restore();
+      }
+
+      function roundRect(ctx, x, y, w, h, r) {
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.arcTo(x + w, y, x + w, y + h, r);
+        ctx.arcTo(x + w, y + h, x, y + h, r);
+        ctx.arcTo(x, y + h, x, y, r);
+        ctx.arcTo(x, y, x + w, y, r);
+        ctx.closePath();
+      }
+
+      // -----------------------------------------------------------------------
+      // 6. CIRCUIT SCHEMATIC RENDERER
+      // -----------------------------------------------------------------------
+      function drawCircuit() {
+        const { dpr, cssW, cssH } = circuitSize;
+        if (cssW <= 1 || cssH <= 1) return;
+        const ctx = circuitCtx;
+
+        ctx.save();
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+        // Background
+        ctx.fillStyle = '#080e1c';
+        ctx.fillRect(0, 0, cssW, cssH);
+
+        // Fit 860x460 logical schematic cleanly with padding
+        const pad = 6;
+        const scale = Math.min((cssW - pad * 2) / CIRCUIT_W, (cssH - pad * 2) / CIRCUIT_H);
+        const offsetX = (cssW - CIRCUIT_W * scale) * 0.5;
+        const offsetY = (cssH - CIRCUIT_H * scale) * 0.5;
+        circuitTransform = { scale, offsetX, offsetY };
+
+        // Subtle blueprint grid
+        ctx.strokeStyle = 'rgba(148, 163, 184, 0.045)';
+        ctx.lineWidth = 1;
+        const gridStep = 28 * scale;
+        if (gridStep > 7) {
+          ctx.beginPath();
+          for (let x = offsetX % gridStep; x < cssW; x += gridStep) {
+            ctx.moveTo(x, 0); ctx.lineTo(x, cssH);
+          }
+          for (let y = offsetY % gridStep; y < cssH; y += gridStep) {
+            ctx.moveTo(0, y); ctx.lineTo(cssW, y);
+          }
+          ctx.stroke();
+        }
+
+        ctx.translate(offsetX, offsetY);
+        ctx.scale(scale, scale);
+
+        // ---- A. REAL BATTERY DASHED ENCLOSURE ----
+        const boxX = 146, boxY = GEO.topY, boxW = 152, boxH = GEO.botY - GEO.topY;
+        ctx.save();
+        ctx.fillStyle = 'rgba(30, 41, 59, 0.44)';
+        roundRect(ctx, boxX, boxY, boxW, boxH, 14);
+        ctx.fill();
+        ctx.setLineDash([7, 5]);
+        ctx.strokeStyle = 'rgba(148, 163, 184, 0.58)';
+        ctx.lineWidth = 2;
+        roundRect(ctx, boxX, boxY, boxW, boxH, 14);
+        ctx.stroke();
+        ctx.restore();
+
+        ctx.fillStyle = '#cbd5e1';
+        ctx.font = '700 13px Inter, system-ui, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('BATTERY', boxX + boxW / 2, boxY - 12);
+
+        // ---- B. WIRES ----
+        // Voltmeter leads
+        ctx.save();
+        ctx.strokeStyle = 'rgba(52, 211, 153, 0.5)';
+        ctx.lineWidth = 2.2;
+        ctx.beginPath();
+        ctx.moveTo(GEO.batX, GEO.topY);
+        ctx.lineTo(GEO.voltX, GEO.topY);
+        ctx.lineTo(GEO.voltX, GEO.botY);
+        ctx.lineTo(GEO.batX, GEO.botY);
+        ctx.stroke();
+        ctx.restore();
+
+        const wireActive = '#475569';
+        const wireMuted = '#263348';
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+
+        // Main loop & Bulb branch
+        ctx.strokeStyle = wireActive;
+        ctx.lineWidth = 4.6;
+        ctx.beginPath();
+        ctx.moveTo(GEO.batX, GEO.botY);
+        ctx.lineTo(GEO.batX, GEO.topY);
+        ctx.lineTo(GEO.bulbX, GEO.topY);
+        ctx.lineTo(GEO.bulbX, GEO.botY);
+        ctx.lineTo(GEO.batX, GEO.botY);
+        ctx.stroke();
+
+        // Rheostat branch
+        ctx.strokeStyle = state.rheoClosed ? wireActive : wireMuted;
+        ctx.lineWidth = 4.2;
+        ctx.beginPath();
+        ctx.moveTo(GEO.bulbX, GEO.topY);
+        ctx.lineTo(GEO.switchX1, GEO.topY);
+        ctx.moveTo(GEO.switchX2, GEO.topY);
+        ctx.lineTo(GEO.rheoX, GEO.topY);
+        ctx.lineTo(GEO.rheoX, GEO.botY);
+        ctx.lineTo(GEO.bulbX, GEO.botY);
+        ctx.stroke();
+
+        // ---- C. ANIMATED CURRENT FLOW ----
+        const mainPathTop = [
+          { x: GEO.batX, y: GEO.botY },
+          { x: GEO.batX, y: GEO.topY },
+          { x: GEO.bulbX, y: GEO.topY }
+        ];
+        const mainPathBot = [
+          { x: GEO.bulbX, y: GEO.botY },
+          { x: GEO.batX, y: GEO.botY }
+        ];
+        const bulbPath = [
+          { x: GEO.bulbX, y: GEO.topY },
+          { x: GEO.bulbX, y: GEO.botY }
+        ];
+        const rheoPath = [
+          { x: GEO.bulbX, y: GEO.topY },
+          { x: GEO.rheoX, y: GEO.topY },
+          { x: GEO.rheoX, y: GEO.botY },
+          { x: GEO.bulbX, y: GEO.botY }
+        ];
+
+        drawCurrentParticles(ctx, mainPathTop, state.iTotal, state.phaseMain);
+        drawCurrentParticles(ctx, mainPathBot, state.iTotal, state.phaseMain + 16);
+        drawCurrentParticles(ctx, bulbPath, state.iBulb, state.phaseBulb);
+        if (state.rheoClosed) {
+          drawCurrentParticles(ctx, rheoPath, state.iRheo, state.phaseRheo);
+        }
+
+        // ---- D. INTERNAL BATTERY COMPONENTS ----
+        drawInternalResistor(ctx, GEO.batX, 172, state.rInt, state.iTotal, state.vDrop);
+        drawIdealEmf(ctx, GEO.batX, 304, state.emf);
+
+        // Battery (+) and (-) Terminal Posts
+        drawTerminalPost(ctx, GEO.batX, GEO.topY, '+', '#fb7185');
+        drawTerminalPost(ctx, GEO.batX, GEO.botY, '−', '#60a5fa');
+
+        // ---- E. JUNCTIONS & KCL ANNOTATION ----
+        drawJunction(ctx, GEO.bulbX, GEO.topY);
+        drawJunction(ctx, GEO.bulbX, GEO.botY);
+
+        ctx.fillStyle = '#7dd3fc';
+        ctx.font = '700 12px "JetBrains Mono", monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('KCL: I_tot = I₁ + I₂', GEO.bulbX, GEO.topY - 26);
+
+        // ---- F. BRANCH 1: LIGHT BULB ----
+        drawLightBulb(ctx, GEO.bulbX, GEO.loadCenterY, state.pBulb, state.rBulb);
+
+        // ---- G. BRANCH 2: SWITCH S & DRAGGABLE RHEOSTAT ----
+        drawSwitch(ctx, GEO.switchX1, GEO.switchX2, GEO.topY, state.switchAnim, state.hoverTarget === 'switch');
+        drawRheostat(ctx, GEO.rheoX, GEO.loadCenterY, state.rRheo, state.rheoClosed, state.hoverTarget === 'rheo' || state.draggingRheo);
+
+        // ---- H. METERS ----
+        drawMeter(ctx, GEO.voltX, 238, 'V', `${state.vTerm.toFixed(2)} V`, 'Terminal V', '#34d399', 'bottom');
+        drawMeter(ctx, GEO.mainAmpX, GEO.topY, 'A', `${state.iTotal.toFixed(2)} A`, 'A_main', '#38bdf8', 'top');
+        drawMeter(ctx, GEO.bulbX, GEO.ampBranchY, 'A₁', `${state.iBulb.toFixed(2)} A`, 'I_bulb', '#fbbf24', 'right');
+        drawMeter(ctx, GEO.rheoX, GEO.ampBranchY, 'A₂', `${state.iRheo.toFixed(2)} A`, 'I_rheo', '#a78bfa', 'right');
+
+        // ---- I. BOTTOM PATH LABELS ----
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = '700 12.5px Inter, system-ui, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('MAIN RETURN (I_total)', (GEO.batX + GEO.bulbX) / 2, GEO.botY + 30);
+        ctx.fillText('LIGHT BULB BRANCH', GEO.bulbX, GEO.botY + 30);
+        ctx.fillText('RHEOSTAT BRANCH', GEO.rheoX, GEO.botY + 30);
+
+        ctx.restore();
+      }
+
+      function drawTerminalPost(ctx, x, y, sym, color) {
+        ctx.save();
+        ctx.fillStyle = '#0f172a';
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(x, y, 8, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = color;
+        ctx.font = '800 13px Inter, system-ui, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(sym, x, y + 0.5);
+        ctx.restore();
+      }
+
+      function drawJunction(ctx, x, y) {
+        ctx.save();
+        ctx.fillStyle = '#38bdf8';
+        ctx.strokeStyle = '#080e1c';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(x, y, 5.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      function drawInternalResistor(ctx, x, cy, rVal, iTot, vDrop) {
+        const h = 60, top = cy - h / 2, bot = cy + h / 2;
+        ctx.save();
+        ctx.fillStyle = '#121c30';
+        ctx.fillRect(x - 16, top, 32, h);
+
+        const pInt = iTot * iTot * rVal;
+        const heat = Math.min(1, pInt / 24);
+        if (heat > 0.04 && rVal > 0) {
+          const g = ctx.createRadialGradient(x, cy, 4, x, cy, 34);
+          g.addColorStop(0, `rgba(251, 113, 133, ${0.45 * heat})`);
+          g.addColorStop(1, 'rgba(251, 113, 133, 0)');
+          ctx.fillStyle = g;
+          ctx.beginPath();
+          ctx.arc(x, cy, 34, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        ctx.strokeStyle = rVal === 0 ? '#64748b' : '#fb7185';
+        ctx.lineWidth = 2.8;
+        ctx.lineJoin = 'round';
+        ctx.beginPath();
+        ctx.moveTo(x, top);
+        if (rVal === 0) {
+          ctx.lineTo(x, bot);
+        } else {
+          const peaks = 6;
+          const step = h / (peaks + 1);
+          for (let i = 1; i <= peaks; i++) {
+            ctx.lineTo(x + (i % 2 === 1 ? -11 : 11), top + step * i);
+          }
+          ctx.lineTo(x, bot);
+        }
+        ctx.stroke();
+
+        // High-contrast enlarged parameter pill for r and I·r
+        const px = x + 16, py = cy - 26, pw = 112, ph = 52;
+        ctx.fillStyle = 'rgba(10, 16, 32, 0.92)';
+        ctx.strokeStyle = 'rgba(251, 113, 133, 0.42)';
+        ctx.lineWidth = 1.2;
+        roundRect(ctx, px, py, pw, ph, 7);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = '#fecdd3';
+        ctx.font = '700 16.5px "JetBrains Mono", monospace';
+        ctx.fillText(`r=${rVal.toFixed(1)}Ω`, px + 8, py + 15.5);
+
+        ctx.fillStyle = '#fb7185';
+        ctx.font = '700 14.5px "JetBrains Mono", monospace';
+        ctx.fillText(`Ir=${vDrop.toFixed(2)}V`, px + 8, py + 37.5);
+        ctx.restore();
+      }
+
+      function drawIdealEmf(ctx, x, cy, emfVal) {
+        ctx.save();
+        ctx.fillStyle = '#121c30';
+        ctx.fillRect(x - 24, cy - 22, 48, 44);
+
+        const y1 = cy - 15, y2 = cy - 5, y3 = cy + 5, y4 = cy + 15;
+        ctx.strokeStyle = '#94a3b8';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(x, cy - 24); ctx.lineTo(x, y1);
+        ctx.moveTo(x, y4); ctx.lineTo(x, cy + 24);
+        ctx.stroke();
+
+        ctx.strokeStyle = '#34d399';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(x - 19, y1); ctx.lineTo(x + 19, y1);
+        ctx.moveTo(x - 19, y3); ctx.lineTo(x + 19, y3);
+        ctx.stroke();
+
+        ctx.strokeStyle = '#e2e8f0';
+        ctx.lineWidth = 5;
+        ctx.beginPath();
+        ctx.moveTo(x - 10, y2); ctx.lineTo(x + 10, y2);
+        ctx.moveTo(x - 10, y4); ctx.lineTo(x + 10, y4);
+        ctx.stroke();
+
+        // High-contrast enlarged EMF pill
+        const px = x + 21, py = cy - 17, pw = 104, ph = 34;
+        ctx.fillStyle = 'rgba(10, 16, 32, 0.92)';
+        ctx.strokeStyle = 'rgba(52, 211, 153, 0.45)';
+        ctx.lineWidth = 1.2;
+        roundRect(ctx, px, py, pw, ph, 7);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = '#6ee7b7';
+        ctx.font = '700 17px "JetBrains Mono", monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(`ε=${emfVal.toFixed(1)}V`, px + pw / 2, cy + 0.5);
+        ctx.restore();
+      }
+
+      function drawLightBulb(ctx, x, cy, powerW, rBulb) {
+        ctx.save();
+        const normP = Math.max(0, Math.min(1.8, powerW / 12.0));
+        const glow = Math.pow(Math.min(1, normP), 0.72);
+        const overdrive = Math.max(0, normP - 1);
+
+        ctx.fillStyle = '#080e1c';
+        ctx.fillRect(x - 32, cy - 35, 64, 70);
+
+        // Radial light aura
+        if (glow > 0.02) {
+          const haloR = 40 + glow * 64 + overdrive * 22;
+          const halo = ctx.createRadialGradient(x, cy, 5, x, cy, haloR);
+          halo.addColorStop(0, `rgba(255, 248, 200, ${0.58 * glow + 0.16 * overdrive})`);
+          halo.addColorStop(0.34, `rgba(251, 191, 36, ${0.4 * glow})`);
+          halo.addColorStop(0.7, `rgba(245, 158, 11, ${0.14 * glow})`);
+          halo.addColorStop(1, 'rgba(245, 158, 11, 0)');
+          ctx.fillStyle = halo;
+          ctx.beginPath();
+          ctx.arc(x, cy, haloR, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        // Glass globe
+        const r = 29;
+        const globeGrad = ctx.createRadialGradient(x - 6, cy - 8, 3, x, cy, r);
+        globeGrad.addColorStop(0, `rgba(255, 252, 224, ${0.12 + 0.76 * glow})`);
+        globeGrad.addColorStop(0.65, `rgba(251, 191, 36, ${0.06 + 0.42 * glow})`);
+        globeGrad.addColorStop(1, `rgba(148, 163, 184, ${0.18 + 0.16 * glow})`);
+
+        ctx.fillStyle = globeGrad;
+        ctx.beginPath();
+        ctx.arc(x, cy, r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = glow > 0.2 ? `rgba(254, 240, 138, ${0.55 + 0.4 * glow})` : 'rgba(148, 163, 184, 0.5)';
+        ctx.lineWidth = 2.2;
+        ctx.stroke();
+
+        // Leads & filament
+        ctx.strokeStyle = 'rgba(203, 213, 225, 0.72)';
+        ctx.lineWidth = 1.6;
+        ctx.beginPath();
+        ctx.moveTo(x, cy - 35); ctx.lineTo(x, cy - r);
+        ctx.moveTo(x, cy + r); ctx.lineTo(x, cy + 35);
+        ctx.moveTo(x, cy - r); ctx.lineTo(x - 10, cy - 8);
+        ctx.moveTo(x, cy + r); ctx.lineTo(x + 10, cy + 8);
+        ctx.stroke();
+
+        let filColor = '#475569';
+        if (glow > 0.03) {
+          const rC = Math.round(145 + 110 * Math.min(1, glow * 1.4));
+          const gC = Math.round(55 + 195 * Math.pow(glow, 1.1));
+          const bC = Math.round(20 + 210 * Math.pow(glow, 2.2));
+          filColor = `rgb(${rC}, ${gC}, ${bC})`;
+        }
+
+        ctx.save();
+        ctx.strokeStyle = filColor;
+        ctx.lineWidth = 2.6 + glow * 1.3;
+        ctx.lineJoin = 'round';
+        ctx.lineCap = 'round';
+        if (glow > 0.08) {
+          ctx.shadowColor = '#fde047';
+          ctx.shadowBlur = 10 + glow * 16;
+        }
+        ctx.beginPath();
+        ctx.moveTo(x - 10, cy - 8);
+        ctx.lineTo(x - 6, cy + 6);
+        ctx.lineTo(x - 1, cy - 7);
+        ctx.lineTo(x + 4, cy + 7);
+        ctx.lineTo(x + 10, cy - 5);
+        ctx.lineTo(x + 10, cy + 8);
+        ctx.stroke();
+        ctx.restore();
+
+        // High-contrast enlarged readout pill for Bulb resistance & power
+        const px = x + 36, py = cy - 28, pw = 138, ph = 56;
+        ctx.fillStyle = 'rgba(10, 16, 32, 0.92)';
+        ctx.strokeStyle = 'rgba(251, 191, 36, 0.42)';
+        ctx.lineWidth = 1.2;
+        roundRect(ctx, px, py, pw, ph, 8);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = '#fef08a';
+        ctx.font = '700 16px "JetBrains Mono", monospace';
+        ctx.fillText(`R_b=${rBulb.toFixed(1)}Ω`, px + 9, py + 17);
+        ctx.fillStyle = '#fbbf24';
+        ctx.font = '700 17.5px "JetBrains Mono", monospace';
+        ctx.fillText(`P=${powerW.toFixed(1)} W`, px + 9, py + 40);
+        ctx.restore();
+      }
+
+      function drawSwitch(ctx, x1, x2, y, openFrac, isHover) {
+        ctx.save();
+        ctx.fillStyle = '#cbd5e1';
+        ctx.beginPath();
+        ctx.arc(x1, y, 5.2, 0, Math.PI * 2);
+        ctx.arc(x2, y, 5.2, 0, Math.PI * 2);
+        ctx.fill();
+
+        const len = x2 - x1;
+        const angle = -openFrac * 0.62;
+        ctx.strokeStyle = openFrac < 0.2 ? '#34d399' : '#fb7185';
+        ctx.lineWidth = isHover ? 5 : 4;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(x1, y);
+        ctx.lineTo(x1 + Math.cos(angle) * len, y + Math.sin(angle) * len);
+        ctx.stroke();
+
+        const midX = (x1 + x2) / 2;
+        const bw = 84, bh = 24;
+        ctx.fillStyle = openFrac < 0.5 ? 'rgba(52, 211, 153, 0.18)' : 'rgba(251, 113, 133, 0.2)';
+        ctx.strokeStyle = isHover
+          ? '#f8fafc'
+          : (openFrac < 0.5 ? 'rgba(52, 211, 153, 0.6)' : 'rgba(251, 113, 133, 0.6)');
+        ctx.lineWidth = isHover ? 1.8 : 1.2;
+        roundRect(ctx, midX - bw / 2, y - 50, bw, bh, 11);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = openFrac < 0.5 ? '#6ee7b7' : '#fda4af';
+        ctx.font = '700 12px Inter, system-ui, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(openFrac < 0.5 ? 'S: CLOSED' : 'S: OPEN', midX, y - 38);
+        ctx.restore();
+      }
+
+      function drawRheostat(ctx, x, cy, rVal, isClosed, isHighlighted) {
+        const coilH = GEO.rheoCoilH;
+        const top = cy - coilH / 2;
+        const bot = cy + coilH / 2;
+
+        const frac = (rVal - 1) / (50 - 1);
+        const wiperY = top + 7 + frac * (coilH - 14);
+
+        ctx.save();
+        ctx.fillStyle = '#080e1c';
+        ctx.fillRect(x - 32, top - 4, 64, coilH + 8);
+
+        // Coil core
+        ctx.fillStyle = '#1e293b';
+        ctx.strokeStyle = isHighlighted ? '#c4b5fd' : '#475569';
+        ctx.lineWidth = isHighlighted ? 2 : 1.5;
+        roundRect(ctx, x - 14, top, 28, coilH, 6);
+        ctx.fill();
+        ctx.stroke();
+
+        // Windings
+        const turns = 12;
+        const step = coilH / turns;
+        for (let i = 0; i < turns; i++) {
+          const yA = top + i * step + 3;
+          const yB = yA + step * 0.65;
+          const active = yA <= wiperY + 1;
+          ctx.strokeStyle = active
+            ? (isClosed ? '#a78bfa' : '#64748b')
+            : 'rgba(100, 116, 139, 0.34)';
+          ctx.lineWidth = active ? 2.5 : 1.6;
+          ctx.beginPath();
+          ctx.moveTo(x - 12, yA);
+          ctx.lineTo(x + 12, yB);
+          ctx.stroke();
+        }
+
+        // Slide bar
+        const railX = x - 30;
+        ctx.strokeStyle = isClosed ? '#94a3b8' : '#475569';
+        ctx.lineWidth = 3.2;
+        ctx.beginPath();
+        ctx.moveTo(railX, top - 4);
+        ctx.lineTo(railX, bot + 8);
+        ctx.lineTo(x, bot + 8);
+        ctx.stroke();
+
+        // Wiper arm + arrowhead
+        ctx.strokeStyle = isClosed ? '#ddd6fe' : '#64748b';
+        ctx.fillStyle = isClosed ? '#ddd6fe' : '#64748b';
+        ctx.lineWidth = 2.6;
+        ctx.beginPath();
+        ctx.moveTo(railX, wiperY);
+        ctx.lineTo(x - 14, wiperY);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(x - 13, wiperY);
+        ctx.lineTo(x - 21, wiperY - 5);
+        ctx.lineTo(x - 21, wiperY + 5);
+        ctx.closePath();
+        ctx.fill();
+
+        // Draggable wiper handle knob
+        ctx.fillStyle = isHighlighted ? '#ddd6fe' : (isClosed ? '#a78bfa' : '#475569');
+        ctx.strokeStyle = '#0f172a';
+        ctx.lineWidth = 1.5;
+        roundRect(ctx, railX - 6.5, wiperY - 9, 13, 18, 4);
+        ctx.fill();
+        ctx.stroke();
+
+        // High-contrast enlarged readout pill for R_rheo
+        const px = x + 22, py = cy - 28, pw = 114, ph = 56;
+        ctx.fillStyle = 'rgba(10, 16, 32, 0.92)';
+        ctx.strokeStyle = isClosed ? 'rgba(167, 139, 250, 0.45)' : 'rgba(100, 116, 139, 0.35)';
+        ctx.lineWidth = 1.2;
+        roundRect(ctx, px, py, pw, ph, 8);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = isClosed ? '#ddd6fe' : '#64748b';
+        ctx.font = '700 12.5px Inter, system-ui, sans-serif';
+        ctx.fillText('R_rheo', px + pw / 2, py + 15);
+        ctx.fillStyle = isClosed ? '#c4b5fd' : '#64748b';
+        ctx.font = '700 18.5px "JetBrains Mono", monospace';
+        ctx.fillText(`${rVal.toFixed(1)} Ω`, px + pw / 2, py + 39);
+        ctx.restore();
+      }
+
+      function drawMeter(ctx, x, y, symbol, valText, label, accent, pos) {
+        ctx.save();
+        ctx.fillStyle = '#0f172a';
+        ctx.strokeStyle = accent;
+        ctx.lineWidth = 2.8;
+        ctx.shadowColor = accent;
+        ctx.shadowBlur = 9;
+        ctx.beginPath();
+        ctx.arc(x, y, 21, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+
+        ctx.fillStyle = accent;
+        ctx.font = '800 15.5px Inter, system-ui, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(symbol, x, y + 0.5);
+
+        // Generously sized digital readout pill for large, crisp numbers
+        const bw = 114, bh = 46;
+        let bx = x - bw / 2, by = y;
+        if (pos === 'top') by = y - 74;
+        else if (pos === 'bottom') by = y + 28;
+        else if (pos === 'right') { bx = x + 27; by = y - bh / 2; }
+
+        ctx.fillStyle = 'rgba(10, 16, 32, 0.96)';
+        ctx.strokeStyle = accent;
+        ctx.globalAlpha = 0.55;
+        ctx.lineWidth = 1.4;
+        roundRect(ctx, bx, by, bw, bh, 8);
+        ctx.fill();
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+
+        ctx.fillStyle = accent;
+        ctx.font = '700 20px "JetBrains Mono", monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(valText, bx + bw / 2, by + 17);
+
+        ctx.fillStyle = '#cbd5e1';
+        ctx.font = '700 11.5px Inter, system-ui, sans-serif';
+        ctx.fillText(label, bx + bw / 2, by + 36);
+        ctx.restore();
+      }
+
+      // -----------------------------------------------------------------------
+      // 7. V vs. I GRAPH RENDERER (HIDPI)
+      // -----------------------------------------------------------------------
+      function drawGraph() {
+        const { dpr, cssW, cssH } = graphSize;
+        if (cssW <= 1 || cssH <= 1) return;
+        const ctx = graphCtx;
+
+        ctx.save();
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+        ctx.fillStyle = '#080e1c';
+        ctx.fillRect(0, 0, cssW, cssH);
+
+        // Generous proportional typography scaled to graph canvas size
+        const gs = Math.min(cssW / 380, cssH / 230);
+        const tickPx = Math.max(13, Math.round(15 * gs));
+        const axisLblPx = Math.max(11.5, Math.round(13 * gs));
+        const annoPx = Math.max(13, Math.round(15 * gs));
+        const opPx = Math.max(14, Math.round(16 * gs));
+
+        const padL = Math.max(50, tickPx * 3.5);
+        const padR = Math.max(16, tickPx * 1.2);
+        const padT = Math.max(18, annoPx * 1.3);
+        const padB = Math.max(40, tickPx * 2.8);
+        const plotW = Math.max(40, cssW - padL - padR);
+        const plotH = Math.max(40, cssH - padT - padB);
+
+        const yMax = Math.max(16, Math.ceil(state.emf / 4) * 4 + 4);
+        let xMax = 10;
+        const maxNeededI = Math.max(
+          state.iTotal * 1.15,
+          ...state.recordedPoints.map(p => p.i * 1.1),
+          state.rInt >= 0.8 ? Math.min((state.emf / state.rInt) * 1.05, 16) : 10
+        );
+        if (maxNeededI > 10) xMax = 16;
+        if (maxNeededI > 16) xMax = 20;
+        if (maxNeededI > 20) xMax = 30;
+
+        const toX = (iVal) => padL + (iVal / xMax) * plotW;
+        const toY = (vVal) => padT + plotH - (vVal / yMax) * plotH;
+
+        // Clean grid & enlarged high-contrast tick numbers (4-5 intervals)
+        ctx.strokeStyle = 'rgba(148, 163, 184, 0.12)';
+        ctx.lineWidth = 1;
+        ctx.fillStyle = '#e2e8f0';
+        ctx.font = `700 ${tickPx}px "JetBrains Mono", monospace`;
+
+        const yStep = yMax <= 16 ? 4 : (yMax <= 24 ? 6 : 8);
+        ctx.textAlign = 'right';
+        ctx.textBaseline = 'middle';
+        for (let v = 0; v <= yMax; v += yStep) {
+          const py = toY(v);
+          ctx.beginPath();
+          ctx.moveTo(padL, py); ctx.lineTo(padL + plotW, py);
+          ctx.stroke();
+          ctx.fillText(`${v}`, padL - 8, py);
+        }
+
+        const xStep = xMax <= 10 ? 2 : (xMax <= 16 ? 4 : (xMax <= 20 ? 5 : 10));
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        for (let i = 0; i <= xMax; i += xStep) {
+          const px = toX(i);
+          ctx.beginPath();
+          ctx.moveTo(px, padT); ctx.lineTo(px, padT + plotH);
+          ctx.stroke();
+          ctx.fillText(`${i}`, px, padT + plotH + 5);
+        }
+
+        // Axes
+        ctx.strokeStyle = 'rgba(148, 163, 184, 0.58)';
+        ctx.lineWidth = 1.6;
+        ctx.beginPath();
+        ctx.moveTo(padL, padT);
+        ctx.lineTo(padL, padT + plotH);
+        ctx.lineTo(padL + plotW, padT + plotH);
+        ctx.stroke();
+
+        // Axis labels
+        ctx.fillStyle = '#cbd5e1';
+        ctx.font = `700 ${axisLblPx}px Inter, system-ui, sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'bottom';
+        ctx.fillText('Total Current  I_total (A)', padL + plotW / 2, cssH - 2);
+
+        ctx.save();
+        ctx.translate(axisLblPx * 0.95, padT + plotH / 2);
+        ctx.rotate(-Math.PI / 2);
+        ctx.textBaseline = 'middle';
+        ctx.fillText('V_term (V)', 0, 0);
+        ctx.restore();
+
+        // Plot interior
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(padL, padT, plotW, plotH);
+        ctx.clip();
+
+        // 1. Theoretical line V = E - I * r
+        const endI = state.rInt > 0 ? Math.min(xMax, state.emf / state.rInt) : xMax;
+        const endV = Math.max(0, state.emf - endI * state.rInt);
+
+        ctx.strokeStyle = 'rgba(56, 189, 248, 0.92)';
+        ctx.lineWidth = 2.6;
+        ctx.beginPath();
+        ctx.moveTo(toX(0), toY(state.emf));
+        ctx.lineTo(toX(endI), toY(endV));
+        ctx.stroke();
+
+        // 2. Motion trail
+        for (let k = 0; k < state.trail.length; k++) {
+          const pt = state.trail[k];
+          const alpha = ((k + 1) / state.trail.length) * 0.45;
+          ctx.fillStyle = `rgba(251, 191, 36, ${alpha})`;
+          ctx.beginPath();
+          ctx.arc(toX(pt.i), toY(pt.v), 3, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        // 3. Dashed guide lines
+        const opX = toX(state.iTotal);
+        const opY = toY(state.vTerm);
+        ctx.save();
+        ctx.setLineDash([4, 4]);
+        ctx.strokeStyle = 'rgba(251, 191, 36, 0.6)';
+        ctx.lineWidth = 1.4;
+        ctx.beginPath();
+        ctx.moveTo(padL, opY);
+        ctx.lineTo(opX, opY);
+        ctx.lineTo(opX, padT + plotH);
+        ctx.stroke();
+        ctx.restore();
+
+        // 4. Recorded points
+        for (const rp of state.recordedPoints) {
+          ctx.fillStyle = '#34d399';
+          ctx.strokeStyle = '#080e1c';
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.arc(toX(rp.i), toY(rp.v), 5, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+        }
+        ctx.restore();
+
+        // 5. Enlarged Slope annotation pill (positioned safely inside plot)
+        const slopeText = `slope = −${state.rInt.toFixed(1)} Ω`;
+        ctx.font = `700 ${annoPx}px "JetBrains Mono", monospace`;
+        const sw = ctx.measureText(slopeText).width + 12;
+        const sh = annoPx * 1.5;
+        const sx = Math.min(padL + plotW - sw - 4, Math.max(padL + 6, toX(endI * 0.56)));
+        const sy = Math.min(padT + plotH - sh - 4, Math.max(padT + 4, toY(state.emf - endI * 0.56 * state.rInt) - sh - 6));
+
+        ctx.fillStyle = 'rgba(8, 14, 28, 0.86)';
+        ctx.strokeStyle = 'rgba(56, 189, 248, 0.42)';
+        ctx.lineWidth = 1.1;
+        roundRect(ctx, sx, sy, sw, sh, 5);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = '#7dd3fc';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(slopeText, sx + sw / 2, sy + sh / 2);
+
+        // 6. Enlarged Y-intercept (EMF) marker & pill
+        const emfY = toY(state.emf);
+        ctx.fillStyle = '#34d399';
+        ctx.beginPath();
+        ctx.arc(padL, emfY, 5, 0, Math.PI * 2);
+        ctx.fill();
+
+        const emfText = `ε = ${state.emf.toFixed(1)} V`;
+        ctx.font = `700 ${annoPx}px "JetBrains Mono", monospace`;
+        const ew = ctx.measureText(emfText).width + 12;
+        const eh = annoPx * 1.48;
+        const ex = padL + 8;
+        const ey = Math.max(padT + 2, emfY - eh - 4);
+
+        ctx.fillStyle = 'rgba(8, 14, 28, 0.88)';
+        ctx.strokeStyle = 'rgba(52, 211, 153, 0.45)';
+        ctx.lineWidth = 1.1;
+        roundRect(ctx, ex, ey, ew, eh, 5);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = '#6ee7b7';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(emfText, ex + ew / 2, ey + eh / 2);
+
+        // 7. Live operating point & large high-contrast coordinate pill (I, V)
+        const cx = Math.min(padL + plotW, Math.max(padL, opX));
+        const cy = Math.min(padT + plotH, Math.max(padT, opY));
+
+        ctx.save();
+        ctx.shadowColor = '#fbbf24';
+        ctx.shadowBlur = 13;
+        ctx.fillStyle = '#fbbf24';
+        ctx.beginPath();
+        ctx.arc(cx, cy, 6.2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.strokeStyle = '#080e1c';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        const tag = `(${state.iTotal.toFixed(2)}A, ${state.vTerm.toFixed(2)}V)`;
+        ctx.font = `700 ${opPx}px "JetBrains Mono", monospace`;
+        const tw = ctx.measureText(tag).width + 14;
+        const th = opPx * 1.65;
+        let tx = cx + 10;
+        let ty = cy + 10;
+        if (tx + tw > padL + plotW - 2) tx = cx - tw - 10;
+        if (tx < padL + 2) tx = padL + 4;
+        if (ty + th > padT + plotH - 2) ty = cy - th - 10;
+        if (ty < padT + 2) ty = padT + 4;
+
+        ctx.fillStyle = 'rgba(10, 16, 32, 0.95)';
+        ctx.strokeStyle = 'rgba(251, 191, 36, 0.78)';
+        ctx.lineWidth = 1.4;
+        roundRect(ctx, tx, ty, tw, th, 6);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = '#fef3c7';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(tag, tx + tw / 2, ty + th / 2);
+        ctx.restore();
+
+        ctx.restore();
+      }
+
+      // -----------------------------------------------------------------------
+      // 8. ANIMATION LOOP
+      // -----------------------------------------------------------------------
+      let lastTime = performance.now();
+
+      function animate(now) {
+        const dt = Math.min(0.05, (now - lastTime) / 1000);
+        lastTime = now;
+
+        const targetSw = state.rheoClosed ? 0 : 1;
+        state.switchAnim += (targetSw - state.switchAnim) * Math.min(1, dt * 14);
+
+        const speed = (amps) => Math.min(340, amps * 27);
+        state.phaseMain += speed(state.iTotal) * dt;
+        state.phaseBulb += speed(state.iBulb) * dt;
+        state.phaseRheo += speed(state.iRheo) * dt;
+
+        drawCircuit();
+        drawGraph();
+        requestAnimationFrame(animate);
+      }
+
+      // -----------------------------------------------------------------------
+      // 9. CANVAS POINTER INTERACTIONS (CLICK SWITCH S & DRAG RHEOSTAT WIPER)
+      // -----------------------------------------------------------------------
+      function getLogicalCoords(e) {
+        const rect = circuitCanvas.getBoundingClientRect();
+        return {
+          x: (e.clientX - rect.left - circuitTransform.offsetX) / circuitTransform.scale,
+          y: (e.clientY - rect.top - circuitTransform.offsetY) / circuitTransform.scale
+        };
+      }
+
+      function hitSwitch(pt) {
+        return pt.x >= GEO.switchX1 - 24 && pt.x <= GEO.switchX2 + 24 &&
+               pt.y >= GEO.topY - 54 && pt.y <= GEO.topY + 24;
+      }
+
+      function hitRheostat(pt) {
+        const halfH = GEO.rheoCoilH / 2 + 12;
+        return pt.x >= GEO.rheoX - 46 && pt.x <= GEO.rheoX + 24 &&
+               pt.y >= GEO.loadCenterY - halfH && pt.y <= GEO.loadCenterY + halfH;
+      }
+
+      function updateRheoFromLogicalY(ly) {
+        const top = GEO.loadCenterY - GEO.rheoCoilH / 2 + 7;
+        const usableH = GEO.rheoCoilH - 14;
+        const frac = Math.max(0, Math.min(1, (ly - top) / usableH));
+        const raw = 1 + frac * (50 - 1);
+        const snapped = Math.round(raw * 2) / 2; // 0.5 Ohm steps
+        state.rRheo = Math.max(1, Math.min(50, snapped));
+        sliderRheo.value = state.rRheo;
+        clearActivePreset();
+        updatePhysics(true);
+      }
+
+      let tapStart = null; // touch: pending tap on switch S
+
+      circuitCanvas.addEventListener('pointerdown', (e) => {
+        const pt = getLogicalCoords(e);
+        const isTouch = e.pointerType !== 'mouse';
+        if (hitSwitch(pt)) {
+          if (isTouch) { tapStart = { x: e.clientX, y: e.clientY }; return; }
+          state.rheoClosed = !state.rheoClosed;
+          clearActivePreset();
+          updatePhysics(true);
+          return;
+        }
+        if (hitRheostat(pt)) {
+          state.draggingRheo = true;
+          circuitCanvas.setPointerCapture(e.pointerId);
+          if (!isTouch) updateRheoFromLogicalY(pt.y);
+        }
+      });
+
+      circuitCanvas.addEventListener('pointermove', (e) => {
+        const pt = getLogicalCoords(e);
+        if (state.draggingRheo) {
+          updateRheoFromLogicalY(pt.y);
+          circuitCanvas.style.cursor = 'ns-resize';
+          return;
+        }
+        if (hitSwitch(pt)) {
+          state.hoverTarget = 'switch';
+          circuitCanvas.style.cursor = 'pointer';
+        } else if (hitRheostat(pt)) {
+          state.hoverTarget = 'rheo';
+          circuitCanvas.style.cursor = 'ns-resize';
+        } else {
+          state.hoverTarget = null;
+          circuitCanvas.style.cursor = 'default';
+        }
+      });
+
+      function endDrag(e) {
+        if (tapStart && e.type === 'pointerup' &&
+            Math.hypot(e.clientX - tapStart.x, e.clientY - tapStart.y) < 12 &&
+            hitSwitch(getLogicalCoords(e))) {
+          state.rheoClosed = !state.rheoClosed;
+          clearActivePreset();
+          updatePhysics(true);
+        }
+        tapStart = null;
+        if (state.draggingRheo) {
+          state.draggingRheo = false;
+          try { circuitCanvas.releasePointerCapture(e.pointerId); } catch (_) {}
+        }
+      }
+      circuitCanvas.addEventListener('pointerup', endDrag);
+      circuitCanvas.addEventListener('pointercancel', endDrag);
+
+      // -----------------------------------------------------------------------
+      // 10. UI CONTROLS & PRESETS
+      // -----------------------------------------------------------------------
+      function clearActivePreset() {
+        presetButtons.forEach((b) => b.classList.remove('active'));
+      }
+
+      function resetTrail() {
+        state.trail = [{ i: state.iTotal, v: state.vTerm }];
+      }
+
+      sliderRheo.addEventListener('input', () => {
+        state.rRheo = parseFloat(sliderRheo.value);
+        clearActivePreset();
+        updatePhysics(true);
+      });
+
+      sliderIntR.addEventListener('input', () => {
+        state.rInt = parseFloat(sliderIntR.value);
+        clearActivePreset();
+        updatePhysics(false);
+        resetTrail();
+      });
+
+      sliderEmf.addEventListener('input', () => {
+        state.emf = parseFloat(sliderEmf.value);
+        clearActivePreset();
+        updatePhysics(false);
+        resetTrail();
+      });
+
+      sliderBulb.addEventListener('input', () => {
+        state.rBulb = parseFloat(sliderBulb.value);
+        clearActivePreset();
+        updatePhysics(true);
+      });
+
+      btnSwitchToggle.addEventListener('click', () => {
+        state.rheoClosed = !state.rheoClosed;
+        clearActivePreset();
+        updatePhysics(true);
+      });
+
+      btnFlowConv.addEventListener('click', () => {
+        state.flowMode = 'conv';
+        btnFlowConv.classList.add('active-conv');
+        btnFlowElec.classList.remove('active-elec');
+      });
+
+      btnFlowElec.addEventListener('click', () => {
+        state.flowMode = 'elec';
+        btnFlowElec.classList.add('active-elec');
+        btnFlowConv.classList.remove('active-conv');
+      });
+
+      btnRecordPoint.addEventListener('click', () => {
+        state.recordedPoints.push({ i: state.iTotal, v: state.vTerm });
+      });
+
+      btnClearPoints.addEventListener('click', () => {
+        state.recordedPoints = [];
+        resetTrail();
+      });
+
+      const PRESETS = {
+        typical: { emf: 12.0, rInt: 1.5, rBulb: 12.0, rRheo: 10.0, rheoClosed: true },
+        ideal:   { emf: 12.0, rInt: 0.0, rBulb: 12.0, rRheo: 10.0, rheoClosed: true },
+        aging:   { emf: 12.0, rInt: 4.0, rBulb: 12.0, rRheo: 10.0, rheoClosed: true },
+        heavy:   { emf: 12.0, rInt: 1.5, rBulb: 12.0, rRheo: 1.5,  rheoClosed: true }
+      };
+
+      presetButtons.forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const p = PRESETS[btn.dataset.preset];
+          if (!p) return;
+          const batChanged = (state.emf !== p.emf || state.rInt !== p.rInt);
+
+          state.emf = p.emf;
+          state.rInt = p.rInt;
+          state.rBulb = p.rBulb;
+          state.rRheo = p.rRheo;
+          state.rheoClosed = p.rheoClosed;
+
+          sliderEmf.value = state.emf;
+          sliderIntR.value = state.rInt;
+          sliderBulb.value = state.rBulb;
+          sliderRheo.value = state.rRheo;
+
+          clearActivePreset();
+          btn.classList.add('active');
+
+          updatePhysics(!batChanged);
+          if (batChanged) resetTrail();
+        });
+      });
+
+      // -----------------------------------------------------------------------
+      // 11. INITIALIZE
+      // -----------------------------------------------------------------------
+      window.addEventListener('load', () => {
+        circuitSize = updateCanvasBackingSize(circuitCanvas, circuitStage);
+        graphSize = updateCanvasBackingSize(graphCanvas, graphStage);
+        updatePhysics(true);
+        requestAnimationFrame(animate);
+      });
+    })();
+  </script>
+<script src="../../../assets/sim.js" data-root="../../../#electricity-and-magnetism"></script>
+</body>
+</html>
