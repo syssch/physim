@@ -197,6 +197,7 @@
         <div class="flex items-center gap-1.5 shrink-0 overflow-x-auto custom-scroll">
             <select id="preset-select" onchange="loadPreset(this.value)" title="Load Preset Circuit" class="bg-slate-800/95 text-slate-200 text-xs font-medium rounded-xl px-2.5 py-1.5 border border-slate-700 focus:outline-none focus:border-sky-500 cursor-pointer max-w-[165px] sm:max-w-none">
                 <option value="voltage_divider">Voltage Divider (Series)</option>
+                <option value="meters">Ammeter &amp; Voltmeter</option>
                 <option value="parallel_bulbs">Parallel Bulbs</option>
                 <option value="series_bulbs">Series Bulbs</option>
                 <option value="switched_led">Switched LED</option>
@@ -351,6 +352,20 @@
                         <div class="min-w-0">
                             <div class="text-xs font-semibold text-slate-100 truncate">Ammeter</div>
                             <div class="text-[10px] text-slate-400 truncate">Live Current (A)</div>
+                        </div>
+                    </button>
+
+                    <!-- Voltmeter -->
+                    <button onclick="selectPaletteType('voltmeter')" data-type="voltmeter" class="palette-item w-full flex items-center gap-2.5 p-1.5 rounded-xl border border-transparent hover:bg-slate-800/90 hover:border-slate-700 transition-all text-left group">
+                        <div class="w-8 h-8 shrink-0 rounded-lg bg-violet-500/15 border border-violet-500/30 flex items-center justify-center text-violet-400 group-hover:scale-105 transition-transform">
+                            <svg class="w-4.5 h-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="9" />
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M9 8.5l3 7 3-7"/>
+                            </svg>
+                        </div>
+                        <div class="min-w-0">
+                            <div class="text-xs font-semibold text-slate-100 truncate">Voltmeter</div>
+                            <div class="text-[10px] text-slate-400 truncate">Potential Difference (V)</div>
                         </div>
                     </button>
                 </div>
@@ -648,7 +663,7 @@
 
         /** Height of charge particles over components in flat 2D view */
         function getComponent2DChargeY(comp) {
-            if (comp.type === 'battery' || comp.type === 'ammeter') return 0.92;
+            if (comp.type === 'battery' || comp.type === 'ammeter' || comp.type === 'voltmeter') return 0.92;
             if (comp.type === 'bulb') return 1.15;
             if (comp.type === 'led') return 0.86;
             if (comp.type === 'resistor') return 0.62;
@@ -1122,7 +1137,7 @@
                 t1Color = 0xef4444;
                 x0 = -0.75;
                 x1 = 0.75;
-            } else if (type === 'led') {
+            } else if (type === 'led' || type === 'voltmeter') {
                 t0Color = 0xef4444;
                 t1Color = 0x3b82f6;
             }
@@ -1331,9 +1346,10 @@
                     visuals.light = pLight;
                 }
             }
-            else if (type === 'ammeter') {
+            else if (type === 'ammeter' || type === 'voltmeter') {
+                const isVolt = type === 'voltmeter';
                 const housingGeo = new THREE.BoxGeometry(1.12, 0.54, 0.82);
-                const housingMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.45, metalness: 0.35 });
+                const housingMat = new THREE.MeshStandardMaterial({ color: isVolt ? 0x2e1065 : 0x1e293b, roughness: 0.45, metalness: 0.35 });
                 const housing = new THREE.Mesh(housingGeo, housingMat);
                 housing.position.y = 0.39;
                 housing.castShadow = !isGhost;
@@ -1351,7 +1367,17 @@
 
                 visuals.meterCanvas = canvas;
                 visuals.meterTex = tex;
-                drawAmmeterFace(canvas, tex, 0);
+                if (isVolt) {
+                    drawVoltmeterFace(canvas, tex, 0);
+                    // (+) polarity marker on terminal 0 side
+                    const plusMat = new THREE.MeshBasicMaterial({ map: makeTextTexture('+', '#ef4444', '#ffffff', 64, 64, 48) });
+                    const plus = new THREE.Mesh(new THREE.PlaneGeometry(0.20, 0.20), plusMat);
+                    plus.rotation.x = -Math.PI / 2;
+                    plus.position.set(0.75, 0.13, 0.30);
+                    root.add(plus);
+                } else {
+                    drawAmmeterFace(canvas, tex, 0);
+                }
             }
 
             if (!isGhost && comp) {
@@ -1365,18 +1391,17 @@
             return { mesh: root, visuals };
         }
 
-        function drawAmmeterFace(canvas, tex, currentVal) {
+        /** Analog needle + digital readout meter face (shared by ammeter & voltmeter) */
+        function drawMeterFace(canvas, tex, value, fullScale, label, accent, letter) {
             const ctx = canvas.getContext('2d');
             const w = canvas.width, h = canvas.height;
             ctx.fillStyle = '#0f172a';
             ctx.fillRect(0, 0, w, h);
 
-            // Outer bezel
             ctx.strokeStyle = '#334155';
             ctx.lineWidth = 6;
             ctx.strokeRect(4, 4, w - 8, h - 8);
 
-            // Analog arc
             const cx = w / 2, cy = h * 0.66, r = 68;
             ctx.beginPath();
             ctx.arc(cx, cy, r, Math.PI * 1.15, Math.PI * 1.85);
@@ -1384,33 +1409,52 @@
             ctx.lineWidth = 5;
             ctx.stroke();
 
-            // Needle deflection
-            const absI = Math.abs(currentVal);
-            const norm = Math.min(1, absI / 2.0);
+            // Meter letter (A / V) in the top-left corner
+            ctx.fillStyle = accent;
+            ctx.font = '800 30px "JetBrains Mono", monospace';
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'top';
+            ctx.fillText(letter, 16, 12);
+
+            const norm = Math.min(1, Math.abs(value) / Math.max(1e-6, fullScale));
             const angle = Math.PI * 1.15 + norm * (Math.PI * 0.7);
             ctx.beginPath();
             ctx.moveTo(cx, cy);
             ctx.lineTo(cx + Math.cos(angle) * (r - 6), cy + Math.sin(angle) * (r - 6));
-            ctx.strokeStyle = '#10b981';
+            ctx.strokeStyle = accent;
             ctx.lineWidth = 4;
             ctx.stroke();
 
-            // Center pivot
             ctx.beginPath();
             ctx.arc(cx, cy, 7, 0, Math.PI * 2);
             ctx.fillStyle = '#e2e8f0';
             ctx.fill();
 
-            // Digital readout
-            const label = absI < 0.1 && absI > 1e-4
-                ? `${(absI * 1000).toFixed(1)} mA`
-                : `${absI.toFixed(2)} A`;
-            ctx.fillStyle = '#34d399';
+            ctx.fillStyle = accent;
             ctx.font = '700 32px "JetBrains Mono", monospace';
             ctx.textAlign = 'center';
+            ctx.textBaseline = 'alphabetic';
             ctx.fillText(label, w / 2, h - 18);
-
             tex.needsUpdate = true;
+        }
+
+        function drawAmmeterFace(canvas, tex, currentVal) {
+            const absI = Math.abs(currentVal);
+            const label = absI < 0.1 && absI > 1e-4 ? `${(absI * 1000).toFixed(1)} mA` : `${absI.toFixed(2)} A`;
+            drawMeterFace(canvas, tex, absI, 2.0, label, '#34d399', 'A');
+        }
+
+        function drawVoltmeterFace(canvas, tex, volts) {
+            const v = Math.abs(volts) < 0.005 ? 0 : volts;
+            drawMeterFace(canvas, tex, v, Math.max(3, scaleMaxV), `${v.toFixed(2)} V`, '#c4b5fd', 'V');
+        }
+
+        /** Format a resistance nicely: 1.0 mΩ, 4.70 Ω, 33.0 kΩ, 10.0 MΩ */
+        function formatOhms(R) {
+            if (R >= 1e6) return `${(R / 1e6).toPrecision(3)} MΩ`;
+            if (R >= 1e3) return `${(R / 1e3).toPrecision(3)} kΩ`;
+            if (R >= 1) return `${R.toPrecision(3)} Ω`;
+            return `${(R * 1000).toPrecision(3)} mΩ`;
         }
 
         function updateResistorBands(comp) {
@@ -1427,13 +1471,15 @@
         }
 
         function addComponent(type, gx, gz, rotSteps = 0, opts = {}) {
-            const prefixMap = { battery: 'BAT', resistor: 'R', bulb: 'L', switch: 'SW', led: 'LED', ammeter: 'A' };
+            const prefixMap = { battery: 'BAT', resistor: 'R', bulb: 'L', switch: 'SW', led: 'LED', ammeter: 'A', voltmeter: 'V' };
             const comp = {
                 id: `${prefixMap[type] || 'C'}-${nextCompId++}`,
                 type,
                 gx, gz, rotSteps,
                 voltage: opts.voltage !== undefined ? opts.voltage : 9.0,
                 internalR: opts.internalR !== undefined ? opts.internalR : 0.0, // battery internal resistance r (Ω)
+                // Meter internal resistance: ammeter ≈ 0 (1 mΩ), voltmeter ≈ ∞ (10 MΩ) by default
+                meterR: opts.meterR !== undefined ? opts.meterR : (type === 'voltmeter' ? 1e7 : 1e-3),
                 resistance: opts.resistance !== undefined ? opts.resistance : (type === 'bulb' ? 10 : 100),
                 isClosed: opts.isClosed !== undefined ? opts.isClosed : true,
                 ledColor: opts.ledColor || 'red',
@@ -1647,8 +1693,8 @@
                         stampG(n0, n1, 1.0 / Math.max(0.5, c.resistance));
                     } else if (c.type === 'switch') {
                         stampG(n0, n1, c.isClosed ? 1e3 : 1e-8);
-                    } else if (c.type === 'ammeter') {
-                        stampG(n0, n1, 1e3);
+                    } else if (c.type === 'ammeter' || c.type === 'voltmeter') {
+                        stampG(n0, n1, 1.0 / c.meterR);
                     } else if (c.type === 'led') {
                         const ledState = leds.find(l => l.comp === c);
                         const vf = LED_SPECS[c.ledColor].vf;
@@ -1719,9 +1765,9 @@
                 } else if (c.type === 'switch') {
                     c.current = c.isClosed ? c.vDrop * 1e3 : 0;
                     c.power = 0;
-                } else if (c.type === 'ammeter') {
-                    c.current = c.vDrop * 1e3;
-                    c.power = 0;
+                } else if (c.type === 'ammeter' || c.type === 'voltmeter') {
+                    c.current = c.vDrop / c.meterR;
+                    c.power = c.vDrop * c.vDrop / c.meterR;
                 } else if (c.type === 'led') {
                     const ledState = leds.find(l => l.comp === c);
                     const vf = LED_SPECS[c.ledColor].vf;
@@ -1791,6 +1837,8 @@
                 }
             } else if (c.type === 'ammeter') {
                 drawAmmeterFace(c.visuals.meterCanvas, c.visuals.meterTex, c.current);
+            } else if (c.type === 'voltmeter') {
+                drawVoltmeterFace(c.visuals.meterCanvas, c.visuals.meterTex, c.vDrop);
             }
         }
 
@@ -1951,6 +1999,10 @@
                 // Resistors, Bulbs, LEDs: Sloped Voltage-Drop Ramps
                 else if (c.type === 'resistor' || c.type === 'bulb' || c.type === 'led') {
                     addPotentialSpan(p0, c.v0, p1, c.v1, 16, 0.08, 0.46);
+                }
+                // Voltmeter: high-resistance path across its terminals (thin, faint ramp)
+                else if (c.type === 'voltmeter') {
+                    addPotentialSpan(p0, c.v0, p1, c.v1, 16, 0.05, 0.18);
                 }
                 // Closed Switch & Ammeter: Flat Potential Bridge
                 else {
@@ -2277,7 +2329,7 @@
 
             const names = {
                 battery: 'DC Battery', resistor: 'Resistor', bulb: 'Light Bulb',
-                switch: 'SPST Switch', led: 'LED Diode', ammeter: 'DC Ammeter'
+                switch: 'SPST Switch', led: 'LED Diode', ammeter: 'DC Ammeter', voltmeter: 'DC Voltmeter'
             };
             document.getElementById('insp-title').textContent = names[comp.type] || 'Component';
             document.getElementById('insp-id').textContent = `ID: ${comp.id}`;
@@ -2340,8 +2392,25 @@
                     </div>`;
                 note.textContent = 'Tip: LEDs are polarized. Connect higher potential to (+) Red post and use a series resistor.';
                 note.classList.remove('hidden');
-            } else if (comp.type === 'ammeter') {
-                ctrl.innerHTML = `<div class="text-xs text-slate-400 bg-slate-800/50 rounded-xl p-2.5 border border-slate-700/50">Ideal low-resistance DC ammeter connected in series to measure branch current.</div>`;
+            } else if (comp.type === 'ammeter' || comp.type === 'voltmeter') {
+                const isVolt = comp.type === 'voltmeter';
+                const minL = isVolt ? 1 : -3, maxL = isVolt ? 7 : 2;
+                const quick = isVolt ? [[100, '100Ω'], [1e3, '1kΩ'], [1e4, '10kΩ'], [1e7, 'Ideal']] : [[1e-3, 'Ideal'], [0.1, '0.1Ω'], [1, '1Ω'], [10, '10Ω']];
+                ctrl.innerHTML = `
+                    <div>
+                        <div class="flex justify-between text-xs mb-1">
+                            <span class="text-slate-400">Meter Resistance (${isVolt ? 'R<sub>V</sub>' : 'R<sub>A</sub>'})</span>
+                            <span id="ctrl-val-mr" class="font-mono font-bold ${isVolt ? 'text-violet-300' : 'text-emerald-400'}">${formatOhms(comp.meterR)}</span>
+                        </div>
+                        <input type="range" min="${minL}" max="${maxL}" step="0.05" value="${Math.log10(comp.meterR)}" class="w-full" oninput="updateSelectedMeterR(Math.pow(10, this.value))">
+                        <div class="flex justify-between text-[10px] font-mono text-slate-500 mt-0.5"><span>${formatOhms(Math.pow(10, minL))}</span><span>${formatOhms(Math.pow(10, maxL))}</span></div>
+                        <div class="grid grid-cols-4 gap-1 mt-2">
+                            ${quick.map(([v, t]) => `<button onclick="updateSelectedMeterR(${v})" class="py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-[10px] font-mono text-slate-300 border border-slate-700">${t}</button>`).join('')}
+                        </div>
+                    </div>
+                    <div class="text-xs text-slate-400 bg-slate-800/50 rounded-xl p-2.5 border border-slate-700/50 leading-snug">${isVolt
+                        ? 'Connect <b class="text-slate-200">in parallel</b> across a component (red + to the higher potential). An ideal voltmeter has infinite resistance; lower R<sub>V</sub> to see it draw current and change the reading.'
+                        : 'Connect <b class="text-slate-200">in series</b>. An ideal ammeter has zero resistance; raise R<sub>A</sub> to see it reduce the current it is measuring.'}</div>`;
             }
 
             updateInspectorLiveReadout();
@@ -2411,6 +2480,18 @@
                 document.getElementById('insp-p').textContent = `${(absI * absI * WIRE_RESISTANCE).toFixed(4)} W`;
             }
 
+        }
+
+        function updateSelectedMeterR(val) {
+            if (!selectedItem || selectedItem.kind !== 'component') return;
+            const comp = selectedItem.ref;
+            if (comp.type !== 'ammeter' && comp.type !== 'voltmeter') return;
+            comp.meterR = Math.max(1e-3, parseFloat(val));
+            const lbl = document.getElementById('ctrl-val-mr');
+            if (lbl) lbl.textContent = formatOhms(comp.meterR);
+            const slider = document.querySelector('#insp-controls input[type="range"]');
+            if (slider) slider.value = Math.log10(comp.meterR);
+            solveCircuit();
         }
 
         function updateSelectedInternalR(val) {
@@ -2569,6 +2650,18 @@
                 addWire(r1, 1, r2, 0);
                 addWire(r2, 1, r3, 0);
                 addWire(r3, 1, bat, 0);
+            } else if (presetName === 'meters') {
+                const bat = addComponent('battery', -4, 0, 1, { voltage: 9.0 });
+                const amm = addComponent('ammeter', -1, -3, 2);
+                const r1 = addComponent('resistor', 3, 0, 1, { resistance: 100 });
+                const vm = addComponent('voltmeter', 5.5, 0, 1);
+                const r2 = addComponent('resistor', 0, 3, 0, { resistance: 100 });
+                addWire(bat, 1, amm, 0);
+                addWire(amm, 1, r1, 0);
+                addWire(r1, 1, r2, 0);
+                addWire(r2, 1, bat, 0);
+                addWire(vm, 0, r1, 0);
+                addWire(vm, 1, r1, 1);
             } else if (presetName === 'parallel_bulbs') {
                 const bat = addComponent('battery', -4, 0, 1, { voltage: 9.0 });
                 const sw = addComponent('switch', -1, -3, 2, { isClosed: true });
