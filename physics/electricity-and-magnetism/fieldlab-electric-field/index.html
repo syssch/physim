@@ -1698,6 +1698,13 @@
                 document.getElementById('insp-id').textContent = `ID: ${c.id}`;
                 body.innerHTML = `
                     <div>
+                        <div class="text-xs text-slate-400 mb-1">Sign</div>
+                        <div class="grid grid-cols-2 gap-1 p-0.5 rounded-xl bg-slate-950/90 border border-slate-700/80">
+                            <button id="sign-pos" onclick="setSelectedChargeSign(1)" class="flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-bold transition-all"><span class="w-4 h-4 rounded-full bg-gradient-to-br from-rose-400 to-red-600 text-white text-[11px] leading-4 text-center">+</span>Positive</button>
+                            <button id="sign-neg" onclick="setSelectedChargeSign(-1)" class="flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-bold transition-all"><span class="w-4 h-4 rounded-full bg-gradient-to-br from-sky-400 to-blue-600 text-white text-[11px] leading-4 text-center">−</span>Negative</button>
+                        </div>
+                    </div>
+                    <div>
                         <div class="flex justify-between text-xs mb-1">
                             <span class="text-slate-400">Charge (q)</span>
                             <span id="val-q" class="font-mono font-bold ${c.q >= 0 ? 'text-rose-400' : 'text-sky-400'}">${c.q >= 0 ? '+' : ''}${c.q.toFixed(1)} µC</span>
@@ -1718,6 +1725,7 @@
                         <input type="range" min="-3.5" max="3.5" step="0.2" value="${c.y}" class="w-full" oninput="setSelectedChargeY(this.value)">
                     </div>` : ''}
                 `;
+                updateSignSwitch(c);
             } else if (item.kind === 'plates') {
                 const p = item.ref;
                 const eUniform = Math.abs(p.dV / Math.max(0.4, p.sep));
@@ -1772,8 +1780,27 @@
             }
             const slider = document.querySelector('#insp-body input[type="range"]');
             if (slider) slider.value = c.q;
+            updateSignSwitch(c);
             updateChargeVisual(c);
             markFieldDirty();
+        }
+
+        /** Flip the selected charge to + or − while keeping its magnitude */
+        function setSelectedChargeSign(sign) {
+            if (!selectedItem || selectedItem.kind !== 'charge') return;
+            const mag = Math.abs(selectedItem.ref.q) || 4.0;
+            setSelectedChargeQ(sign * mag);
+        }
+
+        function updateSignSwitch(c) {
+            const pos = document.getElementById('sign-pos');
+            const neg = document.getElementById('sign-neg');
+            if (!pos || !neg) return;
+            const on = 'bg-slate-700 text-white shadow';
+            const off = 'text-slate-400 hover:text-white';
+            const isPos = c.q > 0, isNeg = c.q < 0;
+            pos.className = `flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-bold transition-all ${isPos ? on : off}`;
+            neg.className = `flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-bold transition-all ${isNeg ? on : off}`;
         }
 
         function setSelectedChargeY(val) {
