@@ -401,18 +401,6 @@
                 </div>
             </div>
 
-            <!-- Unified Charge Flow Verification Readouts (Speed & Exact Flux) -->
-            <div class="grid grid-cols-2 gap-1.5">
-                <div class="bg-slate-950/75 border border-slate-800 rounded-xl p-2 text-center">
-                    <div class="text-[10px] text-slate-400 font-medium">Charge Speed</div>
-                    <div id="insp-speed" class="text-[11px] font-mono font-bold text-amber-300 mt-0.5">0.00 u/s</div>
-                </div>
-                <div class="bg-slate-950/75 border border-slate-800 rounded-xl p-2 text-center">
-                    <div class="text-[10px] text-slate-400 font-medium">Flow Rate</div>
-                    <div id="insp-flux" class="text-[11px] font-mono font-bold text-cyan-300 mt-0.5">0.00 q/s</div>
-                </div>
-            </div>
-
             <!-- Dynamic Component / Wire Controls -->
             <div id="insp-controls" class="space-y-3"></div>
 
@@ -2403,10 +2391,6 @@
                 document.getElementById('insp-p').textContent = `${(absI * absI * WIRE_RESISTANCE).toFixed(4)} W`;
             }
 
-            const speed = absI > 1e-4 ? computeChargeVelocity(absI) : 0;
-            const flux = speed / CHARGE_SPACING;
-            document.getElementById('insp-speed').textContent = `${speed.toFixed(2)} u/s`;
-            document.getElementById('insp-flux').textContent = `${flux.toFixed(2)} q/s`;
         }
 
         function updateSelectedVoltage(val) {
