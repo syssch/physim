@@ -1529,18 +1529,30 @@
         ctx.fillStyle = '#080e1c';
         ctx.fillRect(x - 32, top - 4, 64, coilH + 8);
 
-        // Resistor symbol (rectangle). The length in use — from the top terminal down to
-        // the wiper — is shaded, so a longer shaded part means a larger R_rheo.
-        const rw = 24;
+        // Coil core
         ctx.fillStyle = '#1e293b';
-        ctx.fillRect(x - rw / 2, top, rw, coilH);
-        const activeH = Math.max(0, wiperY - top);
-        ctx.fillStyle = isClosed ? 'rgba(167, 139, 250, 0.55)' : 'rgba(100, 116, 139, 0.45)';
-        ctx.fillRect(x - rw / 2, top, rw, activeH);
-        ctx.strokeStyle = isHighlighted ? '#c4b5fd' : (isClosed ? '#a78bfa' : '#64748b');
-        ctx.lineWidth = isHighlighted ? 3 : 2.6;
-        ctx.lineJoin = 'miter';
-        ctx.strokeRect(x - rw / 2, top, rw, coilH);
+        ctx.strokeStyle = isHighlighted ? '#c4b5fd' : '#475569';
+        ctx.lineWidth = isHighlighted ? 2 : 1.5;
+        roundRect(ctx, x - 14, top, 28, coilH, 6);
+        ctx.fill();
+        ctx.stroke();
+
+        // Windings
+        const turns = 12;
+        const step = coilH / turns;
+        for (let i = 0; i < turns; i++) {
+          const yA = top + i * step + 3;
+          const yB = yA + step * 0.65;
+          const active = yA <= wiperY + 1;
+          ctx.strokeStyle = active
+            ? (isClosed ? '#a78bfa' : '#64748b')
+            : 'rgba(100, 116, 139, 0.34)';
+          ctx.lineWidth = active ? 2.5 : 1.6;
+          ctx.beginPath();
+          ctx.moveTo(x - 12, yA);
+          ctx.lineTo(x + 12, yB);
+          ctx.stroke();
+        }
 
         // Slide bar
         const railX = x - 30;
