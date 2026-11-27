@@ -1302,20 +1302,23 @@
 
         ctx.strokeStyle = rVal === 0 ? '#64748b' : '#fb7185';
         ctx.lineWidth = 2.8;
-        ctx.lineJoin = 'round';
-        ctx.beginPath();
-        ctx.moveTo(x, top);
+        ctx.lineJoin = 'miter';
         if (rVal === 0) {
+          ctx.beginPath();
+          ctx.moveTo(x, top);
           ctx.lineTo(x, bot);
+          ctx.stroke();
         } else {
-          const peaks = 6;
-          const step = h / (peaks + 1);
-          for (let i = 1; i <= peaks; i++) {
-            ctx.lineTo(x + (i % 2 === 1 ? -11 : 11), top + step * i);
-          }
-          ctx.lineTo(x, bot);
+          // Resistor symbol: rectangle with short leads
+          const rw = 20, rh = 42, ry = cy - rh / 2;
+          ctx.beginPath();
+          ctx.moveTo(x, top); ctx.lineTo(x, ry);
+          ctx.moveTo(x, ry + rh); ctx.lineTo(x, bot);
+          ctx.stroke();
+          ctx.fillStyle = '#121c30';
+          ctx.fillRect(x - rw / 2, ry, rw, rh);
+          ctx.strokeRect(x - rw / 2, ry, rw, rh);
         }
-        ctx.stroke();
 
         // High-contrast enlarged parameter pill for r and I·r
         const px = x + 16, py = cy - 26, pw = 112, ph = 52;
@@ -1526,30 +1529,18 @@
         ctx.fillStyle = '#080e1c';
         ctx.fillRect(x - 32, top - 4, 64, coilH + 8);
 
-        // Coil core
+        // Resistor symbol (rectangle). The length in use — from the top terminal down to
+        // the wiper — is shaded, so a longer shaded part means a larger R_rheo.
+        const rw = 24;
         ctx.fillStyle = '#1e293b';
-        ctx.strokeStyle = isHighlighted ? '#c4b5fd' : '#475569';
-        ctx.lineWidth = isHighlighted ? 2 : 1.5;
-        roundRect(ctx, x - 14, top, 28, coilH, 6);
-        ctx.fill();
-        ctx.stroke();
-
-        // Windings
-        const turns = 12;
-        const step = coilH / turns;
-        for (let i = 0; i < turns; i++) {
-          const yA = top + i * step + 3;
-          const yB = yA + step * 0.65;
-          const active = yA <= wiperY + 1;
-          ctx.strokeStyle = active
-            ? (isClosed ? '#a78bfa' : '#64748b')
-            : 'rgba(100, 116, 139, 0.34)';
-          ctx.lineWidth = active ? 2.5 : 1.6;
-          ctx.beginPath();
-          ctx.moveTo(x - 12, yA);
-          ctx.lineTo(x + 12, yB);
-          ctx.stroke();
-        }
+        ctx.fillRect(x - rw / 2, top, rw, coilH);
+        const activeH = Math.max(0, wiperY - top);
+        ctx.fillStyle = isClosed ? 'rgba(167, 139, 250, 0.55)' : 'rgba(100, 116, 139, 0.45)';
+        ctx.fillRect(x - rw / 2, top, rw, activeH);
+        ctx.strokeStyle = isHighlighted ? '#c4b5fd' : (isClosed ? '#a78bfa' : '#64748b');
+        ctx.lineWidth = isHighlighted ? 3 : 2.6;
+        ctx.lineJoin = 'miter';
+        ctx.strokeRect(x - rw / 2, top, rw, coilH);
 
         // Slide bar
         const railX = x - 30;
